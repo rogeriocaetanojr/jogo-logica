@@ -55,23 +55,19 @@ export class MainScene extends Phaser.Scene {
     this.physics.world.setBounds(0, 0, 2560, 720);
     this.cameras.main.setBounds(0, 0, 2560, 720);
 
-    // Textos de ambientação pelo mapa expandido
+    // HUD sutil e elegante fixo no topo (não flutua no meio do cenário)
     this.add
-      .text(640, 200, 'Terminal Hub - Conexao Estabelecida', {
-        fontSize: '28px',
-        color: '#58a6ff',
-        fontFamily: 'monospace',
-      })
-      .setOrigin(0.5);
-
-    this.add
-      .text(1175, 450, '// SETOR 1: O ABISMO DE RECURSAO (450px) //', {
-        fontSize: '18px',
+      .text(24, 18, '// SETOR 1: O ABISMO DE RECURSAO //', {
+        fontSize: '13px',
         color: '#ff4d4d',
         fontFamily: 'monospace',
+        backgroundColor: 'rgba(10, 15, 20, 0.7)',
+        padding: { x: 8, y: 4 },
       })
-      .setOrigin(0.5);
+      .setScrollFactor(0)
+      .setDepth(10);
 
+    // Marcador visual na margem segura após o abismo
     this.add
       .text(1650, 580, '✓ ZONA SEGURA: MARGEM OPOSTA ALCANCADA', {
         fontSize: '18px',
@@ -123,7 +119,7 @@ export class MainScene extends Phaser.Scene {
     // Identifica com qual totem o jogador está interagindo
     if (isNearPhysicsTotem) {
       this.currentInteractingTotem = 'physics';
-    } else if (isNearBarrierTotem) {
+    } else if (isNearBarrierTotem && this.barrier) {
       this.currentInteractingTotem = 'barrier';
     } else {
       this.currentInteractingTotem = null;
@@ -318,20 +314,22 @@ export class MainScene extends Phaser.Scene {
   }
 
   private createBarrier(): void {
-    if (!this.textures.exists('barrier')) {
+    // Barreira vertical completa (680px de altura, do topo Y = 0 até o chão Y = 680)
+    if (!this.textures.exists('barrier-tall')) {
       const g = this.make.graphics();
       g.fillStyle(0xff2a2a, 1);
-      g.fillRect(0, 0, 24, 120);
+      g.fillRect(0, 0, 24, 680);
       g.fillStyle(0xff7700, 0.85);
-      g.fillRect(4, 0, 16, 120);
+      g.fillRect(4, 0, 16, 680);
       g.fillStyle(0xffffff, 0.9);
-      g.fillRect(10, 0, 4, 120);
-      g.generateTexture('barrier', 24, 120);
+      g.fillRect(10, 0, 4, 680);
+      g.generateTexture('barrier-tall', 24, 680);
       g.destroy();
     }
 
     this.barriers = this.physics.add.staticGroup();
-    this.barrier = this.barriers.create(850, 620, 'barrier') as Phaser.Physics.Arcade.Sprite;
+    // Posição X = 850, centro Y = 340 (cobre de Y = 0 até Y = 680)
+    this.barrier = this.barriers.create(850, 340, 'barrier-tall') as Phaser.Physics.Arcade.Sprite;
     this.barrierCollider = this.physics.add.collider(this.player, this.barriers);
   }
 
@@ -339,6 +337,9 @@ export class MainScene extends Phaser.Scene {
     if (this.barrier) {
       this.barrier.destroy();
       this.barrier = undefined;
+    }
+    if (this.barriers) {
+      this.barriers.clear(true, true);
     }
     if (this.barrierCollider) {
       this.barrierCollider.destroy();
@@ -480,7 +481,14 @@ export class MainScene extends Phaser.Scene {
 
     // Adiciona log contextual específico ao abrir cada totem
     if (this.terminalOutput) {
-      if (totemType === 'physics') {
+      if (totemType === 'barrier') {
+        const info = document.createElement('div');
+        info.className = 'log-line info';
+        info.textContent =
+          "SISTEMA DE SEGURANÇA: execute 'barreira.desativar()' ou defina 'barreira = False'";
+        this.terminalOutput.appendChild(info);
+        this.terminalOutput.scrollTop = this.terminalOutput.scrollHeight;
+      } else if (totemType === 'physics') {
         const info = document.createElement('div');
         info.className = 'log-line info';
         info.textContent =

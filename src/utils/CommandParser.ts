@@ -14,24 +14,41 @@ export function parseCommand(input: string, _context?: any): CommandResult {
     };
   }
 
-  // Normaliza tirando ponto e virgula final e padronizando espacos
-  const normalized = raw.replace(/;+$/, '').trim().toLowerCase();
+  // Normaliza tirando ponto e virgula final, aspas e padronizando espacos
+  const normalized = raw
+    .replace(/;+$/, '')
+    .trim()
+    .toLowerCase();
 
   // Remove espacos ao redor do operador '=' para facilitar comparacao
   const compactAssignment = normalized.replace(/\s*=\s*/g, '=');
 
-  // 1. Comandos da Barreira
-  const barrierCommands = [
-    'porta.abrir()',
-    'barreira.desativar()',
-    'barreira=false',
-    'barreira.aberta=true',
-  ];
+  // 1. Comandos da Barreira (Super permissivo com suporte a Python/código/palavras-chave)
+  const isBarrierCommand =
+    compactAssignment === 'barreira.desativar()' ||
+    compactAssignment === 'barreira.desativar' ||
+    compactAssignment === 'porta.abrir()' ||
+    compactAssignment === 'porta.abrir' ||
+    compactAssignment === 'barreira=false' ||
+    compactAssignment === 'barreira=0' ||
+    compactAssignment === 'porta=true' ||
+    compactAssignment === 'porta=1' ||
+    compactAssignment === 'porta.aberta=true' ||
+    compactAssignment === 'barreira.aberta=true' ||
+    compactAssignment === 'barreira.ativa=false' ||
+    compactAssignment === 'abrir' ||
+    compactAssignment === 'abrir()' ||
+    compactAssignment === 'desativar' ||
+    compactAssignment === 'desativar()' ||
+    compactAssignment === 'desativar_barreira' ||
+    compactAssignment === 'desativar_barreira()' ||
+    compactAssignment === 'abrir_porta' ||
+    compactAssignment === 'abrir_porta()';
 
-  if (barrierCommands.includes(compactAssignment)) {
+  if (isBarrierCommand) {
     return {
       success: true,
-      message: '[SUCESSO] Barreira desativada na raça!',
+      message: '[SUCESSO] Barreira de laser desativada! Passagem liberada.',
       action: 'DISABLE_BARRIER',
     };
   }
