@@ -1,0 +1,9 @@
+body {
+  background-color: #0f141c;
+  margin: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  overflow: hidden;
+}
