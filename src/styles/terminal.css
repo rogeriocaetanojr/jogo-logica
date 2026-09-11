@@ -1,0 +1,130 @@
+#game-container {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.hidden {
+  display: none !important;
+}
+
+#terminal-overlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 640px;
+  height: 360px;
+  background: rgba(10, 15, 20, 0.95);
+  border: 2px solid #00ff66;
+  border-radius: 8px;
+  box-shadow: 0 0 25px rgba(0, 255, 102, 0.35), inset 0 0 15px rgba(0, 255, 102, 0.05);
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  font-family: 'Consolas', 'Courier New', monospace;
+  color: #e0e0e0;
+  z-index: 100;
+  overflow: hidden;
+  backdrop-filter: blur(4px);
+}
+
+.terminal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 14px;
+  background: rgba(0, 255, 102, 0.12);
+  border-bottom: 1px solid rgba(0, 255, 102, 0.4);
+  font-size: 13px;
+  font-weight: bold;
+  letter-spacing: 0.8px;
+  user-select: none;
+}
+
+.terminal-title {
+  color: #00ff66;
+  text-shadow: 0 0 5px rgba(0, 255, 102, 0.5);
+}
+
+.terminal-status {
+  color: #39ff14;
+  font-size: 11px;
+  letter-spacing: 1px;
+  animation: pulse-status 2s infinite ease-in-out;
+}
+
+@keyframes pulse-status {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+#terminal-output {
+  flex: 1;
+  padding: 12px 14px;
+  overflow-y: auto;
+  scroll-behavior: smooth;
+  font-size: 14px;
+  line-height: 1.5;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+#terminal-output::-webkit-scrollbar {
+  width: 6px;
+}
+
+#terminal-output::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+#terminal-output::-webkit-scrollbar-thumb {
+  background: rgba(0, 255, 102, 0.4);
+  border-radius: 3px;
+}
+
+.log-line {
+  word-break: break-word;
+}
+
+.log-line.info {
+  color: #94a3b8;
+}
+
+.terminal-input-row {
+  display: flex;
+  align-items: center;
+  padding: 10px 14px;
+  border-top: 1px solid rgba(0, 255, 102, 0.25);
+  background: rgba(5, 10, 15, 0.85);
+  gap: 8px;
+}
+
+.prompt {
+  color: #00ff66;
+  font-weight: bold;
+  font-size: 16px;
+  user-select: none;
+  text-shadow: 0 0 6px rgba(0, 255, 102, 0.7);
+}
+
+#terminal-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #00ff66;
+  font-family: inherit;
+  font-size: 14px;
+  caret-color: #00ff66;
+}
+
+#terminal-input::placeholder {
+  color: rgba(0, 255, 102, 0.4);
+}

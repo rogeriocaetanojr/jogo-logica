@@ -6,7 +6,28 @@
     <title>Jogo de Lógica</title>
   </head>
   <body>
-    <div id="game-container"></div>
+    <div id="game-container">
+      <div id="terminal-overlay" class="hidden">
+        <div class="terminal-header">
+          <span class="terminal-title">SISTEMA OPERACIONAL OG // TERMINAL V1.0</span>
+          <span class="terminal-status">[CONEXAO ATIVA]</span>
+        </div>
+        <div id="terminal-output">
+          <div class="log-line info">&gt; Terminal iniciado com sucesso.</div>
+          <div class="log-line info">&gt; Digite 'help' para listar os comandos disponiveis.</div>
+        </div>
+        <div class="terminal-input-row">
+          <span class="prompt">&gt;</span>
+          <input
+            id="terminal-input"
+            type="text"
+            autocomplete="off"
+            spellcheck="false"
+            placeholder="Digite um comando..."
+          />
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
