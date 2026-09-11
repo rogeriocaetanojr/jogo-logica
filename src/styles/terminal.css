@@ -97,6 +97,22 @@
   color: #94a3b8;
 }
 
+.log-line.command {
+  color: #00ff66;
+  font-weight: bold;
+}
+
+.log-line.success {
+  color: #38ef7d;
+  font-weight: bold;
+  text-shadow: 0 0 5px rgba(56, 239, 125, 0.4);
+}
+
+.log-line.error {
+  color: #ff4d4d;
+  text-shadow: 0 0 5px rgba(255, 77, 77, 0.4);
+}
+
 .terminal-input-row {
   display: flex;
   align-items: center;

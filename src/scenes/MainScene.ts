@@ -1,10 +1,15 @@
 import Phaser from 'phaser';
+import { parseCommand } from '../utils/CommandParser';
 
 export class MainScene extends Phaser.Scene {
   private platforms!: Phaser.Physics.Arcade.StaticGroup;
   private player!: Phaser.Physics.Arcade.Sprite;
   private totem!: Phaser.GameObjects.Image;
   private promptText!: Phaser.GameObjects.Text;
+  private barriers!: Phaser.Physics.Arcade.StaticGroup;
+  private barrier?: Phaser.Physics.Arcade.Sprite;
+  private barrierCollider?: Phaser.Physics.Arcade.Collider;
+
   private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
   private wasdKeys?: {
     left: Phaser.Input.Keyboard.Key;
@@ -19,6 +24,7 @@ export class MainScene extends Phaser.Scene {
 
   private isTerminalOpen: boolean = false;
   private terminalOverlay: HTMLElement | null = null;
+  private terminalOutput: HTMLElement | null = null;
   private terminalInput: HTMLInputElement | null = null;
 
   constructor() {
@@ -40,6 +46,7 @@ export class MainScene extends Phaser.Scene {
     this.createGround();
     this.createTotem();
     this.createPlayer();
+    this.createBarrier();
     this.setupControls();
     this.setupTerminal();
   }
@@ -157,6 +164,38 @@ export class MainScene extends Phaser.Scene {
       .setVisible(false);
   }
 
+  private createBarrier(): void {
+    if (!this.textures.exists('barrier')) {
+      const g = this.make.graphics();
+      // Retângulo vermelho/laranja neon de 24x120 pixels
+      g.fillStyle(0xff2a2a, 1);
+      g.fillRect(0, 0, 24, 120);
+      // Feixe de energia neon laranja no centro
+      g.fillStyle(0xff7700, 0.85);
+      g.fillRect(4, 0, 16, 120);
+      g.fillStyle(0xffffff, 0.9);
+      g.fillRect(10, 0, 4, 120);
+      g.generateTexture('barrier', 24, 120);
+      g.destroy();
+    }
+
+    this.barriers = this.physics.add.staticGroup();
+    // Posição X = 850, apoiado no chão (Y = 620)
+    this.barrier = this.barriers.create(850, 620, 'barrier') as Phaser.Physics.Arcade.Sprite;
+    this.barrierCollider = this.physics.add.collider(this.player, this.barriers);
+  }
+
+  private disableBarrier(): void {
+    if (this.barrier) {
+      this.barrier.destroy();
+      this.barrier = undefined;
+    }
+    if (this.barrierCollider) {
+      this.barrierCollider.destroy();
+      this.barrierCollider = undefined;
+    }
+  }
+
   private createPlayer(): void {
     if (!this.textures.exists('player')) {
       const g = this.make.graphics();
@@ -193,14 +232,17 @@ export class MainScene extends Phaser.Scene {
 
   private setupTerminal(): void {
     this.terminalOverlay = document.getElementById('terminal-overlay');
+    this.terminalOutput = document.getElementById('terminal-output');
     this.terminalInput = document.getElementById('terminal-input') as HTMLInputElement | null;
 
     if (this.terminalInput) {
-      // Impede que as teclas digitadas no input (como WASD, espaço, setas) afetem o Phaser
+      // Impede que as teclas digitadas no input afetem o Phaser e processa Enter / ESC
       this.terminalInput.addEventListener('keydown', (e: KeyboardEvent) => {
         e.stopPropagation();
         if (e.key === 'Escape') {
           this.closeTerminal();
+        } else if (e.key === 'Enter') {
+          this.handleCommandSubmit();
         }
       });
     }
@@ -211,6 +253,40 @@ export class MainScene extends Phaser.Scene {
         this.closeTerminal();
       }
     });
+  }
+
+  private handleCommandSubmit(): void {
+    if (!this.terminalInput) return;
+    const value = this.terminalInput.value;
+    if (!value.trim()) return;
+
+    const result = parseCommand(value);
+
+    if (this.terminalOutput) {
+      const cmdElement = document.createElement('div');
+      cmdElement.className = 'log-line command';
+      cmdElement.textContent = `> ${value}`;
+      this.terminalOutput.appendChild(cmdElement);
+
+      const respElement = document.createElement('div');
+      respElement.className = `log-line ${result.success ? 'success' : 'error'}`;
+      respElement.textContent = result.message;
+      this.terminalOutput.appendChild(respElement);
+
+      this.terminalOutput.scrollTop = this.terminalOutput.scrollHeight;
+    }
+
+    this.terminalInput.value = '';
+
+    if (result.success) {
+      if (result.action === 'DISABLE_BARRIER') {
+        this.disableBarrier();
+      }
+
+      setTimeout(() => {
+        this.closeTerminal();
+      }, 1000);
+    }
   }
 
   private openTerminal(): void {
