@@ -1,7 +1,5 @@
 import './style.css';
+import Phaser from 'phaser';
+import { config } from './config';
 
-const gameContainer = document.querySelector<HTMLDivElement>('#game-container');
-
-if (gameContainer) {
-  // Inicialização do jogo
-}
+new Phaser.Game(config);

@@ -1,5 +1,5 @@
 {
-  "name": "temp",
+  "name": "jogo-logica",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -11,5 +11,8 @@
   "devDependencies": {
     "typescript": "~6.0.2",
     "vite": "^8.3.0"
+  },
+  "dependencies": {
+    "phaser": "^4.2.1"
   }
 }
