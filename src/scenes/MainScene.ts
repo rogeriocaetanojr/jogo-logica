@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { parseCommand } from '../utils/CommandParser';
+import { DialogueSystem } from '../utils/DialogueSystem';
 
 export class MainScene extends Phaser.Scene {
   private platforms!: Phaser.Physics.Arcade.StaticGroup;
@@ -27,6 +28,8 @@ export class MainScene extends Phaser.Scene {
   private terminalOutput: HTMLElement | null = null;
   private terminalInput: HTMLInputElement | null = null;
 
+  private dialogueSystem!: DialogueSystem;
+
   constructor() {
     super('MainScene');
   }
@@ -49,10 +52,18 @@ export class MainScene extends Phaser.Scene {
     this.createBarrier();
     this.setupControls();
     this.setupTerminal();
+    this.setupDialogue();
   }
 
   update(): void {
     if (!this.player || !this.player.body) return;
+
+    // Se o diálogo estiver ativo, trava totalmente o jogador e esconde prompts
+    if (this.dialogueSystem && this.dialogueSystem.isActive) {
+      this.promptText.setVisible(false);
+      this.player.setVelocityX(0);
+      return;
+    }
 
     // Distância horizontal até o totem
     const dist = Math.abs(this.player.x - this.totem.x);
@@ -112,6 +123,30 @@ export class MainScene extends Phaser.Scene {
     if (!isJumpDown && this.player.body.velocity.y < -150) {
       this.player.setVelocityY(-150);
     }
+  }
+
+  private setupDialogue(): void {
+    this.dialogueSystem = new DialogueSystem();
+
+    // Bloqueia jogador e inicia diálogo introdutório
+    this.player.setVelocityX(0);
+    this.dialogueSystem.startDialogue([
+      {
+        speaker: 'MEGA BRAIN [IA SUPREMA]',
+        avatar: '🤖',
+        text: "Olha só... mais um 'desenvolvedor raiz' achando que vai me derrotar digitando sintaxe na mão.",
+      },
+      {
+        speaker: 'MEGA BRAIN [IA SUPREMA]',
+        avatar: '🤖',
+        text: 'Eu sou o MEGA BRAIN. Eu gerei 400 bibliotecas genéricas enquanto você dava um pulo.',
+      },
+      {
+        speaker: 'MEGA BRAIN [IA SUPREMA]',
+        avatar: '🤖',
+        text: 'Quer passar daquela barreira? Vai ter que usar a cabeça... se é que você lembra como se pensa sem um autocomplete.',
+      },
+    ]);
   }
 
   private createGround(): void {
@@ -290,6 +325,9 @@ export class MainScene extends Phaser.Scene {
   }
 
   private openTerminal(): void {
+    // Não abre o terminal se o diálogo estiver ativo
+    if (this.dialogueSystem && this.dialogueSystem.isActive) return;
+
     this.isTerminalOpen = true;
     this.player.setVelocityX(0);
 

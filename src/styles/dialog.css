@@ -1,0 +1,81 @@
+#dialog-overlay {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 820px;
+  min-height: 130px;
+  background: rgba(10, 12, 20, 0.95);
+  border: 2px solid #8b5cf6;
+  border-radius: 8px;
+  box-shadow:
+    0 0 25px rgba(139, 92, 246, 0.45),
+    inset 0 0 15px rgba(59, 130, 246, 0.15);
+  display: flex;
+  padding: 16px 20px;
+  gap: 16px;
+  box-sizing: border-box;
+  font-family: 'Consolas', 'Courier New', monospace;
+  z-index: 150;
+  backdrop-filter: blur(6px);
+  user-select: none;
+}
+
+#dialog-avatar {
+  width: 72px;
+  height: 72px;
+  border: 2px solid #00e5ff;
+  border-radius: 6px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 36px;
+  background: rgba(0, 229, 255, 0.08);
+  box-shadow: 0 0 12px rgba(0, 229, 255, 0.35);
+  flex-shrink: 0;
+}
+
+.dialog-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  justify-content: space-between;
+}
+
+#dialog-speaker {
+  font-size: 14px;
+  font-weight: bold;
+  color: #c084fc;
+  letter-spacing: 1px;
+  text-shadow: 0 0 8px rgba(192, 132, 252, 0.7);
+  margin-bottom: 6px;
+}
+
+#dialog-text {
+  font-size: 16px;
+  line-height: 1.5;
+  color: #f8fafc;
+  flex: 1;
+  min-height: 48px;
+  word-break: break-word;
+}
+
+.dialog-prompt {
+  align-self: flex-end;
+  font-size: 12px;
+  color: #00e5ff;
+  font-weight: bold;
+  letter-spacing: 1px;
+  text-shadow: 0 0 6px rgba(0, 229, 255, 0.6);
+  animation: blink-dialog-prompt 1.2s infinite ease-in-out;
+  margin-top: 4px;
+}
+
+@keyframes blink-dialog-prompt {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
