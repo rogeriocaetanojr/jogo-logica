@@ -8,6 +8,10 @@ export class MainScene extends Phaser.Scene {
     left: Phaser.Input.Keyboard.Key;
     right: Phaser.Input.Keyboard.Key;
   };
+  private jumpKeys?: {
+    w: Phaser.Input.Keyboard.Key;
+    space: Phaser.Input.Keyboard.Key;
+  };
 
   constructor() {
     super('MainScene');
@@ -33,6 +37,7 @@ export class MainScene extends Phaser.Scene {
   update(): void {
     if (!this.player || !this.player.body) return;
 
+    // Movimentação horizontal
     const isLeftDown =
       (this.cursors?.left.isDown ?? false) ||
       (this.wasdKeys?.left.isDown ?? false);
@@ -46,6 +51,24 @@ export class MainScene extends Phaser.Scene {
       this.player.setVelocityX(200);
     } else {
       this.player.setVelocityX(0);
+    }
+
+    // Pulo estilo Mega Man
+    const isJumpDown =
+      (this.cursors?.up.isDown ?? false) ||
+      (this.jumpKeys?.w.isDown ?? false) ||
+      (this.jumpKeys?.space.isDown ?? false);
+
+    const isGrounded =
+      this.player.body.blocked.down || this.player.body.touching.down;
+
+    if (isJumpDown && isGrounded) {
+      this.player.setVelocityY(-450);
+    }
+
+    // Pulo variável: cortar velocidade vertical se o jogador soltar o botão durante a subida
+    if (!isJumpDown && this.player.body.velocity.y < -150) {
+      this.player.setVelocityY(-150);
     }
   }
 
@@ -90,6 +113,10 @@ export class MainScene extends Phaser.Scene {
       this.wasdKeys = {
         left: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A),
         right: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D),
+      };
+      this.jumpKeys = {
+        w: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.W),
+        space: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE),
       };
     }
   }
