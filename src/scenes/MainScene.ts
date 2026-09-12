@@ -770,16 +770,27 @@ export class MainScene extends Phaser.Scene {
       totem: this.currentInteractingTotem ?? undefined,
     });
 
+    // Execução do comando clear / cls: limpa o terminal sem ecoar mensagens
+    if (result.action === 'CLEAR_TERMINAL') {
+      if (this.terminalOutput) {
+        this.terminalOutput.innerHTML = '';
+      }
+      this.terminalInput.value = '';
+      return;
+    }
+
     if (this.terminalOutput) {
       const cmdElement = document.createElement('div');
       cmdElement.className = 'log-line command';
       cmdElement.textContent = `> ${value}`;
       this.terminalOutput.appendChild(cmdElement);
 
-      const respElement = document.createElement('div');
-      respElement.className = `log-line ${result.success ? 'success' : 'error'}`;
-      respElement.textContent = result.message;
-      this.terminalOutput.appendChild(respElement);
+      if (result.message) {
+        const respElement = document.createElement('div');
+        respElement.className = `log-line ${result.success ? 'success' : 'error'}`;
+        respElement.textContent = result.message;
+        this.terminalOutput.appendChild(respElement);
+      }
 
       this.terminalOutput.scrollTop = this.terminalOutput.scrollHeight;
     }
@@ -810,6 +821,9 @@ export class MainScene extends Phaser.Scene {
     }
 
     if (this.terminalOutput) {
+      // Limpeza Inteligente: limpa logs anteriores para que o terminal sempre abra enxuto
+      this.terminalOutput.innerHTML = '';
+
       if (totemType === 'barrier') {
         const lines = [
           '=== SISTEMA HIDRÁULICO DO PISTÃO ===',
@@ -842,6 +856,7 @@ export class MainScene extends Phaser.Scene {
     }
 
     if (this.terminalInput) {
+      this.terminalInput.value = '';
       setTimeout(() => {
         this.terminalInput?.focus();
       }, 50);

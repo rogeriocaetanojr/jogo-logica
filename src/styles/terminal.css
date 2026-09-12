@@ -91,6 +91,7 @@
 
 .log-line {
   word-break: break-word;
+  white-space: pre-wrap;
 }
 
 .log-line.info {

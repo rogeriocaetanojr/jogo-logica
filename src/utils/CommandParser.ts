@@ -23,6 +23,42 @@ export function parseCommand(
     .trim()
     .toLowerCase();
 
+  // ==========================================
+  // COMANDOS DE SISTEMA: CLEAR / CLS / HELP
+  // ==========================================
+  if (
+    normalized === 'cls' ||
+    normalized === 'clear' ||
+    normalized === 'clear()' ||
+    normalized === 'cls()'
+  ) {
+    return {
+      success: true,
+      message: '',
+      action: 'CLEAR_TERMINAL',
+    };
+  }
+
+  if (
+    normalized === 'help' ||
+    normalized === 'ajuda' ||
+    normalized === 'help()' ||
+    normalized === 'ajuda()'
+  ) {
+    return {
+      success: true,
+      message:
+        '[COMANDOS DO SISTEMA]\n' +
+        '  clear / cls     - Limpa o histórico de mensagens da tela\n' +
+        '  help / ajuda    - Exibe esta lista de auxílio com os comandos\n' +
+        (context?.totem === 'barrier'
+          ? '  chave = 42      - Define a chave como tipo inteiro (int)\n  int("42")       - Converte o texto para número inteiro'
+          : context?.totem === 'electric'
+            ? '  resistencia = X - Define a resistência em Ohms (ex: resistencia = 1000)\n  circuito.desligar() - Corta a tensão elétrica'
+            : '  [DICA] Aproxime-se de um totem e pressione [E] para interagir com o terminal.'),
+    };
+  }
+
   // Remove espacos ao redor do operador '=' para facilitar comparacao
   const compactAssignment = normalized.replace(/\s*=\s*/g, '=');
 
