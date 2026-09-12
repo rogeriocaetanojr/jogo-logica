@@ -58,6 +58,16 @@ const MEGA_BRAIN_ERRORS = {
       "[GAP ERROR] Mega Brain: 'A física não negocia com preguiça mental. O vão continua maior do que o valor ridículo que você definiu.'",
       "[SPAN ERROR] Mega Brain: 'Se você tentar andar nessa esteira desse tamanho, o exaustor de ar lá embaixo vai cansar de te catar.'",
     ],
+    overflow: [
+      "[OVERFLOW ERROR] Mega Brain: 'Passou do ponto! Esse tamanho vai bater contra a parede do mezanino e quebrar os pistões. O vão mede exatamente 8 metros!'",
+      "[CALIBRATION ERROR] Mega Brain: 'Engenharia de precisão não tolera desperdício. O abismo mede 8 metros cravados, reduza essa medida.'",
+      "[PHYSICAL LIMIT] Mega Brain: 'A esteira encavalou na estrutura do outro lado por excesso de comprimento. Ajuste para a medida exata do sensor.'",
+    ],
+    bareNumber: [
+      "[BARE VALUE ERROR] Mega Brain: 'Jogar um número solto no console não atribui nada a lugar nenhum. Cadê a variável da esteira e o operador de atribuição?'",
+      "[SYNTAX ERROR] Mega Brain: 'Você acha que a máquina adivinha onde enfiar esse número? Atribua o valor à variável: nome = valor!'",
+      "[LAZY DEV ERROR] Mega Brain: 'Digitar só o número é preguiça demais. Isso é Python, não calculadora de padaria. Use a variável do painel.'",
+    ],
     typeError: [
       "[TYPE ERROR] Mega Brain: 'Você mandou um texto com aspas pro motor hidráulico. Engrenagens operam com números inteiros, não com redação.'",
       "[TYPE ERROR] Mega Brain: 'Aspas numa variável de comprimento físico? Nem a inteligência artificial mais queimada faria isso.'",
@@ -247,15 +257,21 @@ export function parseCommand(
   const isBridgeTarget =
     context?.totem === 'bridge' ||
     compactAssignment.startsWith('tamanho_ponte=') ||
-    compactAssignment.startsWith('tamanho=') ||
-    compactAssignment.startsWith('ponte=') ||
-    compactAssignment.startsWith('esteira=') ||
-    compactAssignment.startsWith('tamanho_esteira=');
+    compactAssignment.startsWith('ponte=');
 
   if (isBridgeTarget) {
-    // 1. Strings com aspas (ex: "8", 'oito', tamanho_ponte = "8", etc.)
+    // 1. Número solto sem variável (ex: "8", "9", "10")
+    const isBareNumber = /^-?\d+(?:\.\d+)?$/.test(compactAssignment);
+    if (isBareNumber) {
+      return {
+        success: false,
+        message: getNonRepeatingError('d2_bare_number', MEGA_BRAIN_ERRORS.challenge2.bareNumber),
+      };
+    }
+
+    // 2. Strings com aspas (ex: "8", 'oito', tamanho_ponte = "8", ponte = "8", etc.)
     const stringQuoteMatch = compactAssignment.match(
-      /^(?:(?:tamanho_ponte|tamanho|ponte|esteira|tamanho_esteira)=)?['"][^'"]*['"]$/
+      /^(?:(?:tamanho_ponte|ponte)=)?['"][^'"]*['"]$/
     );
 
     if (stringQuoteMatch) {
@@ -265,33 +281,37 @@ export function parseCommand(
       };
     }
 
-    // 2. Valores numéricos inteiros
-    const numMatch = compactAssignment.match(
-      /^(?:(?:tamanho_ponte|tamanho|ponte|esteira|tamanho_esteira)=)?(-?\d+(?:\.\d+)?)$/
-    );
+    // 3. Atribuição numérica estrita: tamanho_ponte = X ou ponte = X
+    const strictMatch = compactAssignment.match(/^(?:tamanho_ponte|ponte)=(-?\d+(?:\.\d+)?)$/);
 
-    if (numMatch) {
-      const val = parseFloat(numMatch[1]);
-      if (val < 8) {
+    if (strictMatch) {
+      const val = parseFloat(strictMatch[1]);
+      if (val === 8) {
+        return {
+          success: true,
+          message:
+            '[SUCESSO] Pistões pressurizados! Esteira expandida exatamente para a margem oposta.',
+          action: 'EXPAND_BRIDGE',
+          value: 8,
+        };
+      } else if (val < 8) {
         return {
           success: false,
           message: getNonRepeatingError('d2_underflow', MEGA_BRAIN_ERRORS.challenge2.underflow),
         };
       } else {
         return {
-          success: true,
-          message: '[SUCESSO] Pistões pressurizados! Esteira expandida para a margem oposta.',
-          action: 'EXPAND_BRIDGE',
-          value: val,
+          success: false,
+          message: getNonRepeatingError('d2_overflow', MEGA_BRAIN_ERRORS.challenge2.overflow),
         };
       }
     }
 
-    // 3. Erro de sintaxe genérico
+    // 4. Erro de sintaxe genérico
     return {
       success: false,
       message:
-        "[SYNTAX ERROR] Mega Brain: 'Instrução sem pé nem cabeça. Declare a variável com um valor inteiro válido.'",
+        "[SYNTAX ERROR] Mega Brain: 'Instrução sem pé nem cabeça. Declare a variável com um valor inteiro válido: tamanho_ponte = X.'",
     };
   }
 
