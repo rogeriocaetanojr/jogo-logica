@@ -50,10 +50,15 @@ export class MainScene extends Phaser.Scene {
   private terminalOutput: HTMLElement | null = null;
   private terminalInput: HTMLInputElement | null = null;
 
-  private dialogueSystem!: DialogueSystem;
+  private dialogueSystem?: DialogueSystem;
+  private isBootingSequence: boolean = false;
 
   constructor() {
     super('MainScene');
+  }
+
+  init(data?: { isBooting?: boolean }): void {
+    this.isBootingSequence = data?.isBooting ?? false;
   }
 
   create(): void {
@@ -70,7 +75,15 @@ export class MainScene extends Phaser.Scene {
     this.createHydraulicGate();
     this.setupControls();
     this.setupTerminal();
-    this.setupDialogue();
+
+    if (this.isBootingSequence) {
+      this.player.setVelocity(0, 0);
+      const gameContainer = document.getElementById('game-container');
+      gameContainer?.classList.add('blur-active');
+      this.openBootTerminal();
+    } else {
+      this.setupDialogue();
+    }
 
     // Câmera segue o jogador suavemente
     this.cameras.main.startFollow(this.player, true, 0.08, 0.08);
@@ -78,6 +91,12 @@ export class MainScene extends Phaser.Scene {
 
   update(): void {
     if (!this.player || !this.player.body) return;
+
+    // Se estiver no ritual de boot, trava completamente o jogador
+    if (this.isBootingSequence) {
+      this.player.setVelocityX(0);
+      return;
+    }
 
     // Se o diálogo estiver ativo, trava totalmente o jogador e esconde prompts
     if (this.dialogueSystem && this.dialogueSystem.isActive) {
@@ -803,6 +822,7 @@ export class MainScene extends Phaser.Scene {
 
     const result = parseCommand(value, {
       totem: this.currentInteractingTotem ?? undefined,
+      scene: this.isBootingSequence ? 'boot' : 'main',
     });
 
     // Execução do comando clear / cls: limpa o terminal sem ecoar mensagens
@@ -833,15 +853,62 @@ export class MainScene extends Phaser.Scene {
     this.terminalInput.value = '';
 
     if (result.success) {
-      if (result.action === 'DISABLE_BARRIER') {
+      if (result.action === 'BOOT_SUCCESS') {
+        setTimeout(() => {
+          this.isBootingSequence = false;
+          this.closeTerminal();
+          const gameContainer = document.getElementById('game-container');
+          gameContainer?.classList.remove('blur-active');
+          this.setupDialogue();
+        }, 1200);
+      } else if (result.action === 'DISABLE_BARRIER') {
         this.disableBarrier();
+        setTimeout(() => {
+          this.closeTerminal();
+        }, 1000);
       } else if (result.action === 'DISABLE_SHOCK') {
         this.disableShockZone();
+        setTimeout(() => {
+          this.closeTerminal();
+        }, 1000);
       }
+    }
+  }
 
+  private openBootTerminal(): void {
+    this.isTerminalOpen = true;
+    this.player.setVelocityX(0);
+
+    if (this.terminalOverlay) {
+      this.terminalOverlay.classList.remove('hidden');
+    }
+
+    if (this.terminalOutput) {
+      this.terminalOutput.innerHTML = '';
+
+      const ritualLines = [
+        '=== TERMINAL ZERO // PROTOCOLO DE RECONEXÃO COGNITIVA ===',
+        '> KERNEL DESCONECTADO. O mundo físico precisa de uma instrução primordial para compilar.',
+        '> SINTAXE REQUERIDA: print(\'...\') ou print("...")',
+        '> ENIGMA: Todo estudante de programação escreve essas exatas duas palavras (em inglês e com pontuação) no seu primeiro dia de aula para saudar o mundo e afastar a maldição.',
+        '> Digite a instrução:',
+      ];
+
+      ritualLines.forEach((text) => {
+        const line = document.createElement('div');
+        line.className = 'log-line info';
+        line.textContent = text;
+        this.terminalOutput?.appendChild(line);
+      });
+
+      this.terminalOutput.scrollTop = this.terminalOutput.scrollHeight;
+    }
+
+    if (this.terminalInput) {
+      this.terminalInput.value = '';
       setTimeout(() => {
-        this.closeTerminal();
-      }, 1000);
+        this.terminalInput?.focus();
+      }, 50);
     }
   }
 
@@ -899,6 +966,8 @@ export class MainScene extends Phaser.Scene {
   }
 
   private closeTerminal(): void {
+    if (this.isBootingSequence) return; // Não fecha o terminal até o kernel ser instanciado
+
     this.isTerminalOpen = false;
 
     if (this.terminalOverlay) {

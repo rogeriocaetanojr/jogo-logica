@@ -56,18 +56,19 @@ export class BootScene extends Phaser.Scene {
       });
     });
 
-    const startMainScene = () => {
+    const startMainSceneBoot = () => {
       if (this.hasTransitioned) return;
       this.hasTransitioned = true;
-      this.cameras.main.fade(300, 0, 0, 0);
-      this.time.delayedCall(300, () => {
-        this.scene.start('MainScene');
+      this.cameras.main.fade(200, 0, 0, 0);
+      this.time.delayedCall(200, () => {
+        this.scene.start('MainScene', { isBooting: true });
       });
     };
 
     if (this.input.keyboard) {
-      this.input.keyboard.once('keydown', startMainScene);
+      this.input.keyboard.once('keydown', startMainSceneBoot);
     }
-    this.input.once('pointerdown', startMainScene);
+    this.input.once('pointerdown', startMainSceneBoot);
   }
 }
+

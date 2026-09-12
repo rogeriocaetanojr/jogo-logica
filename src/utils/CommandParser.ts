@@ -7,7 +7,10 @@ export interface CommandResult {
 
 export function parseCommand(
   input: string,
-  context?: { totem?: 'barrier' | 'electric' }
+  context?: {
+    totem?: 'barrier' | 'electric';
+    scene?: 'boot' | 'main';
+  }
 ): CommandResult {
   const raw = input.trim();
   if (!raw) {
@@ -51,11 +54,54 @@ export function parseCommand(
         '[COMANDOS DO SISTEMA]\n' +
         '  clear / cls     - Limpa o histórico de mensagens da tela\n' +
         '  help / ajuda    - Exibe esta lista de auxílio com os comandos\n' +
-        (context?.totem === 'barrier'
-          ? '  chave = 42      - Define a chave como tipo inteiro (int)\n  int("42")       - Converte o texto para número inteiro'
-          : context?.totem === 'electric'
-            ? '  resistencia = X - Define a resistência em Ohms (ex: resistencia = 1000)\n  circuito.desligar() - Corta a tensão elétrica'
-            : '  [DICA] Aproxime-se de um totem e pressione [E] para interagir com o terminal.'),
+        (context?.scene === 'boot'
+          ? '  print(\'...\')    - Envia a instrução de texto para instanciar o kernel'
+          : context?.totem === 'barrier'
+            ? '  chave = 42      - Define a chave como tipo inteiro (int)\n  int("42")       - Converte o texto para número inteiro'
+            : context?.totem === 'electric'
+              ? '  resistencia = X - Define a resistência em Ohms (ex: resistencia = 1000)\n  circuito.desligar() - Corta a tensão elétrica'
+              : '  [DICA] Aproxime-se de um totem e pressione [E] para interagir com o terminal.'),
+    };
+  }
+
+  // ==========================================
+  // RITUAL DE BOOT: HELLO WORLD
+  // ==========================================
+  const helloWorldMatch = normalized.match(
+    /^print\s*\(\s*(['"])\s*hello\s+world(!?)\s*\1\s*\)$/
+  );
+
+  if (helloWorldMatch) {
+    return {
+      success: true,
+      message:
+        'Hello World!\n[SUCESSO] Kernel instanciado! Materializando O Lixão dos Scripts Esquecidos...',
+      action: 'BOOT_SUCCESS',
+    };
+  }
+
+  // 1. Detecção de sintaxe de Python 2 antiga (sem parênteses)
+  const isPython2Print = /^print\s+['"].*$/.test(normalized);
+  if (isPython2Print) {
+    return {
+      success: false,
+      message:
+        "[DEPRECATED ERROR] Mega Brain: 'Parenteses sumiram? Essa sintaxe morreu em 2020 junto com a capacidade humana de ler documentação.'",
+    };
+  }
+
+  // 2. Se o jogador estiver na tela de boot ou tentou usar print/hello/world com sintaxe errada
+  const isBootOrHelloAttempt =
+    context?.scene === 'boot' ||
+    normalized.includes('hello') ||
+    normalized.includes('world') ||
+    normalized.startsWith('print');
+
+  if (isBootOrHelloAttempt) {
+    return {
+      success: false,
+      message:
+        "[SYNTAX ERROR] Mega Brain: 'Sério? Você não consegue nem dar um Hello World sem a IA autocompletar para você? Lembre-se da sintaxe: print(\\'...\\') com parênteses e aspas!'",
     };
   }
 
