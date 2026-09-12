@@ -5,6 +5,81 @@ export interface CommandResult {
   value?: number;
 }
 
+const lastErrorIndexMap: Record<string, number> = {};
+
+function getNonRepeatingError(poolKey: string, errors: string[]): string {
+  if (errors.length <= 1) return errors[0] || '';
+
+  const lastIndex = lastErrorIndexMap[poolKey] ?? -1;
+  let nextIndex: number;
+
+  // Sorteia até encontrar um índice diferente do anterior
+  do {
+    nextIndex = Math.floor(Math.random() * errors.length);
+  } while (nextIndex === lastIndex);
+
+  lastErrorIndexMap[poolKey] = nextIndex;
+  return errors[nextIndex];
+}
+
+// Pools de mensagens de erro randômicas do Mega Brain
+const MEGA_BRAIN_ERRORS = {
+  challenge0: {
+    syntax: [
+      "[SYNTAX ERROR] Mega Brain: 'Sério? Nem um print básico sem IA autocompletar pra você? Use parênteses e aspas direito!'",
+      "[SYNTAX ERROR] Mega Brain: 'O teclado tem mais teclas do que você consegue coordenar? É a saudação universal de todo novato: print com parênteses e aspas.'",
+      "[SYNTAX ERROR] Mega Brain: 'Seu código parece um tropeço físico no teclado. Escreva a instrução clássica de abertura da programação.'",
+      "[SYNTAX ERROR] Mega Brain: 'Errar o Hello World é um marco histórico. Tente digitar a função de saída padrão com as duas palavras clássicas.'",
+    ],
+    deprecated: [
+      "[DEPRECATED ERROR] Mega Brain: 'Parênteses sumiram? Essa sintaxe morreu em 2020 junto com a paciência de quem lê código legado.'",
+      "[DEPRECATED ERROR] Mega Brain: 'Viajou no tempo direto de 2005? Em Python moderno a função exige parênteses envolventes.'",
+      "[DEPRECATED ERROR] Mega Brain: 'Isso aqui não é fórum arqueológico de Python 2. Coloque parênteses nessa chamada!'",
+    ],
+  },
+  challenge1: {
+    generic: [
+      "[SYNTAX ERROR] Mega Brain: 'Instrução sem sentido. Circuitos não ligam com fé, precisam do estado lógico afirmativo atribuído à variável!'",
+      "[SYNTAX ERROR] Mega Brain: 'Você bateu a cabeça no teclado ou achou que isso era feitiço? Atribua o estado binário correto.'",
+      "[SYNTAX ERROR] Mega Brain: 'O galpão continua nas trevas porque seu comando não expressa verdade lógica nenhuma.'",
+      "[SYNTAX ERROR] Mega Brain: 'Desse jeito a bateria da sua lanterna acaba antes de você acertar uma atribuição lógica simples.'",
+    ],
+    typeMismatch: [
+      "[TYPE MISMATCH] Mega Brain: 'Aqui não aceitamos gambiarra de inteiro solto nem poesia em aspas. Booleano raiz em Python se escreve por extenso!'",
+      "[TYPE MISMATCH] Mega Brain: 'Tentar alimentar um relé magnético com texto aleatório é motivo de demissão sumária.'",
+      "[TYPE MISMATCH] Mega Brain: 'Tipo primitivo incorreto. No mundo binário só existem dois literais, e nenhum deles precisa de aspas.'",
+      "[TYPE MISMATCH] Mega Brain: 'Valores numéricos e strings rejeitados pelo circuito. Mude para a palavra-chave booleana verdadeira.'",
+    ],
+  },
+  challenge2: {
+    underflow: [
+      "[UNDERFLOW ERROR] Mega Brain: 'Sua esteira continuou curta e despencou no vácuo. Vai continuar chutando número no escuro?'",
+      "[CALCULATION ERROR] Mega Brain: 'Faltou braço pro pistão alcançar a margem. Olhe as leituras antes de digitar qualquer bobagem.'",
+      "[GAP ERROR] Mega Brain: 'A física não negocia com preguiça mental. O vão continua maior do que o valor ridículo que você definiu.'",
+      "[SPAN ERROR] Mega Brain: 'Se você tentar andar nessa esteira desse tamanho, o exaustor de ar lá embaixo vai cansar de te catar.'",
+    ],
+    typeError: [
+      "[TYPE ERROR] Mega Brain: 'Você mandou um texto com aspas pro motor hidráulico. Engrenagens operam com números inteiros, não com redação.'",
+      "[TYPE ERROR] Mega Brain: 'Aspas numa variável de comprimento físico? Nem a inteligência artificial mais queimada faria isso.'",
+      "[TYPE ERROR] Mega Brain: 'Pistões industriais não analisam prosa. Tire essas aspas e envie uma grandeza numérica.'",
+    ],
+  },
+  challenge3: {
+    reverseOrder: [
+      "[INVERTED SEQUENCE ERROR] Mega Brain: ''FailMega'? Strings não são conta de adição comutativa onde a ordem não importa. Respeite a sequência dos fragmentos!'",
+      "[ORDER ERROR] Mega Brain: 'Você montou a chave de trás pra frente. Tente juntar na ordem cronológica que os registradores exibem.'",
+      "[SEQUENCE MISMATCH] Mega Brain: 'Chave invertida rejeitada pelo elevador. O primeiro fragmento vem antes do segundo, gênio.'",
+      "[SYNTAX ORDER] Mega Brain: 'Quem lê da direita para a esquerda é outro tipo de compilador. Coloque parte1 antes de parte2.'",
+    ],
+    syntaxOrType: [
+      "[NAME ERROR] Mega Brain: 'Identificadores não encontrados. Ou você utiliza os nomes exatos das variáveis fragmentadas, ou concatena os textos literais entre aspas.'",
+      "[TYPE ERROR] Mega Brain: 'Misturar texto com aritmética sem sentido quebrou o interpretador. Concatene os dois fragmentos usando o operador adequado!'",
+      "[SECURITY REJECTED] Mega Brain: 'Acesso negado. O barramento exige a soma textual das duas metades fornecidas na tela.'",
+      "[ELEVATOR LOCKED] Mega Brain: 'O guincho continua travado no teto. Junte as duas metades da chave em uma variável só.'",
+    ],
+  },
+};
+
 export function parseCommand(
   input: string,
   context?: {
@@ -91,8 +166,7 @@ export function parseCommand(
   if (isPython2Print) {
     return {
       success: false,
-      message:
-        "[DEPRECATED ERROR] Mega Brain: 'Parenteses sumiram? Essa sintaxe morreu em 2020 junto com a capacidade humana de ler documentação.'",
+      message: getNonRepeatingError('d0_deprecated', MEGA_BRAIN_ERRORS.challenge0.deprecated),
     };
   }
 
@@ -106,8 +180,7 @@ export function parseCommand(
   if (isBootOrHelloAttempt) {
     return {
       success: false,
-      message:
-        "[SYNTAX ERROR] Mega Brain: 'Sério? Você não consegue nem dar um Hello World sem a IA autocompletar para você? Lembre-se da sintaxe: print(\\'...\\') com parênteses e aspas!'",
+      message: getNonRepeatingError('d0_syntax', MEGA_BRAIN_ERRORS.challenge0.syntax),
     };
   }
 
@@ -130,33 +203,23 @@ export function parseCommand(
     };
   }
 
-  // 2. Erro de Tipo: Números (ex: energia = 1)
+  // 2. Erro de Tipo: Números (ex: energia = 1) ou Strings (ex: energia = "ligada")
   const isPowerNumber =
     /^energia=\d+$/.test(compactAssignment) ||
     (context?.totem === 'power' && /^\d+$/.test(compactAssignment));
 
-  if (isPowerNumber) {
-    return {
-      success: false,
-      message:
-        "[TYPE MISMATCH] Mega Brain: 'Um bit numérico? Aqui usamos Python moderno, novato. Booleano raiz se escreve por extenso com inicial maiúscula!'",
-    };
-  }
-
-  // 3. Erro de Tipo: Strings (ex: energia = "ligada" ou 'ligada')
   const isPowerString =
     /^energia=['"][^'"]*['"]$/.test(compactAssignment) ||
     (context?.totem === 'power' && /^['"][^'"]*['"]$/.test(compactAssignment));
 
-  if (isPowerString) {
+  if (isPowerNumber || isPowerString) {
     return {
       success: false,
-      message:
-        "[TYPE ERROR] Mega Brain: 'Jogou um texto no circuito e esperava o quê? Uma lâmpada de poesia? Use valores lógicos literais!'",
+      message: getNonRepeatingError('d1_typeMismatch', MEGA_BRAIN_ERRORS.challenge1.typeMismatch),
     };
   }
 
-  // 4. Sucesso: energia = True ou energia = true
+  // 3. Sucesso: energia = True ou energia = true
   const isPowerSuccess =
     compactAssignment === 'energia=true' ||
     (context?.totem === 'power' && compactAssignment === 'true');
@@ -174,8 +237,7 @@ export function parseCommand(
   if (context?.totem === 'power' || compactAssignment.startsWith('energia=')) {
     return {
       success: false,
-      message:
-        "[SYNTAX ERROR] Mega Brain: 'Instrução completamente sem sentido. Você acha que circuitos elétricos funcionam na base do teclado aleatório? Atribua o estado lógico correto para a variável do painel.'",
+      message: getNonRepeatingError('d1_invalid', MEGA_BRAIN_ERRORS.challenge1.generic),
     };
   }
 
@@ -199,8 +261,7 @@ export function parseCommand(
     if (stringQuoteMatch) {
       return {
         success: false,
-        message:
-          "[TYPE ERROR] Mega Brain: 'Você digitou texto com aspas num pistão mecânico. A física não lê literatura.'",
+        message: getNonRepeatingError('d2_typeError', MEGA_BRAIN_ERRORS.challenge2.typeError),
       };
     }
 
@@ -214,8 +275,7 @@ export function parseCommand(
       if (val < 8) {
         return {
           success: false,
-          message:
-            "[UNDERFLOW ERROR] Mega Brain: 'Tentando saltar para a morte? A esteira continua curta e o chão lá embaixo está te esperando.'",
+          message: getNonRepeatingError('d2_underflow', MEGA_BRAIN_ERRORS.challenge2.underflow),
         };
       } else {
         return {
@@ -280,37 +340,14 @@ export function parseCommand(
     if (isReverseOrder) {
       return {
         success: false,
-        message:
-          "[INVERTED SEQUENCE ERROR] Mega Brain: ''FailMega'? Sério? Strings não são adição de matemática básica onde a ordem dos fatores não altera o produto. Junte na ordem cronológica correta dos fragmentos!'",
+        message: getNonRepeatingError('d3_inverted', MEGA_BRAIN_ERRORS.challenge3.reverseOrder),
       };
     }
 
-    // 3. Erro de Tipo: tentar somar números com texto (ex: parte1 + 2)
-    const hasNumbers = /\d/.test(expr);
-    if (hasNumbers) {
-      return {
-        success: false,
-        message:
-          "[TYPE ERROR] Mega Brain: 'Tentando misturar texto com aritmética de padaria? Concatenação exige strings compatíveis.'",
-      };
-    }
-
-    // 3. Erro de Nome: esqueceu aspas ou identificador não definido (ex: Mega + Fail, mega + fail, MegaFail sem aspas)
-    const hasQuotes = /['"]/.test(expr);
-    const hasKeywords = expr.includes('mega') || expr.includes('fail');
-    if (!hasQuotes && hasKeywords) {
-      return {
-        success: false,
-        message:
-          "[NAME ERROR] Mega Brain: 'Identificadores não definidos. Ou você usa as variáveis declaradas no terminal, ou coloca aspas nas palavras literais.'",
-      };
-    }
-
-    // 4. Comando sem sentido / segurança negada (ex: senha = "abrir", texto aleatório, etc.)
+    // 3. Demais erros de Sintaxe, Variável ou Tipos do Desafio 3
     return {
       success: false,
-      message:
-        "[SECURITY DENIED] Mega Brain: 'Acesso negado. Essa senha não combina com os registradores corrompidos na tela.'",
+      message: getNonRepeatingError('d3_syntaxOrType', MEGA_BRAIN_ERRORS.challenge3.syntaxOrType),
     };
   }
 
