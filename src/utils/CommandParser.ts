@@ -5,7 +5,10 @@ export interface CommandResult {
   value?: number;
 }
 
-export function parseCommand(input: string, _context?: any): CommandResult {
+export function parseCommand(
+  input: string,
+  context?: { totem?: 'barrier' | 'physics' }
+): CommandResult {
   const raw = input.trim();
   if (!raw) {
     return {
@@ -14,7 +17,7 @@ export function parseCommand(input: string, _context?: any): CommandResult {
     };
   }
 
-  // Normaliza tirando ponto e virgula final, aspas e padronizando espacos
+  // Normaliza tirando ponto e virgula final e padronizando espacos
   const normalized = raw
     .replace(/;+$/, '')
     .trim()
@@ -23,37 +26,52 @@ export function parseCommand(input: string, _context?: any): CommandResult {
   // Remove espacos ao redor do operador '=' para facilitar comparacao
   const compactAssignment = normalized.replace(/\s*=\s*/g, '=');
 
-  // 1. Comandos da Barreira (Super permissivo com suporte a Python/código/palavras-chave)
-  const isBarrierCommand =
-    compactAssignment === 'barreira.desativar()' ||
-    compactAssignment === 'barreira.desativar' ||
-    compactAssignment === 'porta.abrir()' ||
-    compactAssignment === 'porta.abrir' ||
-    compactAssignment === 'barreira=false' ||
-    compactAssignment === 'barreira=0' ||
-    compactAssignment === 'porta=true' ||
-    compactAssignment === 'porta=1' ||
-    compactAssignment === 'porta.aberta=true' ||
-    compactAssignment === 'barreira.aberta=true' ||
-    compactAssignment === 'barreira.ativa=false' ||
-    compactAssignment === 'abrir' ||
-    compactAssignment === 'abrir()' ||
-    compactAssignment === 'desativar' ||
-    compactAssignment === 'desativar()' ||
-    compactAssignment === 'desativar_barreira' ||
-    compactAssignment === 'desativar_barreira()' ||
-    compactAssignment === 'abrir_porta' ||
-    compactAssignment === 'abrir_porta()';
+  // 1. Verificação de ERRO DE TIPO (uso de aspas para representar números)
+  const isStringError =
+    compactAssignment === '"42"' ||
+    compactAssignment === "'42'" ||
+    compactAssignment === '"int"' ||
+    compactAssignment === "'int'" ||
+    compactAssignment === 'chave="42"' ||
+    compactAssignment === "chave='42'" ||
+    compactAssignment === 'chave_seguranca="42"' ||
+    compactAssignment === "chave_seguranca='42'" ||
+    compactAssignment === 'tipo="int"' ||
+    compactAssignment === "tipo='int'";
 
-  if (isBarrierCommand) {
+  if (isStringError) {
+    return {
+      success: false,
+      message:
+        '[ERRO DE TIPO] Você acabou de mandar um texto com o desenho do número. Aspas são para TEXTO, gênio da computação! O pistão precisa de um INTEIRO sem aspas.',
+    };
+  }
+
+  // 2. Comandos de Sucesso para a Comporta Hidráulica (Conversão de tipo)
+  const isGateSuccess =
+    compactAssignment === 'chave=42' ||
+    compactAssignment === 'chave_seguranca=42' ||
+    compactAssignment === 'int("42")' ||
+    compactAssignment === "int('42')" ||
+    compactAssignment === 'int(42)' ||
+    compactAssignment === 'tipo=int' ||
+    compactAssignment === 'tipo=integer' ||
+    compactAssignment === 'int' ||
+    compactAssignment === 'chave=int("42")' ||
+    compactAssignment === "chave=int('42')" ||
+    compactAssignment === 'chave_seguranca=int("42")' ||
+    compactAssignment === "chave_seguranca=int('42')";
+
+  if (isGateSuccess) {
     return {
       success: true,
-      message: '[SUCESSO] Barreira de laser desativada! Passagem liberada.',
+      message:
+        '[SUCESSO] Tipo convertido para INT com sucesso! Pistão reconheceu a massa 42kg. Comporta destravada.',
       action: 'DISABLE_BARRIER',
     };
   }
 
-  // 2. Manipulação de Gravidade (ex: gravidade = 250, gravidade_mundo = 200)
+  // 3. Manipulação de Gravidade (Totem 2 - Física)
   const gravityMatch = compactAssignment.match(
     /^(?:gravidade|gravidade_mundo|gravity)=(\d+(?:\.\d+)?)$/
   );
@@ -79,7 +97,7 @@ export function parseCommand(input: string, _context?: any): CommandResult {
     }
   }
 
-  // 3. Manipulação da Força de Pulo (ex: forca_pulo = 600, player.jump_force = 650)
+  // 4. Manipulação da Força de Pulo (Totem 2 - Física)
   const jumpMatch = compactAssignment.match(
     /^(?:forca_pulo|forca_do_pulo|jump_force|player\.jump_force)=(\d+(?:\.\d+)?)$/
   );
@@ -105,18 +123,23 @@ export function parseCommand(input: string, _context?: any): CommandResult {
     }
   }
 
-  // Zombarias ácidas do Mega Brain em caso de comando desconhecido
-  const taunts = [
-    "[ERRO 400] Mega Brain: 'Sintaxe horrivel. Nem minha IA generativa mais barata geraria esse lixo.'",
-    "[ERRO 404] Comando nao reconhecido. Tente usar a cabeca em vez do autocomplete.",
-    "[ERRO 500] Mega Brain: 'Tentativa patetica. O firewall nem sentiu cosquinha.'",
-    "[ERRO 422] Mega Brain: 'Defina a variavel corretamente. O compilador chorou ao ler isso.'",
-  ];
+  // 5. Se o jogador estiver no Totem de Física e digitar comando inválido
+  if (context?.totem === 'physics') {
+    const taunts = [
+      "[ERRO 400] Mega Brain: 'Sintaxe horrivel. Nem minha IA generativa mais barata geraria esse lixo.'",
+      "[ERRO 404] Comando nao reconhecido. Altere 'gravidade = 250' ou 'forca_pulo = 600'.",
+      "[ERRO 500] Mega Brain: 'Tentativa patetica. O firewall nem sentiu cosquinha.'",
+    ];
+    return {
+      success: false,
+      message: taunts[Math.floor(Math.random() * taunts.length)],
+    };
+  }
 
-  const randomTaunt = taunts[Math.floor(Math.random() * taunts.length)];
-
+  // Padrão para a comporta
   return {
     success: false,
-    message: randomTaunt,
+    message:
+      '[ERRO DE SINTAXE] Variável inválida. Defina \'chave = 42\' ou use a função \'int("42")\'.',
   };
 }

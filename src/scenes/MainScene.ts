@@ -7,7 +7,7 @@ export class MainScene extends Phaser.Scene {
   private spikes!: Phaser.Physics.Arcade.StaticGroup;
   private player!: Phaser.Physics.Arcade.Sprite;
 
-  // Totem 1 (Barreira)
+  // Totem 1 (Comporta Hidráulica)
   private totemBarrier!: Phaser.GameObjects.Image;
   private promptTextBarrier!: Phaser.GameObjects.Text;
 
@@ -67,7 +67,7 @@ export class MainScene extends Phaser.Scene {
     this.createGroundAndAbyss();
     this.createTotems();
     this.createPlayer();
-    this.createBarrier();
+    this.createHydraulicGate();
     this.setupControls();
     this.setupTerminal();
     this.setupDialogue();
@@ -170,7 +170,6 @@ export class MainScene extends Phaser.Scene {
   }
 
   private createGroundAndAbyss(): void {
-    // Texturas para os dois segmentos de piso
     // Piso 1: X = 0 a 950 (largura 950, centro 475)
     if (!this.textures.exists('ground-section-1')) {
       const g = this.make.graphics();
@@ -217,7 +216,6 @@ export class MainScene extends Phaser.Scene {
     this.platforms.create(1980, 700, 'ground-section-2');
 
     this.spikes = this.physics.add.staticGroup();
-    // Espinhos posicionados no fundo do abismo em Y = 710
     this.spikes.create(1175, 710, 'spikes-abyss');
   }
 
@@ -274,10 +272,10 @@ export class MainScene extends Phaser.Scene {
       g.destroy();
     }
 
-    // Totem 1: Barreira (X = 550, Y = 656)
-    this.totemBarrier = this.add.image(550, 656, 'totem');
+    // Totem 1: Comporta Hidráulica (X = 520, Y = 656)
+    this.totemBarrier = this.add.image(520, 656, 'totem');
     this.promptTextBarrier = this.add
-      .text(550, 615, '[E] HACKEAR', {
+      .text(520, 615, '[E] DESTRAVAR COMPORTA', {
         fontSize: '16px',
         color: '#ffee00',
         fontFamily: 'monospace',
@@ -301,39 +299,86 @@ export class MainScene extends Phaser.Scene {
       .setVisible(false);
   }
 
-  private createBarrier(): void {
-    // Barreira vertical completa (680px de altura, do topo Y = 0 até o chão Y = 680)
-    if (!this.textures.exists('barrier-tall')) {
+  private createHydraulicGate(): void {
+    // Comporta de metal industrial pesado com faixas de aviso amarelo/preto
+    if (!this.textures.exists('hydraulic-gate')) {
       const g = this.make.graphics();
-      g.fillStyle(0xff2a2a, 1);
-      g.fillRect(0, 0, 24, 680);
-      g.fillStyle(0xff7700, 0.85);
-      g.fillRect(4, 0, 16, 680);
-      g.fillStyle(0xffffff, 0.9);
-      g.fillRect(10, 0, 4, 680);
-      g.generateTexture('barrier-tall', 24, 680);
+      const w = 36;
+      const h = 680;
+
+      // Base cinza escuro industrial
+      g.fillStyle(0x232730, 1);
+      g.fillRect(0, 0, w, h);
+
+      // Bordas reforçadas de metal/chumbo
+      g.fillStyle(0x3e4756, 1);
+      g.fillRect(0, 0, 4, h);
+      g.fillRect(w - 4, 0, 4, h);
+
+      // Placas e rebites horizontais
+      for (let y = 0; y < h; y += 60) {
+        g.fillStyle(0x181a20, 1);
+        g.fillRect(4, y, w - 8, 4);
+        g.fillStyle(0x8a97a8, 1);
+        g.fillCircle(8, y + 10, 2);
+        g.fillCircle(w - 8, y + 10, 2);
+      }
+
+      // Faixas de aviso de perigo amarelo/preto (Hazard Stripes)
+      const drawStripes = (startY: number, sectionHeight: number) => {
+        g.fillStyle(0x111827, 1);
+        g.fillRect(4, startY, w - 8, sectionHeight);
+        g.fillStyle(0xfacc15, 1);
+        for (let sy = startY - 20; sy < startY + sectionHeight; sy += 16) {
+          g.beginPath();
+          g.moveTo(4, sy);
+          g.lineTo(w - 4, sy + 12);
+          g.lineTo(w - 4, sy + 18);
+          g.lineTo(4, sy + 6);
+          g.closePath();
+          g.fillPath();
+        }
+      };
+
+      drawStripes(40, 70);
+      drawStripes(h - 120, 70);
+
+      g.generateTexture('hydraulic-gate', w, h);
       g.destroy();
     }
 
     this.barriers = this.physics.add.staticGroup();
-    // Posição X = 850, centro Y = 340 (cobre de Y = 0 até Y = 680)
-    this.barrier = this.barriers.create(850, 340, 'barrier-tall') as Phaser.Physics.Arcade.Sprite;
+    // Posição X = 650, centro Y = 340 (bloqueia completamente do topo Y = 0 até o chão Y = 680)
+    this.barrier = this.barriers.create(650, 340, 'hydraulic-gate') as Phaser.Physics.Arcade.Sprite;
     this.barrierCollider = this.physics.add.collider(this.player, this.barriers);
   }
 
   private disableBarrier(): void {
-    if (this.barrier) {
-      this.barrier.destroy();
-      this.barrier = undefined;
-    }
-    if (this.barriers) {
-      this.barriers.clear(true, true);
-    }
+    // Destrói imediatamente a colisão física para permitir passagem
     if (this.barrierCollider) {
       this.barrierCollider.destroy();
       this.barrierCollider = undefined;
     }
     this.promptTextBarrier.setVisible(false);
+
+    if (this.barrier) {
+      // Animação da comporta subindo para o teto com tween vertical
+      this.tweens.add({
+        targets: this.barrier,
+        y: -340,
+        duration: 900,
+        ease: 'Power2',
+        onComplete: () => {
+          if (this.barrier) {
+            this.barrier.destroy();
+            this.barrier = undefined;
+          }
+          if (this.barriers) {
+            this.barriers.clear(true, true);
+          }
+        },
+      });
+    }
   }
 
   private createPlayer(): void {
@@ -424,7 +469,9 @@ export class MainScene extends Phaser.Scene {
     const value = this.terminalInput.value;
     if (!value.trim()) return;
 
-    const result = parseCommand(value);
+    const result = parseCommand(value, {
+      totem: this.currentInteractingTotem ?? undefined,
+    });
 
     if (this.terminalOutput) {
       const cmdElement = document.createElement('div');
@@ -467,14 +514,21 @@ export class MainScene extends Phaser.Scene {
       this.terminalOverlay.classList.remove('hidden');
     }
 
-    // Adiciona log contextual específico ao abrir cada totem
+    // Logs contextuais específicos para cada totem
     if (this.terminalOutput) {
       if (totemType === 'barrier') {
-        const info = document.createElement('div');
-        info.className = 'log-line info';
-        info.textContent =
-          "SISTEMA DE SEGURANÇA: execute 'barreira.desativar()' ou defina 'barreira = False'";
-        this.terminalOutput.appendChild(info);
+        const lines = [
+          '=== SISTEMA HIDRÁULICO DO PISTÃO ===',
+          "STATUS: chave_seguranca = '42' [TIPO DETECTADO: STRING/TEXTO]",
+          'AVISO: O sensor de peso exige um INTEIRO (number/int) para calcular a massa do contrapeso. Strings causam travamento mecânico.',
+          "> DICA DO ESTAGIÁRIO: Remova as aspas para virar número ou converta o tipo! (ex: chave = 42 ou int('42'))",
+        ];
+        lines.forEach((lineText) => {
+          const info = document.createElement('div');
+          info.className = 'log-line info';
+          info.textContent = lineText;
+          this.terminalOutput?.appendChild(info);
+        });
         this.terminalOutput.scrollTop = this.terminalOutput.scrollHeight;
       } else if (totemType === 'physics') {
         const info = document.createElement('div');
