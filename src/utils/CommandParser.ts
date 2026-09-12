@@ -267,7 +267,25 @@ export function parseCommand(
       };
     }
 
-    // 2. Erro de Tipo: tentar somar números com texto (ex: parte1 + 2)
+    // 2. Erro de Sequência Invertida: partes concatenadas na ordem oposta ("FailMega")
+    const isReverseOrder =
+      expr === 'parte2+parte1' ||
+      expr === '"fail"+"mega"' ||
+      expr === "'fail'+'mega'" ||
+      expr === '"fail"+\'mega\'' ||
+      expr === "'fail'+\"mega\"" ||
+      expr === '"failmega"' ||
+      expr === "'failmega'";
+
+    if (isReverseOrder) {
+      return {
+        success: false,
+        message:
+          "[INVERTED SEQUENCE ERROR] Mega Brain: ''FailMega'? Sério? Strings não são adição de matemática básica onde a ordem dos fatores não altera o produto. Junte na ordem cronológica correta dos fragmentos!'",
+      };
+    }
+
+    // 3. Erro de Tipo: tentar somar números com texto (ex: parte1 + 2)
     const hasNumbers = /\d/.test(expr);
     if (hasNumbers) {
       return {
