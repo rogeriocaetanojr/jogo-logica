@@ -198,7 +198,7 @@ export function parseCommand(
       return {
         success: false,
         message:
-          "[TYPE ERROR] Mega Brain: 'Você jogou uma string na esteira hidráulica. Motores operam com grandeza numérica, não com redação do ensino médio.'",
+          "[TYPE ERROR] Mega Brain: 'Você digitou texto com aspas num pistão mecânico. A física não lê literatura.'",
       };
     }
 
@@ -213,7 +213,7 @@ export function parseCommand(
         return {
           success: false,
           message:
-            "[UNDERFLOW ERROR] Mega Brain: 'Sua esteira continuou curta demais e despencou no vácuo. Você nem se deu ao trabalho de conferir o relatório do sensor antes de chutar um número?'",
+            "[UNDERFLOW ERROR] Mega Brain: 'Tentando saltar para a morte? A esteira continua curta e o chão lá embaixo está te esperando.'",
         };
       } else {
         return {
@@ -229,7 +229,7 @@ export function parseCommand(
     return {
       success: false,
       message:
-        "[SYNTAX ERROR] Mega Brain: 'Instrução inválida. É uma atribuição direta de variável inteira, não uma dissertação.'",
+        "[SYNTAX ERROR] Mega Brain: 'Instrução sem pé nem cabeça. Declare a variável com um valor inteiro válido.'",
     };
   }
 

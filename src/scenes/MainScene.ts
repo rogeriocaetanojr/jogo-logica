@@ -29,6 +29,8 @@ export class MainScene extends Phaser.Scene {
   private bridge!: Phaser.Physics.Arcade.Sprite;
   private scrapHazard!: Phaser.Physics.Arcade.Sprite;
   private isFallingInScrap: boolean = false;
+  private ventExhaust?: Phaser.Physics.Arcade.Sprite;
+  private lastVentTime: number = 0;
 
   // Totem 2 (Comporta Hidráulica)
   private totemBarrier!: Phaser.GameObjects.Image;
@@ -151,8 +153,9 @@ export class MainScene extends Phaser.Scene {
       isNearPowerTotem && !this.isTerminalOpen && !this.isPowerOn
     );
 
-    const distBridge = Math.abs(this.player.x - this.totemBridge.x);
-    const isNearBridgeTotem = distBridge < 85;
+    const distBridgeX = Math.abs(this.player.x - this.totemBridge.x);
+    const distBridgeY = Math.abs(this.player.y - this.totemBridge.y);
+    const isNearBridgeTotem = distBridgeX < 85 && distBridgeY < 95;
     this.promptTextBridge.setVisible(
       isNearBridgeTotem && !this.isTerminalOpen && !this.isBridgeExpanded
     );
@@ -396,20 +399,20 @@ export class MainScene extends Phaser.Scene {
       g.destroy();
     };
 
-    // 1. Margem Esquerda: De X = 0 a X = 1650 (superfície em Y = 680, centro em 825, 780)
-    createGroundTexture('ground-section-left', 1650, 200);
-    this.platforms.create(825, 780, 'ground-section-left');
+    // 1. Margem Esquerda: De X = 0 a X = 1850 (superfície em Y = 680, centro em 925, 780)
+    createGroundTexture('ground-section-left', 1850, 200);
+    this.platforms.create(925, 780, 'ground-section-left');
 
-    // 2. Margem Direita: De X = 2050 a X = 6000+ (superfície em Y = 680, centro em 4050, 780)
-    createGroundTexture('ground-section-right', 4000, 200);
-    this.platforms.create(4050, 780, 'ground-section-right');
+    // 2. Margem Direita (Setor 3): De X = 2250 a X = 6000+ (superfície em Y = 680, centro em 4125, 780)
+    createGroundTexture('ground-section-right', 3750, 200);
+    this.platforms.create(4125, 780, 'ground-section-right');
 
-    // 3. Fundo do Abismo com Sucata Cortante (X = 1650 a X = 2050)
+    // 3. Fundo do Abismo com Sucata Cortante (X = 1850 a X = 2250 no chão lá embaixo)
     this.createAbyssHazard();
   }
 
   private createAbyssHazard(): void {
-    const hazardWidth = 400; // X = 1650 a X = 2050
+    const hazardWidth = 400; // X = 1850 a X = 2250
     const hazardHeight = 36;
 
     if (!this.textures.exists('abyss-scrap-spikes')) {
@@ -446,8 +449,8 @@ export class MainScene extends Phaser.Scene {
       g.destroy();
     }
 
-    // Posicionada no fundo do abismo
-    this.scrapHazard = this.physics.add.sprite(1850, 702, 'abyss-scrap-spikes');
+    // Posicionada no fundo do abismo entre X = 1850 e X = 2250 (centro em 2050)
+    this.scrapHazard = this.physics.add.sprite(2050, 702, 'abyss-scrap-spikes');
     const hazardBody = this.scrapHazard.body as Phaser.Physics.Arcade.Body;
     hazardBody.setAllowGravity(false);
     hazardBody.setImmovable(true);
@@ -461,8 +464,8 @@ export class MainScene extends Phaser.Scene {
     this.cameras.main.flash(200, 255, 50, 50);
 
     const alert = this.add
-      .text(this.player.x, this.player.y - 65, 'PERIGO: Fosso de Sucata Cortante!', {
-        fontSize: '16px',
+      .text(this.player.x, this.player.y - 65, 'QUEDA NO ABISMO: Retornando ao início do parkour!', {
+        fontSize: '15px',
         color: '#ff4444',
         fontFamily: 'monospace',
         stroke: '#000000',
@@ -479,59 +482,435 @@ export class MainScene extends Phaser.Scene {
     });
 
     this.time.delayedCall(350, () => {
-      // Reposiciona o jogador em segurança na margem esquerda antes da esteira
-      this.player.setPosition(1580, 620);
+      // Reposiciona o jogador no início do parkour logo após a porta de aço
+      this.player.setPosition(1180, 620);
       this.player.setVelocity(0, 0);
       this.isFallingInScrap = false;
     });
   }
 
+  private handleVentThrust(): void {
+    const now = this.time.now;
+    if (now - this.lastVentTime < 260) return;
+    this.lastVentTime = now;
+
+    // Impulso vertical com rajada pneumática (trampolim de ar que arremessa de volta)
+    this.player.setVelocityY(-560);
+    this.cameras.main.shake(100, 0.003);
+
+    const ventAlert = this.add
+      .text(this.player.x, this.player.y - 45, '▲ EMPUXO PNEUMÁTICO ▲', {
+        fontSize: '12px',
+        color: '#00e5ff',
+        fontFamily: 'monospace',
+        fontStyle: 'bold',
+        stroke: '#000000',
+        strokeThickness: 3,
+      })
+      .setOrigin(0.5)
+      .setDepth(15);
+
+    this.tweens.add({
+      targets: ventAlert,
+      y: ventAlert.y - 35,
+      alpha: 0,
+      duration: 450,
+      onComplete: () => ventAlert.destroy(),
+    });
+  }
+
   private createScrapPlatforms(): void {
-    // Plataformas elevadas de metal para saltar entre X = 1200 e X = 1600
-    if (!this.textures.exists('scrap-platform')) {
+    // ==============================================================
+    // 1. DEGRAU 1: PRIMEIRA CAIXA DE SUCATA AFASTADA (X = 1240)
+    // ==============================================================
+    const step1W = 70;
+    const step1H = 90;
+
+    if (!this.textures.exists('scrap-block-step1')) {
       const g = this.make.graphics();
-      const pw = 160;
-      const ph = 24;
-
-      // Base escura reforçada
       g.fillStyle(0x19212c, 1);
-      g.fillRect(0, 0, pw, ph);
+      g.fillRect(0, 0, step1W, step1H);
 
-      // Borda superior chanfrada de metal escovado
+      // Borda superior de metal escovado
       g.fillStyle(0x475569, 1);
-      g.fillRect(0, 0, pw, 4);
+      g.fillRect(0, 0, step1W, 4);
       g.fillStyle(0x94a3b8, 0.9);
-      g.fillRect(0, 0, pw, 1);
+      g.fillRect(0, 0, step1W, 1);
 
-      // Frisos laterais neon ciano sutil
+      // Friso neon ciano
       g.fillStyle(0x00e5ff, 0.8);
-      g.fillRect(0, 0, 4, ph);
-      g.fillRect(pw - 4, 0, 4, ph);
+      g.fillRect(0, 0, 3, step1H);
+      g.fillRect(step1W - 3, 0, 3, step1H);
 
-      // Placas e rebites industriais
-      for (let x = 24; x < pw; x += 36) {
+      // Rebites industriais
+      for (let y = 14; y < step1H; y += 22) {
         g.fillStyle(0x0e1319, 1);
-        g.fillRect(x, 4, 2, ph - 4);
+        g.fillRect(4, y, step1W - 8, 2);
         g.fillStyle(0xcbd5e1, 1);
-        g.fillCircle(x - 8, 12, 2);
-        g.fillCircle(x + 10, 12, 2);
+        g.fillCircle(10, y + 10, 2);
+        g.fillCircle(step1W - 10, y + 10, 2);
       }
 
-      g.generateTexture('scrap-platform', pw, ph);
+      g.generateTexture('scrap-block-step1', step1W, step1H);
       g.destroy();
     }
 
-    // 3 plataformas de transição entre X = 1200 e X = 1600
-    const p1 = this.platforms.create(1280, 560, 'scrap-platform') as Phaser.Physics.Arcade.Sprite;
-    p1.refreshBody();
-    const p2 = this.platforms.create(1440, 480, 'scrap-platform') as Phaser.Physics.Arcade.Sprite;
-    p2.refreshBody();
-    const p3 = this.platforms.create(1580, 550, 'scrap-platform') as Phaser.Physics.Arcade.Sprite;
-    p3.refreshBody();
+    // Caixa assentada no chão (Y = 680), topo em Y = 590 (centro X = 1240, Y = 635)
+    const step1 = this.platforms.create(1240, 635, 'scrap-block-step1') as Phaser.Physics.Arcade.Sprite;
+    step1.setDepth(9);
+    step1.refreshBody();
+    const b1 = step1.body as Phaser.Physics.Arcade.Body;
+    b1.checkCollision.down = false;
+    b1.checkCollision.left = false;
+    b1.checkCollision.right = false;
+    b1.checkCollision.up = true;
+
+    // ==============================================================
+    // 2. BLOQUEIO NO TÉRREO ALTO (X = 1350, Y = 680) - BARREIRA ZEBRADA ALTA
+    // ==============================================================
+    const blockerW = 60;
+    const blockerH = 240; // Topo em Y = 440 (cria salto cego)
+
+    if (!this.textures.exists('ground-scrap-blocker')) {
+      const g = this.make.graphics();
+
+      // Base maciça de sucata prensada
+      g.fillStyle(0x0f172a, 1);
+      g.fillRect(0, 0, blockerW, blockerH);
+
+      g.fillStyle(0x1e293b, 1);
+      g.fillRect(4, 4, blockerW - 8, blockerH - 8);
+
+      // Padrão zebrado diagonal amarelo e preto em toda a extensão
+      for (let sy = 20; sy < blockerH - 30; sy += 40) {
+        g.fillStyle(0x18181b, 1);
+        g.fillRect(6, sy, blockerW - 12, 34);
+        g.fillStyle(0xfacc15, 1);
+        for (let bx = -10; bx < blockerW; bx += 14) {
+          g.beginPath();
+          g.moveTo(bx, sy + 34);
+          g.lineTo(bx + 7, sy);
+          g.lineTo(bx + 12, sy);
+          g.lineTo(bx + 5, sy + 34);
+          g.closePath();
+          g.fillPath();
+        }
+      }
+
+      // Cabos de alta tensão descendo do topo
+      g.fillStyle(0x450a0a, 1);
+      g.fillRect(16, 0, 6, 40);
+      g.fillStyle(0x7f1d1d, 1);
+      g.fillRect(38, 0, 6, 40);
+
+      // Conectores cerâmicos
+      g.fillStyle(0xe2e8f0, 1);
+      g.fillRect(14, 2, 10, 6);
+      g.fillRect(36, 2, 10, 6);
+
+      g.generateTexture('ground-scrap-blocker', blockerW, blockerH);
+      g.destroy();
+    }
+
+    // Barreira zebrada alta no térreo em X = 1350 (centro Y = 560, topo Y = 440)
+    const groundBlocker = this.platforms.create(1350, 560, 'ground-scrap-blocker') as Phaser.Physics.Arcade.Sprite;
+    groundBlocker.setDepth(9);
+    groundBlocker.refreshBody();
+
+    // Faíscas e arcos de alta tensão estalando no topo da barreira (Y = 440)
+    const spark1 = this.add.circle(1342, 436, 3, 0x00e5ff);
+    spark1.setDepth(15);
+    this.tweens.add({
+      targets: spark1,
+      alpha: { from: 0.1, to: 1 },
+      scale: { from: 0.6, to: 1.6 },
+      yoyo: true,
+      repeat: -1,
+      duration: 160,
+    });
+
+    const spark2 = this.add.circle(1360, 434, 2.5, 0xffeb3b);
+    spark2.setDepth(15);
+    this.tweens.add({
+      targets: spark2,
+      alpha: { from: 0.2, to: 1 },
+      scale: { from: 0.7, to: 1.5 },
+      yoyo: true,
+      repeat: -1,
+      duration: 220,
+    });
+
+    // ==============================================================
+    // 3. DEGRAU 2: VIGA SUSPENSA ESTREITA NO ALTO (X = 1450, Y = 460)
+    // ==============================================================
+    const beamW = 75;
+    const beamH = 18;
+
+    if (!this.textures.exists('iron-beam-narrow')) {
+      const g = this.make.graphics();
+      g.fillStyle(0x1e293b, 1);
+      g.fillRect(0, 0, beamW, beamH);
+
+      g.fillStyle(0x334155, 1);
+      g.fillRect(0, 0, beamW, 4);
+      g.fillRect(0, beamH - 4, beamW, 4);
+      g.fillStyle(0x64748b, 0.9);
+      g.fillRect(0, 0, beamW, 1.5);
+
+      for (let x = 10; x < beamW; x += 18) {
+        g.fillStyle(0x94a3b8, 1);
+        g.fillCircle(x, 9, 2);
+      }
+
+      g.generateTexture('iron-beam-narrow', beamW, beamH);
+      g.destroy();
+    }
+
+    // Topo em Y = 460 (centro Y = 469)
+    const step2 = this.platforms.create(1450, 469, 'iron-beam-narrow') as Phaser.Physics.Arcade.Sprite;
+    step2.setDepth(9);
+    step2.refreshBody();
+    const b2 = step2.body as Phaser.Physics.Arcade.Body;
+    b2.checkCollision.down = false;
+    b2.checkCollision.left = false;
+    b2.checkCollision.right = false;
+    b2.checkCollision.up = true;
+
+    // Cabos verticais sustentando a viga até o teto
+    const cableBeam = this.add.graphics();
+    cableBeam.lineStyle(2, 0x334155, 0.85);
+    cableBeam.beginPath();
+    cableBeam.moveTo(1425, 0);
+    cableBeam.lineTo(1425, 460);
+    cableBeam.moveTo(1475, 0);
+    cableBeam.lineTo(1475, 460);
+    cableBeam.strokePath();
+    cableBeam.setDepth(5);
+
+    // ==============================================================
+    // 4. DEGRAU 3: PLATAFORMA SUSPENSA DO MEIO (X = 1620, Y = 430, LARGURA 80)
+    // ==============================================================
+    const serverW = 80;
+    const serverH = 20;
+
+    if (!this.textures.exists('suspended-server-narrow')) {
+      const g = this.make.graphics();
+      g.fillStyle(0x0f172a, 1);
+      g.fillRect(0, 0, serverW, serverH);
+
+      g.fillStyle(0x1e293b, 1);
+      g.fillRect(2, 2, serverW - 4, serverH - 4);
+
+      g.fillStyle(0x475569, 1);
+      g.fillRect(0, 0, serverW, 3);
+
+      for (let bx = 8; bx < serverW - 14; bx += 20) {
+        g.fillStyle(0x090d16, 1);
+        g.fillRect(bx, 6, 14, 10);
+        g.fillStyle(0x00ff66, 1);
+        g.fillCircle(bx + 3, 11, 1.5);
+        g.fillStyle(0x00e5ff, 1);
+        g.fillCircle(bx + 7, 11, 1.5);
+      }
+
+      g.generateTexture('suspended-server-narrow', serverW, serverH);
+      g.destroy();
+    }
+
+    // Topo em Y = 430 (centro Y = 440)
+    const step3 = this.platforms.create(1620, 440, 'suspended-server-narrow') as Phaser.Physics.Arcade.Sprite;
+    step3.setDepth(9);
+    step3.refreshBody();
+    const b3 = step3.body as Phaser.Physics.Arcade.Body;
+    b3.checkCollision.down = false;
+    b3.checkCollision.left = false;
+    b3.checkCollision.right = false;
+    b3.checkCollision.up = true;
+
+    // Cabos do servidor até o teto
+    const cableServer = this.add.graphics();
+    cableServer.lineStyle(2, 0x334155, 0.85);
+    cableServer.beginPath();
+    cableServer.moveTo(1595, 0);
+    cableServer.lineTo(1595, 430);
+    cableServer.moveTo(1645, 0);
+    cableServer.lineTo(1645, 430);
+    cableServer.strokePath();
+    cableServer.setDepth(5);
+
+    // ==============================================================
+    // 5. EXAUSTOR DE AR / VENTILAÇÃO NO CHÃO DO FOSSO (X = 1680, Y = 680)
+    // ==============================================================
+    const ventW = 75;
+    const ventH = 16;
+
+    if (!this.textures.exists('vent-grate-floor')) {
+      const g = this.make.graphics();
+
+      // Bocal de metal reforçado
+      g.fillStyle(0x0f172a, 1);
+      g.fillRect(0, 0, ventW, ventH);
+
+      g.fillStyle(0x1e293b, 1);
+      g.fillRect(2, 2, ventW - 4, ventH - 4);
+
+      // Grade de exaustão
+      for (let x = 6; x < ventW - 6; x += 6) {
+        g.fillStyle(0x00e5ff, 0.8);
+        g.fillRect(x, 4, 3, ventH - 8);
+      }
+
+      // Moldura de aviso neon ciano
+      g.fillStyle(0x00e5ff, 1);
+      g.fillRect(0, 0, ventW, 2);
+
+      g.generateTexture('vent-grate-floor', ventW, ventH);
+      g.destroy();
+    }
+
+    this.add.image(1680, 672, 'vent-grate-floor').setDepth(6);
+
+    // Rajadas contínuas de vento ciano subindo verticalmente
+    for (let i = 0; i < 5; i++) {
+      const windStream = this.add.graphics();
+      windStream.lineStyle(2, 0x00e5ff, 0.6);
+      windStream.beginPath();
+      const offsetX = 1655 + i * 12;
+      windStream.moveTo(offsetX, 665);
+      windStream.lineTo(offsetX, 570);
+      windStream.strokePath();
+      windStream.setDepth(7);
+
+      this.tweens.add({
+        targets: windStream,
+        y: -220,
+        alpha: { from: 0.8, to: 0.05 },
+        duration: 480 + i * 70,
+        repeat: -1,
+        ease: 'Linear',
+      });
+    }
+
+    // Trigger de colisão pneumática
+    if (!this.textures.exists('vent-trigger-zone')) {
+      const g = this.make.graphics();
+      g.fillStyle(0x00ffff, 0);
+      g.fillRect(0, 0, 75, 80);
+      g.generateTexture('vent-trigger-zone', 75, 80);
+      g.destroy();
+    }
+
+    this.ventExhaust = this.physics.add.sprite(1680, 640, 'vent-trigger-zone');
+    this.ventExhaust.setVisible(false);
+    const ventBody = this.ventExhaust.body as Phaser.Physics.Arcade.Body;
+    ventBody.setAllowGravity(false);
+    ventBody.setImmovable(true);
+    ventBody.setSize(75, 80);
+
+    // ==============================================================
+    // 6. MEZANINO ELEVADO (BORDA EM X = 1790 A 1850, ALTURA Y = 330)
+    // ==============================================================
+    const mezW = 70; // De X = 1785 a 1855
+    const mezH = 20;
+
+    if (!this.textures.exists('mezzanine-elevated')) {
+      const g = this.make.graphics();
+
+      g.fillStyle(0x19212c, 1);
+      g.fillRect(0, 0, mezW, mezH);
+
+      // Borda superior antiderrapante
+      g.fillStyle(0x475569, 1);
+      g.fillRect(0, 0, mezW, 4);
+      g.fillStyle(0x94a3b8, 0.95);
+      g.fillRect(0, 0, mezW, 1.5);
+
+      // Friso neon ciano no mezanino
+      g.fillStyle(0x00e5ff, 0.9);
+      g.fillRect(0, 0, 4, mezH);
+      g.fillRect(mezW - 4, 0, 4, mezH);
+
+      for (let x = 12; x < mezW; x += 24) {
+        g.fillStyle(0x0e1319, 1);
+        g.fillRect(x, 4, 2, mezH - 4);
+      }
+
+      g.generateTexture('mezzanine-elevated', mezW, mezH);
+      g.destroy();
+    }
+
+    // Topo em Y = 330 (centro Y = 340, X = 1820)
+    const mez = this.platforms.create(1820, 340, 'mezzanine-elevated') as Phaser.Physics.Arcade.Sprite;
+    mez.setDepth(8);
+    mez.refreshBody();
+    // Colisão limpa no topo sem atrito nas bordas verticais
+    const bMez = mez.body as Phaser.Physics.Arcade.Body;
+    bMez.checkCollision.down = false;
+    bMez.checkCollision.left = false;
+    bMez.checkCollision.right = false;
+    bMez.checkCollision.up = true;
+
+    // Treliça de sustentação decorativa (sem colisão para não prender o jogador)
+    const strutG = this.add.graphics();
+    strutG.fillStyle(0x1e293b, 0.85);
+    strutG.fillRect(1840, 340, 10, 340);
+    strutG.lineStyle(2, 0x334155, 0.6);
+    strutG.beginPath();
+    strutG.moveTo(1840, 360);
+    strutG.lineTo(1850, 520);
+    strutG.moveTo(1840, 520);
+    strutG.lineTo(1850, 680);
+    strutG.strokePath();
+    strutG.setDepth(4);
+
+    // ==============================================================
+    // 7. MEZANINO DO SETOR 3 (DESTINO EM X = 2250, Y = 330)
+    // ==============================================================
+    const mezDestW = 160;
+    if (!this.textures.exists('mezzanine-elevated-dest')) {
+      const g = this.make.graphics();
+      g.fillStyle(0x19212c, 1);
+      g.fillRect(0, 0, mezDestW, mezH);
+      g.fillStyle(0x475569, 1);
+      g.fillRect(0, 0, mezDestW, 4);
+      g.fillStyle(0x94a3b8, 0.95);
+      g.fillRect(0, 0, mezDestW, 1.5);
+      g.fillStyle(0x00e5ff, 0.9);
+      g.fillRect(0, 0, 4, mezH);
+      g.fillRect(mezDestW - 4, 0, 4, mezH);
+      g.generateTexture('mezzanine-elevated-dest', mezDestW, mezH);
+      g.destroy();
+    }
+    const mezDest = this.platforms.create(2330, 340, 'mezzanine-elevated-dest') as Phaser.Physics.Arcade.Sprite;
+    mezDest.setDepth(8);
+    mezDest.refreshBody();
+    const bMezDest = mezDest.body as Phaser.Physics.Arcade.Body;
+    bMezDest.checkCollision.down = false;
+    bMezDest.checkCollision.left = false;
+    bMezDest.checkCollision.right = false;
+    bMezDest.checkCollision.up = true;
+
+    // Plataforma de descida suave para o chão do Setor 3
+    if (!this.textures.exists('scrap-platform-step')) {
+      const g = this.make.graphics();
+      g.fillStyle(0x19212c, 1);
+      g.fillRect(0, 0, 110, 20);
+      g.fillStyle(0x475569, 1);
+      g.fillRect(0, 0, 110, 3);
+      g.generateTexture('scrap-platform-step', 110, 20);
+      g.destroy();
+    }
+    const stepDown = this.platforms.create(2440, 510, 'scrap-platform-step') as Phaser.Physics.Arcade.Sprite;
+    stepDown.refreshBody();
+    const bStepDown = stepDown.body as Phaser.Physics.Arcade.Body;
+    bStepDown.checkCollision.down = false;
+    bStepDown.checkCollision.left = false;
+    bStepDown.checkCollision.right = false;
+    bStepDown.checkCollision.up = true;
   }
 
   private createConveyorBridge(): void {
-    const bridgeW = 420;
+    const bridgeW = 400; // Vão aberto no ar de 400px (8 metros na escala) entre X = 1850 e X = 2250
     const bridgeH = 20;
 
     if (!this.textures.exists('conveyor-bridge-pattern')) {
@@ -581,8 +960,8 @@ export class MainScene extends Phaser.Scene {
       g.destroy();
     }
 
-    // A esteira começa em X = 1650 sobre o abismo, estendendo-se inicialmente por 100px (2 metros)
-    this.bridge = this.physics.add.sprite(1650, 672, 'conveyor-bridge-pattern');
+    // A esteira mecânica suspensa no ar começa em X = 1850, Y = 330, estendendo-se inicialmente por 100px (2 metros)
+    this.bridge = this.physics.add.sprite(1850, 330, 'conveyor-bridge-pattern');
     this.bridge.setOrigin(0, 0);
     this.bridge.setDepth(12);
     this.bridge.setDisplaySize(100, bridgeH);
@@ -606,10 +985,10 @@ export class MainScene extends Phaser.Scene {
     }
     this.promptTextBridge.setVisible(false);
 
-    // Animação suave expandindo a esteira de metal de 100px para 420px de comprimento até X = 2070
+    // Animação suave expandindo a esteira mecânica suspensa de 100px para 400px até conectar com o mezanino em X = 2250
     this.tweens.add({
       targets: this.bridge,
-      displayWidth: 420,
+      displayWidth: 400,
       duration: 1200,
       ease: 'Cubic.easeOut',
       onUpdate: () => {
@@ -622,9 +1001,9 @@ export class MainScene extends Phaser.Scene {
       },
       onComplete: () => {
         if (this.bridge && this.bridge.body) {
-          this.bridge.setCrop(0, 0, 420, 20);
+          this.bridge.setCrop(0, 0, 400, 20);
           const body = this.bridge.body as Phaser.Physics.Arcade.Body;
-          body.setSize(420, 20);
+          body.setSize(400, 20);
         }
       },
     });
@@ -1032,12 +1411,14 @@ export class MainScene extends Phaser.Scene {
       .setVisible(false);
 
     // ==============================================================
-    // TOTEM 1: CONTROLADOR DA ESTEIRA (DESAFIO 2 EM X = 1600)
+    // TOTEM 1: CONTROLADOR DA ESTEIRA (NO ALTO DO MEZANINO EM X = 1820, Y = 290)
     // ==============================================================
-    this.totemBridge = this.add.image(1600, 653, 'totem-crt-vintage');
+    this.totemBridge = this.add.image(1820, 290, 'totem-crt-vintage');
+    this.totemBridge.setDepth(10);
 
     // LED de status no topo do Totem da Esteira (vermelho enquanto curta, verde após expandir)
-    this.beaconBridge = this.add.circle(1600, 624, 2.5, 0xff1744);
+    this.beaconBridge = this.add.circle(1820, 261, 2.5, 0xff1744);
+    this.beaconBridge.setDepth(11);
     this.tweens.add({
       targets: this.beaconBridge,
       alpha: { from: 0.25, to: 1 },
@@ -1047,9 +1428,9 @@ export class MainScene extends Phaser.Scene {
       duration: 450,
     });
 
-    // Prompt sutil '[E] CALIBRAR ESTEIRA'
+    // Prompt sutil '[E] CALIBRAR ESTEIRA SUSPENSA'
     this.promptTextBridge = this.add
-      .text(1600, 605, '[E] CALIBRAR ESTEIRA', {
+      .text(1820, 240, '[E] CALIBRAR ESTEIRA SUSPENSA', {
         fontSize: '15px',
         color: '#00e5ff',
         fontFamily: 'monospace',
@@ -1057,14 +1438,15 @@ export class MainScene extends Phaser.Scene {
         strokeThickness: 3,
       })
       .setOrigin(0.5)
+      .setDepth(110)
       .setVisible(false);
 
     // ==============================================================
-    // TOTEM 2: COMPORTA HIDRÁULICA (MOVIDO PARA X = 2300)
+    // TOTEM 2: COMPORTA HIDRÁULICA (SETOR 3 EM X = 2520)
     // ==============================================================
-    this.totemBarrier = this.add.image(2300, 653, 'totem-crt-vintage');
+    this.totemBarrier = this.add.image(2520, 653, 'totem-crt-vintage');
     this.promptTextBarrier = this.add
-      .text(2300, 610, '[E] DESTRAVAR COMPORTA', {
+      .text(2520, 610, '[E] DESTRAVAR COMPORTA', {
         fontSize: '15px',
         color: '#ffee00',
         fontFamily: 'monospace',
@@ -1075,7 +1457,7 @@ export class MainScene extends Phaser.Scene {
       .setVisible(false);
 
     // Luz de status no topo do Totem 2 (verde)
-    this.beaconBarrier = this.add.circle(2300, 624, 3, 0x00ff66);
+    this.beaconBarrier = this.add.circle(2520, 624, 3, 0x00ff66);
     this.tweens.add({
       targets: this.beaconBarrier,
       alpha: { from: 0.2, to: 1 },
@@ -1085,11 +1467,11 @@ export class MainScene extends Phaser.Scene {
     });
 
     // ==============================================================
-    // TOTEM 3: REGULADOR ELÉTRICO (MOVIDO PARA X = 2950)
+    // TOTEM 3: REGULADOR ELÉTRICO (MOVIDO PARA X = 3050)
     // ==============================================================
-    this.totemElectric = this.add.image(2950, 653, 'totem-crt-vintage');
+    this.totemElectric = this.add.image(3050, 653, 'totem-crt-vintage');
     this.promptTextElectric = this.add
-      .text(2950, 610, '[E] CALIBRAR CIRCUITO', {
+      .text(3050, 610, '[E] CALIBRAR CIRCUITO', {
         fontSize: '15px',
         color: '#ffeb3b',
         fontFamily: 'monospace',
@@ -1100,7 +1482,7 @@ export class MainScene extends Phaser.Scene {
       .setVisible(false);
 
     // Luz de status no topo do Totem 3 (amarela)
-    this.beaconElectric = this.add.circle(2950, 624, 3, 0xffeb3b);
+    this.beaconElectric = this.add.circle(3050, 624, 3, 0xffeb3b);
     this.tweens.add({
       targets: this.beaconElectric,
       alpha: { from: 0.2, to: 1 },
@@ -1179,12 +1561,12 @@ export class MainScene extends Phaser.Scene {
     }
 
     this.barriers = this.physics.add.staticGroup();
-    this.barrier = this.barriers.create(2500, 340, 'hydraulic-gate-heavy') as Phaser.Physics.Arcade.Sprite;
+    this.barrier = this.barriers.create(2680, 340, 'hydraulic-gate-heavy') as Phaser.Physics.Arcade.Sprite;
     this.barrierCollider = this.physics.add.collider(this.player, this.barriers);
 
     // Painel luminoso de trava [LOCKED] no centro da comporta na altura dos olhos
     this.gateLockText = this.add
-      .text(2500, 600, '[LOCKED]', {
+      .text(2680, 600, '[LOCKED]', {
         fontSize: '11px',
         color: '#ff1744',
         fontFamily: 'Consolas, monospace',
@@ -1335,6 +1717,13 @@ export class MainScene extends Phaser.Scene {
     if (this.scrapHazard) {
       this.physics.add.overlap(this.player, this.scrapHazard, () => {
         this.handleScrapFall();
+      });
+    }
+
+    // Detecção de contato com o exaustor pneumático do fosso (anti-softlock)
+    if (this.ventExhaust) {
+      this.physics.add.overlap(this.player, this.ventExhaust, () => {
+        this.handleVentThrust();
       });
     }
   }
@@ -1536,10 +1925,10 @@ export class MainScene extends Phaser.Scene {
         this.terminalOutput.scrollTop = this.terminalOutput.scrollHeight;
       } else if (totemType === 'bridge') {
         const lines = [
-          '=== MECANISMO DE EXTENSÃO DA ESTEIRA ===',
+          '=== MECANISMO DE ELEVAÇÃO DA ESTEIRA AÉREA ===',
           '> STATUS: tamanho_ponte = 2',
-          '> RELATÓRIO DO SENSOR: O abismo de descarte mede 8 metros de ponta a ponta. A ponte atual cobre apenas um quarto do trajeto.',
-          '> COMUNICADOR REBELDE: O bot de deploy achou que 2 metros eram suficientes pra entregar a sprint. Defina o tamanho exato para alcançar a outra margem sem cair no fosso.',
+          '> RELATÓRIO DO SENSOR: O mezanino à frente está a 8 metros de distância aérea. A esteira atual não alcança nem a metade do trajeto.',
+          '> COMUNICADOR REBELDE: Subiu até aqui pra ficar olhando pro precipício? Redefina o comprimento da esteira suspensa antes de pular pro nada.',
           '> Digite a instrução:',
         ];
         lines.forEach((lineText) => {
