@@ -43,7 +43,7 @@ export class MainScene extends Phaser.Scene {
   private escKey?: Phaser.Input.Keyboard.Key;
 
   // Variáveis de movimentação
-  private jumpForce: number = 450;
+  private jumpForce: number = 490;
 
   private isTerminalOpen: boolean = false;
   private terminalOverlay: HTMLElement | null = null;
@@ -92,15 +92,15 @@ export class MainScene extends Phaser.Scene {
       return;
     }
 
-    // Checagem de proximidade dos totens
+    // Checagem de proximidade dos totens (adaptada para o novo volume do jogador)
     const distBarrier = Math.abs(this.player.x - this.totemBarrier.x);
-    const isNearBarrierTotem = distBarrier < 80;
+    const isNearBarrierTotem = distBarrier < 95;
     this.promptTextBarrier.setVisible(
       isNearBarrierTotem && !this.isTerminalOpen && Boolean(this.barrier)
     );
 
     const distElectric = Math.abs(this.player.x - this.totemElectric.x);
-    const isNearElectricTotem = distElectric < 80;
+    const isNearElectricTotem = distElectric < 95;
     this.promptTextElectric.setVisible(
       isNearElectricTotem && !this.isTerminalOpen && this.isShockActive
     );
@@ -143,16 +143,16 @@ export class MainScene extends Phaser.Scene {
       (this.wasdKeys?.right.isDown ?? false);
 
     if (isLeftDown) {
-      this.player.setVelocityX(-200);
+      this.player.setVelocityX(-220);
       this.player.setFlipX(true); // Olha para a esquerda
     } else if (isRightDown) {
-      this.player.setVelocityX(200);
+      this.player.setVelocityX(220);
       this.player.setFlipX(false); // Olha para a direita
     } else {
       this.player.setVelocityX(0);
     }
 
-    // Pulo estilo Mega Man
+    // Pulo estilo Mega Man ágil
     const isJumpDown =
       (this.cursors?.up.isDown ?? false) ||
       (this.jumpKeys?.w.isDown ?? false) ||
@@ -166,7 +166,7 @@ export class MainScene extends Phaser.Scene {
     }
 
     // Pulo variável: cortar velocidade vertical se o jogador soltar o botão durante a subida
-    const cutThreshold = -150;
+    const cutThreshold = -160;
     if (!isJumpDown && this.player.body.velocity.y < cutThreshold) {
       this.player.setVelocityY(cutThreshold);
     }
@@ -382,11 +382,11 @@ export class MainScene extends Phaser.Scene {
     if (this.isShocked || !this.isShockActive) return;
     this.isShocked = true;
 
-    this.player.setVelocity(-250, -150);
+    this.player.setVelocity(-280, -180);
     this.cameras.main.flash(200, 255, 230, 50);
 
     const alert = this.add
-      .text(this.player.x, this.player.y - 45, 'PERIGO: 220V / Corrente Crítica!', {
+      .text(this.player.x, this.player.y - 65, 'PERIGO: 220V / Corrente Crítica!', {
         fontSize: '16px',
         color: '#ffeb3b',
         fontFamily: 'monospace',
@@ -644,44 +644,73 @@ export class MainScene extends Phaser.Scene {
   }
 
   private createPlayer(): void {
-    // Redesenho do Jogador: Rebelde Retro-Tech com jaqueta escura, visor ciano neon e contorno de 1px
+    // Redesenho do Jogador (64x96): Rebelde Retro-Tech com jaqueta escura, visor ciano neon e contorno
     if (!this.textures.exists('player')) {
       const g = this.make.graphics();
-      const w = 32;
-      const h = 48;
+      const w = 64;
+      const h = 96;
 
-      // 1px contorno escuro bem definido
+      // Contorno escuro bem definido
       g.fillStyle(0x05070a, 1);
-      g.fillRoundedRect(0, 0, w, h, 4);
+      g.fillRoundedRect(0, 0, w, h, 8);
 
       // Botas industriais e pernas articuladas
       g.fillStyle(0x1f2937, 1);
-      g.fillRect(5, 34, 9, 11); // Perna esquerda
-      g.fillRect(18, 34, 9, 11); // Perna direita
-      // Botas pesadas
+      g.fillRect(10, 68, 18, 22); // Perna esquerda
+      g.fillRect(36, 68, 18, 22); // Perna direita
+
+      // Servos/juntas articuladas dos joelhos
+      g.fillStyle(0x374151, 1);
+      g.fillRect(10, 74, 18, 4);
+      g.fillRect(36, 74, 18, 4);
+
+      // Botas de combate pesadas
       g.fillStyle(0x475569, 1);
-      g.fillRect(4, 41, 11, 6);
-      g.fillRect(17, 41, 11, 6);
+      g.fillRect(8, 82, 22, 14);
+      g.fillRect(34, 82, 22, 14);
 
-      // Corpo: Jaqueta de hacker grafite com detalhes neon
+      // Solas reforçadas antiderrapantes
+      g.fillStyle(0x0f172a, 1);
+      g.fillRect(8, 92, 22, 4);
+      g.fillRect(34, 92, 22, 4);
+
+      // Ponteiras reforçadas prateadas
+      g.fillStyle(0x94a3b8, 1);
+      g.fillRect(22, 88, 8, 6);
+      g.fillRect(48, 88, 8, 6);
+
+      // Corpo: Jaqueta de hacker grafite
       g.fillStyle(0x111827, 1);
-      g.fillRect(4, 18, 24, 18);
+      g.fillRect(8, 36, 48, 36);
 
-      // Frisos cibernéticos neon na jaqueta (roxo e ciano)
+      // Frisos cibernéticos neon na jaqueta (coluna roxa e cinto ciano)
       g.fillStyle(0x8b5cf6, 1);
-      g.fillRect(14, 18, 4, 18);
+      g.fillRect(28, 36, 8, 36);
+
+      // Cinto tático com fivela neon ciano
+      g.fillStyle(0x1e293b, 1);
+      g.fillRect(10, 64, 44, 6);
+      g.fillStyle(0x00e5ff, 0.95);
+      g.fillRect(26, 64, 12, 6);
+
+      // Detalhes neon nos braços/mangas
       g.fillStyle(0x00e5ff, 0.85);
-      g.fillRect(6, 32, 20, 2);
+      g.fillRect(10, 42, 4, 20);
+      g.fillRect(50, 42, 4, 20);
 
       // Capuz / Cabeça cibernética
       g.fillStyle(0x1f2937, 1);
-      g.fillRoundedRect(5, 3, 22, 17, 3);
+      g.fillRoundedRect(10, 6, 44, 34, 6);
 
-      // Visor luminoso ciano neon (voltado para a direita por padrão)
+      // Visor luminoso ciano neon com brilho externo (olhando para a direita por padrão)
+      g.fillStyle(0x00e5ff, 0.3);
+      g.fillRect(26, 14, 28, 16);
+
       g.fillStyle(0x00e5ff, 1);
-      g.fillRect(14, 8, 12, 6);
+      g.fillRect(28, 16, 24, 12);
+
       g.fillStyle(0xffffff, 0.9);
-      g.fillRect(17, 9, 8, 2);
+      g.fillRect(34, 18, 16, 4);
 
       g.generateTexture('player', w, h);
       g.destroy();
@@ -689,6 +718,12 @@ export class MainScene extends Phaser.Scene {
 
     this.player = this.physics.add.sprite(100, 500, 'player');
     this.player.setCollideWorldBounds(true);
+
+    // Ajuste preciso da Hitbox Arcade (64x96)
+    const playerBody = this.player.body as Phaser.Physics.Arcade.Body;
+    playerBody.setSize(48, 96);
+    playerBody.setOffset(8, 0);
+
     this.physics.add.collider(this.player, this.platforms);
 
     // Detecção de contato com a zona de choque
