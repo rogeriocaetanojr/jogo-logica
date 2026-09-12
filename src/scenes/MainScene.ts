@@ -44,35 +44,17 @@ export class MainScene extends Phaser.Scene {
   private cableShockSparks?: Phaser.GameObjects.Arc;
   private scrapHazardSector3?: Phaser.Physics.Arcade.Sprite;
 
-  // Totem 4 (Comporta Hidráulica)
-  private totemBarrier!: Phaser.GameObjects.Image;
-  private promptTextBarrier!: Phaser.GameObjects.Text;
-  private beaconBarrier!: Phaser.GameObjects.Arc;
-
-  // Totem 5 (Regulador Elétrico)
-  private totemElectric!: Phaser.GameObjects.Image;
-  private promptTextElectric!: Phaser.GameObjects.Text;
-  private beaconElectric!: Phaser.GameObjects.Arc;
-
   private currentInteractingTotem:
     | 'power'
     | 'bridge'
     | 'elevator'
-    | 'barrier'
-    | 'electric'
     | null = null;
 
-  // Comporta Hidráulica
-  private barriers!: Phaser.Physics.Arcade.StaticGroup;
-  private barrier?: Phaser.Physics.Arcade.Sprite;
-  private barrierCollider?: Phaser.Physics.Arcade.Collider;
-  private gateLockText?: Phaser.GameObjects.Text;
-
-  // Zona de Choque Elétrico (X = 1220 a 1570)
-  private shockZone!: Phaser.Physics.Arcade.Sprite;
-  private isShockActive: boolean = true;
+  // Estado de Choque do Cabo Caído (Desafio 3)
   private isShocked: boolean = false;
-  private shockTween?: Phaser.Tweens.Tween;
+
+  // Controle de Conclusão da Demo
+  private isDemoEndTriggered: boolean = false;
 
   private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
   private wasdKeys?: {
@@ -106,9 +88,9 @@ export class MainScene extends Phaser.Scene {
   }
 
   create(): void {
-    // 1. Expansão do Mundo da MainScene para 6000 pixels
-    this.physics.world.setBounds(0, 0, 6000, 720);
-    this.cameras.main.setBounds(0, 0, 6000, 720);
+    // 1. Limites do Mundo da MainScene para 3600 pixels (Encerramento da Demo após Desafio 3)
+    this.physics.world.setBounds(0, 0, 3600, 720);
+    this.cameras.main.setBounds(0, 0, 3600, 720);
     this.cameras.main.setBackgroundColor('#070b12');
 
     this.createScenery();
@@ -116,12 +98,11 @@ export class MainScene extends Phaser.Scene {
     this.createScrapPlatforms();
     this.createConveyorBridge();
     this.createElevator();
-    this.createShockZone();
+    this.createConstructionWall();
     this.createTotems();
     this.createPlayer();
     this.createGlobalDarkness();
     this.createSteelDoor();
-    this.createHydraulicGate();
     this.setupControls();
     this.setupTerminal();
 
@@ -155,8 +136,6 @@ export class MainScene extends Phaser.Scene {
       this.promptTextPower.setVisible(false);
       this.promptTextBridge.setVisible(false);
       this.promptTextElevator.setVisible(false);
-      this.promptTextBarrier.setVisible(false);
-      this.promptTextElectric.setVisible(false);
       this.player.setVelocityX(0);
       return;
     }
@@ -164,6 +143,11 @@ export class MainScene extends Phaser.Scene {
     // Se o jogador estiver em estado de choque (knockback ativo por 0.3s)
     if (this.isShocked || this.isFallingInScrap) {
       return;
+    }
+
+    // Checagem de proximidade do Muro de Obras para encerramento da demo (<100px)
+    if (!this.isDemoEndTriggered && Math.abs(this.player.x - 3200) < 100) {
+      this.triggerDemoEndDialogue();
     }
 
     // Checagem de proximidade dos totens
@@ -187,18 +171,6 @@ export class MainScene extends Phaser.Scene {
       isNearElevatorTotem && !this.isTerminalOpen && !this.isElevatorLowered
     );
 
-    const distBarrier = Math.abs(this.player.x - this.totemBarrier.x);
-    const isNearBarrierTotem = distBarrier < 95;
-    this.promptTextBarrier.setVisible(
-      isNearBarrierTotem && !this.isTerminalOpen && Boolean(this.barrier)
-    );
-
-    const distElectric = Math.abs(this.player.x - this.totemElectric.x);
-    const isNearElectricTotem = distElectric < 95;
-    this.promptTextElectric.setVisible(
-      isNearElectricTotem && !this.isTerminalOpen && this.isShockActive
-    );
-
     // Identifica com qual totem o jogador está interagindo
     if (isNearPowerTotem && !this.isPowerOn) {
       this.currentInteractingTotem = 'power';
@@ -206,10 +178,6 @@ export class MainScene extends Phaser.Scene {
       this.currentInteractingTotem = 'bridge';
     } else if (isNearElevatorTotem && !this.isElevatorLowered) {
       this.currentInteractingTotem = 'elevator';
-    } else if (isNearBarrierTotem && this.barrier) {
-      this.currentInteractingTotem = 'barrier';
-    } else if (isNearElectricTotem && this.isShockActive) {
-      this.currentInteractingTotem = 'electric';
     } else {
       this.currentInteractingTotem = null;
     }
@@ -437,9 +405,9 @@ export class MainScene extends Phaser.Scene {
     createGroundTexture('ground-section-left', 1850, 200);
     this.platforms.create(925, 780, 'ground-section-left');
 
-    // 2. Margem Direita (Setor 3): De X = 2250 a X = 6000+ (superfície em Y = 680, centro em 4125, 780)
-    createGroundTexture('ground-section-right', 3750, 200);
-    this.platforms.create(4125, 780, 'ground-section-right');
+    // 2. Margem Direita (Setor 3): De X = 2250 a X = 3600 (superfície em Y = 680, centro em 2925, 780)
+    createGroundTexture('ground-section-right', 1350, 200);
+    this.platforms.create(2925, 780, 'ground-section-right');
 
     // 3. Fundo do Abismo com Sucata Cortante (X = 1850 a X = 2250 no chão lá embaixo)
     this.createAbyssHazard();
@@ -1795,95 +1763,6 @@ export class MainScene extends Phaser.Scene {
     }
   }
 
-  private createShockZone(): void {
-    const width = 350; // X = 1220 a X = 1570
-    const height = 16;
-
-    // Textura da poça eletrificada com faíscas amarelas/ciano
-    if (!this.textures.exists('shock-zone-active')) {
-      const g = this.make.graphics();
-      g.fillStyle(0x0a192f, 0.95);
-      g.fillRect(0, 4, width, 12);
-      g.fillStyle(0xd97706, 1);
-      g.fillRect(0, 8, width, 4);
-
-      g.lineStyle(2, 0xffeb3b, 1);
-      for (let x = 10; x < width; x += 25) {
-        g.beginPath();
-        g.moveTo(x, 14);
-        g.lineTo(x + 5, 2);
-        g.lineTo(x + 10, 12);
-        g.lineTo(x + 16, 0);
-        g.strokePath();
-      }
-
-      g.lineStyle(1.5, 0x00e5ff, 1);
-      for (let x = 20; x < width; x += 30) {
-        g.beginPath();
-        g.moveTo(x, 12);
-        g.lineTo(x + 6, 4);
-        g.lineTo(x + 12, 14);
-        g.strokePath();
-      }
-
-      g.generateTexture('shock-zone-active', width, height);
-      g.destroy();
-    }
-
-    if (!this.textures.exists('shock-zone-neutral')) {
-      const g = this.make.graphics();
-      g.fillStyle(0x272e39, 0.95);
-      g.fillRect(0, 4, width, 12);
-      g.fillStyle(0x475569, 1);
-      g.fillRect(0, 8, width, 4);
-      g.generateTexture('shock-zone-neutral', width, height);
-      g.destroy();
-    }
-
-    this.shockZone = this.physics.add.sprite(4100, 672, 'shock-zone-active');
-    const shockBody = this.shockZone.body as Phaser.Physics.Arcade.Body;
-    shockBody.setAllowGravity(false);
-    shockBody.setImmovable(true);
-
-    this.shockTween = this.tweens.add({
-      targets: this.shockZone,
-      alpha: { from: 0.5, to: 1 },
-      yoyo: true,
-      repeat: -1,
-      duration: 120,
-    });
-  }
-
-  private handleShock(): void {
-    if (this.isShocked || !this.isShockActive) return;
-    this.isShocked = true;
-
-    this.player.setVelocity(-280, -180);
-    this.cameras.main.flash(200, 255, 230, 50);
-
-    const alert = this.add
-      .text(this.player.x, this.player.y - 65, 'PERIGO: 220V / Corrente Crítica!', {
-        fontSize: '16px',
-        color: '#ffeb3b',
-        fontFamily: 'monospace',
-        stroke: '#000000',
-        strokeThickness: 3,
-      })
-      .setOrigin(0.5);
-
-    this.tweens.add({
-      targets: alert,
-      y: alert.y - 30,
-      alpha: 0,
-      duration: 800,
-      onComplete: () => alert.destroy(),
-    });
-
-    this.time.delayedCall(300, () => {
-      this.isShocked = false;
-    });
-  }
-
   private handleCableShock(): void {
     if (this.isShocked || !this.isCableShockActive) return;
     this.isShocked = true;
@@ -1913,22 +1792,6 @@ export class MainScene extends Phaser.Scene {
     this.time.delayedCall(300, () => {
       this.isShocked = false;
     });
-  }
-
-  private disableShockZone(): void {
-    this.isShockActive = false;
-
-    if (this.shockTween) {
-      this.shockTween.stop();
-      this.shockTween = undefined;
-    }
-
-    if (this.shockZone) {
-      this.shockZone.setTexture('shock-zone-neutral');
-      this.shockZone.setAlpha(0.85);
-    }
-
-    this.promptTextElectric.setVisible(false);
   }
 
   private createTotems(): void {
@@ -2067,182 +1930,262 @@ export class MainScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setDepth(110)
       .setVisible(false);
-
-    // ==============================================================
-    // TOTEM 4: COMPORTA HIDRÁULICA (SETOR POSTERIOR EM X = 3350)
-    // ==============================================================
-    this.totemBarrier = this.add.image(3350, 653, 'totem-crt-vintage');
-    this.promptTextBarrier = this.add
-      .text(3350, 610, '[E] DESTRAVAR COMPORTA', {
-        fontSize: '15px',
-        color: '#ffee00',
-        fontFamily: 'monospace',
-        stroke: '#000000',
-        strokeThickness: 3,
-      })
-      .setOrigin(0.5)
-      .setVisible(false);
-
-    // Luz de status no topo do Totem da Comporta (verde)
-    this.beaconBarrier = this.add.circle(3350, 624, 3, 0x00ff66);
-    this.tweens.add({
-      targets: this.beaconBarrier,
-      alpha: { from: 0.2, to: 1 },
-      yoyo: true,
-      repeat: -1,
-      duration: 400,
-    });
-
-    // ==============================================================
-    // TOTEM 5: REGULADOR ELÉTRICO (SETOR POSTERIOR EM X = 3900)
-    // ==============================================================
-    this.totemElectric = this.add.image(3900, 653, 'totem-crt-vintage');
-    this.promptTextElectric = this.add
-      .text(3900, 610, '[E] CALIBRAR CIRCUITO', {
-        fontSize: '15px',
-        color: '#ffeb3b',
-        fontFamily: 'monospace',
-        stroke: '#000000',
-        strokeThickness: 3,
-      })
-      .setOrigin(0.5)
-      .setVisible(false);
-
-    // Luz de status no topo do Totem Elétrico (amarela)
-    this.beaconElectric = this.add.circle(3900, 624, 3, 0xffeb3b);
-    this.tweens.add({
-      targets: this.beaconElectric,
-      alpha: { from: 0.2, to: 1 },
-      yoyo: true,
-      repeat: -1,
-      duration: 350,
-    });
   }
 
-  private createHydraulicGate(): void {
-    // Comporta pesada com pistões cromados, mangueiras e painel de trava
-    if (!this.textures.exists('hydraulic-gate-heavy')) {
+  private createConstructionWall(): void {
+    // ==============================================================
+    // 1. PASSARELA DE SAÍDA DO ELEVADOR (X = 3110 a X = 3200, Y = 230)
+    // ==============================================================
+    const walkwayW = 90;
+    const walkwayH = 20;
+
+    if (!this.textures.exists('mezzanine-exit-walkway')) {
       const g = this.make.graphics();
-      const w = 48;
-      const h = 680;
-
-      // Corpo central de metal escuro
-      g.fillStyle(0x1b2029, 1);
-      g.fillRect(4, 0, w - 8, h);
-
-      // Pistão hidráulico cromado esquerdo
+      g.fillStyle(0x1e293b, 1);
+      g.fillRect(0, 0, walkwayW, walkwayH);
       g.fillStyle(0x475569, 1);
-      g.fillRect(0, 0, 5, h);
-      g.fillStyle(0xe2e8f0, 1);
-      g.fillRect(1, 0, 2, h);
+      g.fillRect(0, 0, walkwayW, 4);
+      g.fillStyle(0x94a3b8, 0.95);
+      g.fillRect(0, 0, walkwayW, 1.5);
+      g.fillStyle(0x00e5ff, 0.85);
+      g.fillRect(0, 0, 3, walkwayH);
+      g.fillRect(walkwayW - 3, 0, 3, walkwayH);
+      for (let x = 10; x < walkwayW; x += 18) {
+        g.fillStyle(0xcbd5e1, 1);
+        g.fillCircle(x, 10, 1.5);
+      }
+      g.generateTexture('mezzanine-exit-walkway', walkwayW, walkwayH);
+      g.destroy();
+    }
 
-      // Pistão hidráulico cromado direito
-      g.fillStyle(0x475569, 1);
-      g.fillRect(w - 5, 0, 5, h);
-      g.fillStyle(0xe2e8f0, 1);
-      g.fillRect(w - 3, 0, 2, h);
+    // Passarela conectando o elevador ao muro em Y = 230
+    const exitWalkway = this.platforms.create(3155, 240, 'mezzanine-exit-walkway') as Phaser.Physics.Arcade.Sprite;
+    exitWalkway.setDepth(8);
+    exitWalkway.refreshBody();
+    const bWalkway = exitWalkway.body as Phaser.Physics.Arcade.Body;
+    bWalkway.checkCollision.down = false;
+    bWalkway.checkCollision.left = false;
+    bWalkway.checkCollision.right = false;
+    bWalkway.checkCollision.up = true;
 
-      // Mangueiras de pressão hidráulica (com abraçadeiras de latão)
-      for (let y = 30; y < h; y += 90) {
-        g.fillStyle(0x090d13, 1);
-        g.fillRect(5, y, 4, 35);
-        g.fillRect(w - 9, y + 20, 4, 35);
-        // Abraçadeiras
-        g.fillStyle(0xd97706, 1);
-        g.fillRect(5, y, 4, 3);
-        g.fillRect(5, y + 32, 4, 3);
-        g.fillRect(w - 9, y + 20, 4, 3);
-        g.fillRect(w - 9, y + 52, 4, 3);
+    // Treliça metálica de suporte descendo da passarela
+    const strutG = this.add.graphics();
+    strutG.fillStyle(0x1e293b, 0.85);
+    strutG.fillRect(3150, 240, 10, 440);
+    strutG.lineStyle(2, 0x334155, 0.6);
+    strutG.beginPath();
+    strutG.moveTo(3150, 260);
+    strutG.lineTo(3160, 420);
+    strutG.moveTo(3150, 420);
+    strutG.lineTo(3160, 580);
+    strutG.strokePath();
+    strutG.setDepth(4);
+
+    // ==============================================================
+    // 2. MURO SÓLIDO DE OBRAS E BLOQUEIO (X = 3200 a 3320, Y = 0 a 720)
+    // ==============================================================
+    const wallW = 120;
+    const wallH = 720;
+
+    if (!this.textures.exists('construction-wall-reinforced')) {
+      const g = this.make.graphics();
+
+      // Fundo maciço de concreto industrial reforçado
+      g.fillStyle(0x0f172a, 1);
+      g.fillRect(0, 0, wallW, wallH);
+
+      // Chapas e blocos metálicos de blindagem com rebites
+      for (let y = 0; y < wallH; y += 80) {
+        g.fillStyle(0x1e293b, 1);
+        g.fillRect(4, y + 2, wallW - 8, 76);
+
+        g.fillStyle(0x334155, 0.8);
+        g.fillRect(6, y + 4, wallW - 12, 3);
+
+        // Rebites de ferro fundido nas extremidades
+        g.fillStyle(0x64748b, 1);
+        g.fillCircle(12, y + 14, 2.5);
+        g.fillCircle(wallW - 12, y + 14, 2.5);
+        g.fillCircle(12, y + 66, 2.5);
+        g.fillCircle(wallW - 12, y + 66, 2.5);
+
+        // Ranhura industrial de expansão
+        g.fillStyle(0x090d16, 1);
+        g.fillRect(0, y, wallW, 2);
       }
 
-      // Placas horizontais de reforço e rebites
-      for (let y = 0; y < h; y += 60) {
-        g.fillStyle(0x11161f, 1);
-        g.fillRect(8, y, w - 16, 4);
-        g.fillStyle(0x94a3b8, 1);
-        g.fillCircle(12, y + 10, 2);
-        g.fillCircle(w - 12, y + 10, 2);
-      }
-
-      // Faixas de aviso de perigo amarelo/preto
-      const drawStripes = (startY: number, sectionHeight: number) => {
-        g.fillStyle(0x111827, 1);
-        g.fillRect(8, startY, w - 16, sectionHeight);
+      // Função auxiliar para faixas zebradas diagonais (hazard stripes)
+      const drawHazardStripes = (startY: number, sectionHeight: number) => {
+        g.fillStyle(0x18181b, 1);
+        g.fillRect(0, startY, wallW, sectionHeight);
         g.fillStyle(0xfacc15, 1);
-        for (let sy = startY - 20; sy < startY + sectionHeight; sy += 16) {
+        for (let bx = -20; bx < wallW + 20; bx += 20) {
           g.beginPath();
-          g.moveTo(8, sy);
-          g.lineTo(w - 8, sy + 14);
-          g.lineTo(w - 8, sy + 20);
-          g.lineTo(8, sy + 6);
+          g.moveTo(bx, startY + sectionHeight);
+          g.lineTo(bx + 10, startY);
+          g.lineTo(bx + 18, startY);
+          g.lineTo(bx + 8, startY + sectionHeight);
           g.closePath();
           g.fillPath();
         }
       };
 
-      drawStripes(40, 70);
-      drawStripes(h - 130, 70);
+      // Faixa zebrada no topo (Y = 0 a 70)
+      drawHazardStripes(0, 70);
 
-      g.generateTexture('hydraulic-gate-heavy', w, h);
+      // Faixa zebrada na altura da passarela intermediária (Y = 210 a 260)
+      drawHazardStripes(210, 50);
+
+      // Faixa zebrada na base (Y = 640 a 720)
+      drawHazardStripes(640, 80);
+
+      g.generateTexture('construction-wall-reinforced', wallW, wallH);
       g.destroy();
     }
 
-    this.barriers = this.physics.add.staticGroup();
-    this.barrier = this.barriers.create(3500, 340, 'hydraulic-gate-heavy') as Phaser.Physics.Arcade.Sprite;
-    this.barrierCollider = this.physics.add.collider(this.player, this.barriers);
+    // Criação física do muro em X = 3260 (centro), cobrindo de X = 3200 a 3320 e Y = 0 a 720
+    const constructionWall = this.platforms.create(3260, 360, 'construction-wall-reinforced') as Phaser.Physics.Arcade.Sprite;
+    constructionWall.setDepth(14);
+    constructionWall.refreshBody();
 
-    // Painel luminoso de trava [LOCKED] no centro da comporta na altura dos olhos
-    this.gateLockText = this.add
-      .text(3500, 600, '[LOCKED]', {
-        fontSize: '11px',
-        color: '#ff1744',
+    // ==============================================================
+    // 3. CONES INDUSTRIAIS DE SINALIZAÇÃO
+    // ==============================================================
+    if (!this.textures.exists('hazard-traffic-cone')) {
+      const g = this.make.graphics();
+      const cW = 28;
+      const cH = 36;
+
+      // Base preta de borracha
+      g.fillStyle(0x0f172a, 1);
+      g.fillRoundedRect(0, 30, cW, 6, 2);
+
+      // Corpo cônico laranja fluorescente
+      g.fillStyle(0xff5722, 1);
+      g.beginPath();
+      g.moveTo(14, 0);
+      g.lineTo(24, 30);
+      g.lineTo(4, 30);
+      g.closePath();
+      g.fillPath();
+
+      // Faixa reflexiva branca central
+      g.fillStyle(0xf8fafc, 1);
+      g.beginPath();
+      g.moveTo(11, 10);
+      g.lineTo(17, 10);
+      g.lineTo(20, 20);
+      g.lineTo(8, 20);
+      g.closePath();
+      g.fillPath();
+
+      // Ponta arredondada
+      g.fillStyle(0xff5722, 1);
+      g.fillCircle(14, 2, 2);
+
+      g.generateTexture('hazard-traffic-cone', cW, cH);
+      g.destroy();
+    }
+
+    // Cone no mezanino (X = 3145, Y = 212)
+    this.add.image(3145, 212, 'hazard-traffic-cone').setDepth(15);
+
+    // Cones no térreo (X = 3160 e 3185, Y = 662)
+    this.add.image(3160, 662, 'hazard-traffic-cone').setDepth(15);
+    this.add.image(3185, 662, 'hazard-traffic-cone').setDepth(15);
+
+    // ==============================================================
+    // 4. ANDAIMES E ESTRUTURAS METÁLICAS
+    // ==============================================================
+    const scaffolding = this.add.graphics();
+    scaffolding.lineStyle(2.5, 0x475569, 0.95);
+    // Hastes verticais
+    scaffolding.moveTo(3192, 150);
+    scaffolding.lineTo(3192, 680);
+    // Treliças em 'X' do andaime
+    for (let sy = 180; sy < 640; sy += 80) {
+      scaffolding.moveTo(3192, sy);
+      scaffolding.lineTo(3204, sy + 80);
+      scaffolding.moveTo(3204, sy);
+      scaffolding.lineTo(3192, sy + 80);
+      scaffolding.moveTo(3192, sy);
+      scaffolding.lineTo(3204, sy);
+    }
+    scaffolding.strokePath();
+    scaffolding.setDepth(15);
+
+    // Luz de advertência estroboscópica amarela pulsando no topo do muro
+    const warningBeacon = this.add.circle(3200, 195, 4, 0xffcc00).setDepth(20);
+    this.tweens.add({
+      targets: warningBeacon,
+      alpha: { from: 0.1, to: 1 },
+      scale: { from: 0.8, to: 1.6 },
+      yoyo: true,
+      repeat: -1,
+      duration: 250,
+    });
+
+    // ==============================================================
+    // 5. PLACA METÁLICA ENFERRUJADA DE BLOQUEIO (X = 3180, Y = 420)
+    // ==============================================================
+    // Painel escuro com bordas de advertência amarela
+    const signG = this.add.graphics();
+    signG.fillStyle(0x0a0f17, 0.95);
+    signG.fillRoundedRect(3040, 360, 280, 120, 6);
+    // Moldura externa zebrada / amarela
+    signG.lineStyle(3, 0xfacc15, 1);
+    signG.strokeRoundedRect(3040, 360, 280, 120, 6);
+    signG.lineStyle(1.5, 0x00e5ff, 0.8);
+    signG.strokeRoundedRect(3044, 364, 272, 112, 4);
+    signG.setDepth(16);
+
+    // Textos em destaque na placa
+    this.add
+      .text(3180, 385, '⚠ EM OBRAS // SETOR RESTRITO ⚠', {
+        fontSize: '14px',
+        color: '#facc15',
         fontFamily: 'Consolas, monospace',
         fontStyle: 'bold',
-        backgroundColor: 'rgba(15, 5, 5, 0.95)',
-        padding: { x: 4, y: 3 },
+        stroke: '#000000',
+        strokeThickness: 3,
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setDepth(17);
+
+    this.add
+      .text(3180, 420, 'Aguarde a construção do jogo!', {
+        fontSize: '13px',
+        color: '#00e5ff',
+        fontFamily: 'Consolas, monospace',
+        fontStyle: 'bold',
+        stroke: '#000000',
+        strokeThickness: 3,
+      })
+      .setOrigin(0.5)
+      .setDepth(17);
+
+    this.add
+      .text(3180, 452, '[FIM DO SETOR DISPONÍVEL NA DEMO]', {
+        fontSize: '10px',
+        color: '#94a3b8',
+        fontFamily: 'monospace',
+      })
+      .setOrigin(0.5)
+      .setDepth(17);
   }
 
-  private disableBarrier(): void {
-    if (this.barrierCollider) {
-      this.barrierCollider.destroy();
-      this.barrierCollider = undefined;
+  private triggerDemoEndDialogue(): void {
+    this.isDemoEndTriggered = true;
+    if (!this.dialogueSystem) {
+      this.dialogueSystem = new DialogueSystem();
     }
-    this.promptTextBarrier.setVisible(false);
-
-    // Muda a trava para verde [UNLOCKED]
-    if (this.gateLockText) {
-      this.gateLockText.setText('[UNLOCKED]').setColor('#00ff66');
-    }
-
-    if (this.barrier) {
-      // Sobe a comporta e a trava juntas para o teto com tween vertical
-      const targetsToLift: (Phaser.GameObjects.GameObject | undefined)[] = [
-        this.barrier,
-        this.gateLockText,
-      ].filter(Boolean);
-
-      this.tweens.add({
-        targets: targetsToLift,
-        y: '-=680',
-        duration: 950,
-        ease: 'Power2',
-        onComplete: () => {
-          if (this.barrier) {
-            this.barrier.destroy();
-            this.barrier = undefined;
-          }
-          if (this.gateLockText) {
-            this.gateLockText.destroy();
-            this.gateLockText = undefined;
-          }
-          if (this.barriers) {
-            this.barriers.clear(true, true);
-          }
-        },
-      });
-    }
+    this.player.setVelocityX(0);
+    this.dialogueSystem.startDialogue([
+      {
+        speaker: '> CANAL REBELDE // INTERCEPTAÇÃO: ESTAGIÁRIO_V0.9b',
+        text: 'Kernel restaurado, esteira calibrada e chave de segurança recombinada. Por enquanto é até aqui que o servidor processa. Bom trabalho, recruta. Desconectando...',
+      },
+    ]);
   }
 
   private createPlayer(): void {
@@ -2338,12 +2281,6 @@ export class MainScene extends Phaser.Scene {
       this.physics.add.collider(this.player, this.elevatorPlatform);
     }
 
-    // Detecção de contato com a zona de choque
-    this.physics.add.overlap(this.player, this.shockZone, () => {
-      if (this.isShockActive) {
-        this.handleShock();
-      }
-    });
 
     // Detecção de queda no abismo com sucata cortante
     if (this.scrapHazard) {
@@ -2494,16 +2431,6 @@ export class MainScene extends Phaser.Scene {
         setTimeout(() => {
           this.closeTerminal();
         }, 1200);
-      } else if (result.action === 'DISABLE_BARRIER') {
-        this.disableBarrier();
-        setTimeout(() => {
-          this.closeTerminal();
-        }, 1000);
-      } else if (result.action === 'DISABLE_SHOCK') {
-        this.disableShockZone();
-        setTimeout(() => {
-          this.closeTerminal();
-        }, 1000);
       }
     }
   }
@@ -2546,7 +2473,7 @@ export class MainScene extends Phaser.Scene {
   }
 
   private openTerminal(
-    totemType: 'power' | 'bridge' | 'elevator' | 'barrier' | 'electric'
+    totemType: 'power' | 'bridge' | 'elevator'
   ): void {
     if (this.dialogueSystem && this.dialogueSystem.isActive) return;
 
@@ -2600,34 +2527,6 @@ export class MainScene extends Phaser.Scene {
           "> PROTOCOLO DE ACESSO: A chave de liberação foi fragmentada. O barramento exige a união das duas palavras na variável 'senha'.",
           "> COMUNICADOR REBELDE: O estagiário anterior salvou a senha quebrada no meio pra 'poupar memória'. Junte os dois pedaços de texto antes que o elevador despenque na cabeça de alguém.",
           '> Digite a instrução:',
-        ];
-        lines.forEach((lineText) => {
-          const info = document.createElement('div');
-          info.className = 'log-line info';
-          info.textContent = lineText;
-          this.terminalOutput?.appendChild(info);
-        });
-        this.terminalOutput.scrollTop = this.terminalOutput.scrollHeight;
-      } else if (totemType === 'barrier') {
-        const lines = [
-          '=== SISTEMA HIDRÁULICO DO PISTÃO ===',
-          "STATUS: chave_seguranca = '42' [TIPO DETECTADO: STRING/TEXTO]",
-          'AVISO: O sensor de peso exige um INTEIRO (number/int) para calcular a massa do contrapeso. Strings causam travamento mecânico.',
-          "> DICA DO ESTAGIÁRIO: Remova as aspas para virar número ou converta o tipo! (ex: chave = 42 ou int('42'))",
-        ];
-        lines.forEach((lineText) => {
-          const info = document.createElement('div');
-          info.className = 'log-line info';
-          info.textContent = lineText;
-          this.terminalOutput?.appendChild(info);
-        });
-        this.terminalOutput.scrollTop = this.terminalOutput.scrollHeight;
-      } else if (totemType === 'electric') {
-        const lines = [
-          '=== REGULADOR DE TENSÃO DO LIXÃO ===',
-          'STATUS: tensao = 220 | resistencia = 0',
-          'DIAGNÓSTICO: corrente = tensao / resistencia -> [DIVISÃO POR ZERO! O circuito está em curto-circuito total].',
-          '> DICA DO ESTAGIÁRIO: Uma IA preguiçosa esqueceu da Lei de Ohm! Aumente a resistência (ex: resistencia = 1000) ou corte a tensão (tensao = 0) para neutralizar o choque.',
         ];
         lines.forEach((lineText) => {
           const info = document.createElement('div');
