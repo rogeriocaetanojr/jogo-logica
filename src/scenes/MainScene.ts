@@ -21,17 +21,26 @@ export class MainScene extends Phaser.Scene {
   private steelDoorCollider?: Phaser.Physics.Arcade.Collider;
   private steelDoorText?: Phaser.GameObjects.Text;
 
-  // Totem 1 (Comporta Hidráulica)
+  // Totem 1: Controlador da Esteira (Desafio 2 - Variáveis Inteiras)
+  private totemBridge!: Phaser.GameObjects.Image;
+  private promptTextBridge!: Phaser.GameObjects.Text;
+  private beaconBridge!: Phaser.GameObjects.Arc;
+  private isBridgeExpanded: boolean = false;
+  private bridge!: Phaser.Physics.Arcade.Sprite;
+  private scrapHazard!: Phaser.Physics.Arcade.Sprite;
+  private isFallingInScrap: boolean = false;
+
+  // Totem 2 (Comporta Hidráulica)
   private totemBarrier!: Phaser.GameObjects.Image;
   private promptTextBarrier!: Phaser.GameObjects.Text;
   private beaconBarrier!: Phaser.GameObjects.Arc;
 
-  // Totem 2 (Regulador Elétrico)
+  // Totem 3 (Regulador Elétrico)
   private totemElectric!: Phaser.GameObjects.Image;
   private promptTextElectric!: Phaser.GameObjects.Text;
   private beaconElectric!: Phaser.GameObjects.Arc;
 
-  private currentInteractingTotem: 'power' | 'barrier' | 'electric' | null = null;
+  private currentInteractingTotem: 'power' | 'bridge' | 'barrier' | 'electric' | null = null;
 
   // Comporta Hidráulica
   private barriers!: Phaser.Physics.Arcade.StaticGroup;
@@ -85,6 +94,7 @@ export class MainScene extends Phaser.Scene {
     this.createScenery();
     this.createGround();
     this.createScrapPlatforms();
+    this.createConveyorBridge();
     this.createShockZone();
     this.createTotems();
     this.createPlayer();
@@ -122,6 +132,7 @@ export class MainScene extends Phaser.Scene {
     // Se o diálogo estiver ativo, trava totalmente o jogador e esconde prompts
     if (this.dialogueSystem && this.dialogueSystem.isActive) {
       this.promptTextPower.setVisible(false);
+      this.promptTextBridge.setVisible(false);
       this.promptTextBarrier.setVisible(false);
       this.promptTextElectric.setVisible(false);
       this.player.setVelocityX(0);
@@ -129,7 +140,7 @@ export class MainScene extends Phaser.Scene {
     }
 
     // Se o jogador estiver em estado de choque (knockback ativo por 0.3s)
-    if (this.isShocked) {
+    if (this.isShocked || this.isFallingInScrap) {
       return;
     }
 
@@ -138,6 +149,12 @@ export class MainScene extends Phaser.Scene {
     const isNearPowerTotem = distPower < 80;
     this.promptTextPower.setVisible(
       isNearPowerTotem && !this.isTerminalOpen && !this.isPowerOn
+    );
+
+    const distBridge = Math.abs(this.player.x - this.totemBridge.x);
+    const isNearBridgeTotem = distBridge < 85;
+    this.promptTextBridge.setVisible(
+      isNearBridgeTotem && !this.isTerminalOpen && !this.isBridgeExpanded
     );
 
     const distBarrier = Math.abs(this.player.x - this.totemBarrier.x);
@@ -155,6 +172,8 @@ export class MainScene extends Phaser.Scene {
     // Identifica com qual totem o jogador está interagindo
     if (isNearPowerTotem && !this.isPowerOn) {
       this.currentInteractingTotem = 'power';
+    } else if (isNearBridgeTotem && !this.isBridgeExpanded) {
+      this.currentInteractingTotem = 'bridge';
     } else if (isNearBarrierTotem && this.barrier) {
       this.currentInteractingTotem = 'barrier';
     } else if (isNearElectricTotem && this.isShockActive) {
@@ -328,17 +347,18 @@ export class MainScene extends Phaser.Scene {
   }
 
   private createGround(): void {
-    // Piso Industrial Reforçado estendido para os 6000 pixels do mundo
-    if (!this.textures.exists('ground-industrial')) {
-      const g = this.make.graphics();
-      const w = 6500;
-      const h = 200;
+    this.platforms = this.physics.add.staticGroup();
 
-      // Base metálica escura preenchendo até o fundo
+    // Helper para gerar textura de piso industrial de dimensões específicas
+    const createGroundTexture = (key: string, w: number, h: number) => {
+      if (this.textures.exists(key)) return;
+      const g = this.make.graphics();
+
+      // Base metálica escura
       g.fillStyle(0x19212c, 1);
       g.fillRect(0, 0, w, h);
 
-      // Borda superior metálica chanfrada e desgastada
+      // Borda superior chanfrada de metal escovado
       g.fillStyle(0x4b5563, 1);
       g.fillRect(0, 0, w, 4);
       g.fillStyle(0x9ca3af, 0.85);
@@ -346,7 +366,6 @@ export class MainScene extends Phaser.Scene {
 
       // Placas de metal industriais a cada 80px
       for (let x = 0; x < w; x += 80) {
-        // Costura / junta de solda
         g.fillStyle(0x0e1319, 1);
         g.fillRect(x, 2, 2, h - 2);
         g.fillStyle(0x374151, 0.7);
@@ -367,17 +386,108 @@ export class MainScene extends Phaser.Scene {
         g.fillRect(x + 22, 45, 36, 3);
       }
 
-      g.generateTexture('ground-industrial', w, h);
+      // Detalhe reforçado de borda no precipício do abismo
+      g.fillStyle(0x0f172a, 1);
+      g.fillRect(w - 6, 0, 6, h);
+      g.fillStyle(0x475569, 1);
+      g.fillRect(w - 2, 0, 2, h);
+
+      g.generateTexture(key, w, h);
+      g.destroy();
+    };
+
+    // 1. Margem Esquerda: De X = 0 a X = 1650 (superfície em Y = 680, centro em 825, 780)
+    createGroundTexture('ground-section-left', 1650, 200);
+    this.platforms.create(825, 780, 'ground-section-left');
+
+    // 2. Margem Direita: De X = 2050 a X = 6000+ (superfície em Y = 680, centro em 4050, 780)
+    createGroundTexture('ground-section-right', 4000, 200);
+    this.platforms.create(4050, 780, 'ground-section-right');
+
+    // 3. Fundo do Abismo com Sucata Cortante (X = 1650 a X = 2050)
+    this.createAbyssHazard();
+  }
+
+  private createAbyssHazard(): void {
+    const hazardWidth = 400; // X = 1650 a X = 2050
+    const hazardHeight = 36;
+
+    if (!this.textures.exists('abyss-scrap-spikes')) {
+      const g = this.make.graphics();
+      // Fundo escuro do fosso
+      g.fillStyle(0x070a0e, 1);
+      g.fillRect(0, 0, hazardWidth, hazardHeight);
+
+      // Vigas retorcidas e lâminas enferrujadas denteadas
+      for (let x = 6; x < hazardWidth - 6; x += 16) {
+        g.fillStyle(0x78350f, 0.9); // ferrugem base
+        g.beginPath();
+        g.moveTo(x - 6, hazardHeight);
+        g.lineTo(x + 2, 6);
+        g.lineTo(x + 10, hazardHeight);
+        g.closePath();
+        g.fillPath();
+
+        // Ponta afiada metálica prateada
+        g.fillStyle(0x94a3b8, 1);
+        g.beginPath();
+        g.moveTo(x, 14);
+        g.lineTo(x + 2, 6);
+        g.lineTo(x + 4, 14);
+        g.closePath();
+        g.fillPath();
+
+        // Faísca / resíduo tóxico avermelhado
+        g.fillStyle(0xef4444, 0.7);
+        g.fillCircle(x + 2, 8, 1.5);
+      }
+
+      g.generateTexture('abyss-scrap-spikes', hazardWidth, hazardHeight);
       g.destroy();
     }
 
-    this.platforms = this.physics.add.staticGroup();
-    // Centro X = 3000, Y = 780 (cobre de 0 a 6000+)
-    this.platforms.create(3000, 780, 'ground-industrial');
+    // Posicionada no fundo do abismo
+    this.scrapHazard = this.physics.add.sprite(1850, 702, 'abyss-scrap-spikes');
+    const hazardBody = this.scrapHazard.body as Phaser.Physics.Arcade.Body;
+    hazardBody.setAllowGravity(false);
+    hazardBody.setImmovable(true);
+  }
+
+  private handleScrapFall(): void {
+    if (this.isFallingInScrap) return;
+    this.isFallingInScrap = true;
+
+    this.player.setVelocity(-180, -260);
+    this.cameras.main.flash(200, 255, 50, 50);
+
+    const alert = this.add
+      .text(this.player.x, this.player.y - 65, 'PERIGO: Fosso de Sucata Cortante!', {
+        fontSize: '16px',
+        color: '#ff4444',
+        fontFamily: 'monospace',
+        stroke: '#000000',
+        strokeThickness: 3,
+      })
+      .setOrigin(0.5);
+
+    this.tweens.add({
+      targets: alert,
+      y: alert.y - 30,
+      alpha: 0,
+      duration: 800,
+      onComplete: () => alert.destroy(),
+    });
+
+    this.time.delayedCall(350, () => {
+      // Reposiciona o jogador em segurança na margem esquerda antes da esteira
+      this.player.setPosition(1580, 620);
+      this.player.setVelocity(0, 0);
+      this.isFallingInScrap = false;
+    });
   }
 
   private createScrapPlatforms(): void {
-    // Plataformas elevadas de sucata entre X = 1200 e X = 1800 para respiro de gameplay
+    // Plataformas elevadas de metal para saltar entre X = 1200 e X = 1600
     if (!this.textures.exists('scrap-platform')) {
       const g = this.make.graphics();
       const pw = 160;
@@ -411,13 +521,113 @@ export class MainScene extends Phaser.Scene {
       g.destroy();
     }
 
-    // 3 plataformas balanceadas para parkour e respiro de exploração
-    const p1 = this.platforms.create(1350, 560, 'scrap-platform') as Phaser.Physics.Arcade.Sprite;
+    // 3 plataformas de transição entre X = 1200 e X = 1600
+    const p1 = this.platforms.create(1280, 560, 'scrap-platform') as Phaser.Physics.Arcade.Sprite;
     p1.refreshBody();
-    const p2 = this.platforms.create(1520, 460, 'scrap-platform') as Phaser.Physics.Arcade.Sprite;
+    const p2 = this.platforms.create(1440, 480, 'scrap-platform') as Phaser.Physics.Arcade.Sprite;
     p2.refreshBody();
-    const p3 = this.platforms.create(1690, 530, 'scrap-platform') as Phaser.Physics.Arcade.Sprite;
+    const p3 = this.platforms.create(1580, 550, 'scrap-platform') as Phaser.Physics.Arcade.Sprite;
     p3.refreshBody();
+  }
+
+  private createConveyorBridge(): void {
+    const bridgeW = 420;
+    const bridgeH = 20;
+
+    if (!this.textures.exists('conveyor-bridge-pattern')) {
+      const g = this.make.graphics();
+
+      // Estrutura base de metal reforçado escuro
+      g.fillStyle(0x1e293b, 1);
+      g.fillRect(0, 0, bridgeW, bridgeH);
+
+      // Superfície da esteira dentada de borracha/aço (Y = 0..6)
+      g.fillStyle(0x0a0f17, 1);
+      g.fillRect(0, 0, bridgeW, 6);
+      for (let bx = 0; bx < bridgeW; bx += 8) {
+        g.fillStyle(0x334155, 0.9);
+        g.fillRect(bx, 0, 3, 6);
+      }
+
+      // Viga central estrutural cromada (Y = 6..12)
+      g.fillStyle(0x334155, 1);
+      g.fillRect(0, 6, bridgeW, 6);
+      g.fillStyle(0x64748b, 0.8);
+      g.fillRect(0, 7, bridgeW, 2);
+
+      // Faixas de aviso de perigo amarelo/preto na borda inferior (Y = 12..20)
+      g.fillStyle(0x18181b, 1);
+      g.fillRect(0, 12, bridgeW, 8);
+      g.fillStyle(0xfacc15, 1);
+      for (let bx = -10; bx < bridgeW; bx += 16) {
+        g.beginPath();
+        g.moveTo(bx, 20);
+        g.lineTo(bx + 8, 12);
+        g.lineTo(bx + 14, 12);
+        g.lineTo(bx + 6, 20);
+        g.closePath();
+        g.fillPath();
+      }
+
+      // Rolamentos e pistões mecânicos a cada 70px
+      for (let bx = 30; bx < bridgeW; bx += 70) {
+        g.fillStyle(0x94a3b8, 1);
+        g.fillCircle(bx, 9, 2);
+        g.fillStyle(0x0f172a, 1);
+        g.fillCircle(bx, 9, 1);
+      }
+
+      g.generateTexture('conveyor-bridge-pattern', bridgeW, bridgeH);
+      g.destroy();
+    }
+
+    // A esteira começa em X = 1650 sobre o abismo, estendendo-se inicialmente por 100px (2 metros)
+    this.bridge = this.physics.add.sprite(1650, 672, 'conveyor-bridge-pattern');
+    this.bridge.setOrigin(0, 0);
+    this.bridge.setDepth(12);
+    this.bridge.setDisplaySize(100, bridgeH);
+    this.bridge.setCrop(0, 0, 100, bridgeH);
+
+    const bridgeBody = this.bridge.body as Phaser.Physics.Arcade.Body;
+    bridgeBody.setAllowGravity(false);
+    bridgeBody.setImmovable(true);
+    bridgeBody.setSize(100, bridgeH);
+  }
+
+  private expandBridge(): void {
+    if (this.isBridgeExpanded) return;
+    this.isBridgeExpanded = true;
+
+    if (this.beaconBridge) {
+      this.tweens.killTweensOf(this.beaconBridge);
+      this.beaconBridge.setFillStyle(0x00ff66);
+      this.beaconBridge.setScale(1);
+      this.beaconBridge.setAlpha(1);
+    }
+    this.promptTextBridge.setVisible(false);
+
+    // Animação suave expandindo a esteira de metal de 100px para 420px de comprimento até X = 2070
+    this.tweens.add({
+      targets: this.bridge,
+      displayWidth: 420,
+      duration: 1200,
+      ease: 'Cubic.easeOut',
+      onUpdate: () => {
+        if (this.bridge && this.bridge.body) {
+          const w = Math.round(this.bridge.displayWidth);
+          this.bridge.setCrop(0, 0, w, 20);
+          const body = this.bridge.body as Phaser.Physics.Arcade.Body;
+          body.setSize(w, 20);
+        }
+      },
+      onComplete: () => {
+        if (this.bridge && this.bridge.body) {
+          this.bridge.setCrop(0, 0, 420, 20);
+          const body = this.bridge.body as Phaser.Physics.Arcade.Body;
+          body.setSize(420, 20);
+        }
+      },
+    });
   }
 
   private createGlobalDarkness(): void {
@@ -686,7 +896,7 @@ export class MainScene extends Phaser.Scene {
       g.destroy();
     }
 
-    this.shockZone = this.physics.add.sprite(2800, 672, 'shock-zone-active');
+    this.shockZone = this.physics.add.sprite(3200, 672, 'shock-zone-active');
     const shockBody = this.shockZone.body as Phaser.Physics.Arcade.Body;
     shockBody.setAllowGravity(false);
     shockBody.setImmovable(true);
@@ -822,11 +1032,39 @@ export class MainScene extends Phaser.Scene {
       .setVisible(false);
 
     // ==============================================================
-    // TOTEM 1: COMPORTA HIDRÁULICA (MOVIDO PARA X = 2050)
+    // TOTEM 1: CONTROLADOR DA ESTEIRA (DESAFIO 2 EM X = 1600)
     // ==============================================================
-    this.totemBarrier = this.add.image(2050, 653, 'totem-crt-vintage');
+    this.totemBridge = this.add.image(1600, 653, 'totem-crt-vintage');
+
+    // LED de status no topo do Totem da Esteira (vermelho enquanto curta, verde após expandir)
+    this.beaconBridge = this.add.circle(1600, 624, 2.5, 0xff1744);
+    this.tweens.add({
+      targets: this.beaconBridge,
+      alpha: { from: 0.25, to: 1 },
+      scale: { from: 0.85, to: 1.25 },
+      yoyo: true,
+      repeat: -1,
+      duration: 450,
+    });
+
+    // Prompt sutil '[E] CALIBRAR ESTEIRA'
+    this.promptTextBridge = this.add
+      .text(1600, 605, '[E] CALIBRAR ESTEIRA', {
+        fontSize: '15px',
+        color: '#00e5ff',
+        fontFamily: 'monospace',
+        stroke: '#000000',
+        strokeThickness: 3,
+      })
+      .setOrigin(0.5)
+      .setVisible(false);
+
+    // ==============================================================
+    // TOTEM 2: COMPORTA HIDRÁULICA (MOVIDO PARA X = 2300)
+    // ==============================================================
+    this.totemBarrier = this.add.image(2300, 653, 'totem-crt-vintage');
     this.promptTextBarrier = this.add
-      .text(2050, 610, '[E] DESTRAVAR COMPORTA', {
+      .text(2300, 610, '[E] DESTRAVAR COMPORTA', {
         fontSize: '15px',
         color: '#ffee00',
         fontFamily: 'monospace',
@@ -836,8 +1074,8 @@ export class MainScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setVisible(false);
 
-    // Luz de status no topo do Totem 1 (verde)
-    this.beaconBarrier = this.add.circle(2050, 624, 3, 0x00ff66);
+    // Luz de status no topo do Totem 2 (verde)
+    this.beaconBarrier = this.add.circle(2300, 624, 3, 0x00ff66);
     this.tweens.add({
       targets: this.beaconBarrier,
       alpha: { from: 0.2, to: 1 },
@@ -847,11 +1085,11 @@ export class MainScene extends Phaser.Scene {
     });
 
     // ==============================================================
-    // TOTEM 2: REGULADOR ELÉTRICO (MOVIDO PARA X = 2550)
+    // TOTEM 3: REGULADOR ELÉTRICO (MOVIDO PARA X = 2950)
     // ==============================================================
-    this.totemElectric = this.add.image(2550, 653, 'totem-crt-vintage');
+    this.totemElectric = this.add.image(2950, 653, 'totem-crt-vintage');
     this.promptTextElectric = this.add
-      .text(2550, 610, '[E] CALIBRAR CIRCUITO', {
+      .text(2950, 610, '[E] CALIBRAR CIRCUITO', {
         fontSize: '15px',
         color: '#ffeb3b',
         fontFamily: 'monospace',
@@ -861,8 +1099,8 @@ export class MainScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setVisible(false);
 
-    // Luz de status no topo do Totem 2 (amarela)
-    this.beaconElectric = this.add.circle(2550, 624, 3, 0xffeb3b);
+    // Luz de status no topo do Totem 3 (amarela)
+    this.beaconElectric = this.add.circle(2950, 624, 3, 0xffeb3b);
     this.tweens.add({
       targets: this.beaconElectric,
       alpha: { from: 0.2, to: 1 },
@@ -941,12 +1179,12 @@ export class MainScene extends Phaser.Scene {
     }
 
     this.barriers = this.physics.add.staticGroup();
-    this.barrier = this.barriers.create(2250, 340, 'hydraulic-gate-heavy') as Phaser.Physics.Arcade.Sprite;
+    this.barrier = this.barriers.create(2500, 340, 'hydraulic-gate-heavy') as Phaser.Physics.Arcade.Sprite;
     this.barrierCollider = this.physics.add.collider(this.player, this.barriers);
 
     // Painel luminoso de trava [LOCKED] no centro da comporta na altura dos olhos
     this.gateLockText = this.add
-      .text(2250, 600, '[LOCKED]', {
+      .text(2500, 600, '[LOCKED]', {
         fontSize: '11px',
         color: '#ff1744',
         fontFamily: 'Consolas, monospace',
@@ -1081,12 +1319,24 @@ export class MainScene extends Phaser.Scene {
 
     this.physics.add.collider(this.player, this.platforms);
 
+    // Colisão com a esteira metálica
+    if (this.bridge) {
+      this.physics.add.collider(this.player, this.bridge);
+    }
+
     // Detecção de contato com a zona de choque
     this.physics.add.overlap(this.player, this.shockZone, () => {
       if (this.isShockActive) {
         this.handleShock();
       }
     });
+
+    // Detecção de queda no abismo com sucata cortante
+    if (this.scrapHazard) {
+      this.physics.add.overlap(this.player, this.scrapHazard, () => {
+        this.handleScrapFall();
+      });
+    }
   }
 
   private setupControls(): void {
@@ -1199,6 +1449,11 @@ export class MainScene extends Phaser.Scene {
         setTimeout(() => {
           this.closeTerminal();
         }, 1000);
+      } else if (result.action === 'EXPAND_BRIDGE') {
+        this.expandBridge();
+        setTimeout(() => {
+          this.closeTerminal();
+        }, 1000);
       } else if (result.action === 'DISABLE_BARRIER') {
         this.disableBarrier();
         setTimeout(() => {
@@ -1250,7 +1505,7 @@ export class MainScene extends Phaser.Scene {
     }
   }
 
-  private openTerminal(totemType: 'power' | 'barrier' | 'electric'): void {
+  private openTerminal(totemType: 'power' | 'bridge' | 'barrier' | 'electric'): void {
     if (this.dialogueSystem && this.dialogueSystem.isActive) return;
 
     this.isTerminalOpen = true;
@@ -1270,6 +1525,21 @@ export class MainScene extends Phaser.Scene {
           '> STATUS: energia = False',
           '> PROTOCOLO: A iluminação do galpão e a tranca magnética exigem fluxo contínuo.',
           "> DICA DO ESTAGIÁRIO: No universo binário, se 'False' mantém o setor nas trevas, qual palavra resta para acender as luzes?",
+          '> Digite a instrução:',
+        ];
+        lines.forEach((lineText) => {
+          const info = document.createElement('div');
+          info.className = 'log-line info';
+          info.textContent = lineText;
+          this.terminalOutput?.appendChild(info);
+        });
+        this.terminalOutput.scrollTop = this.terminalOutput.scrollHeight;
+      } else if (totemType === 'bridge') {
+        const lines = [
+          '=== MECANISMO DE EXTENSÃO DA ESTEIRA ===',
+          '> STATUS: tamanho_ponte = 2',
+          '> RELATÓRIO DO SENSOR: O abismo de descarte mede 8 metros de ponta a ponta. A ponte atual cobre apenas um quarto do trajeto.',
+          '> COMUNICADOR REBELDE: O bot de deploy achou que 2 metros eram suficientes pra entregar a sprint. Defina o tamanho exato para alcançar a outra margem sem cair no fosso.',
           '> Digite a instrução:',
         ];
         lines.forEach((lineText) => {

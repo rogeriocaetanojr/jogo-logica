@@ -8,7 +8,7 @@ export interface CommandResult {
 export function parseCommand(
   input: string,
   context?: {
-    totem?: 'power' | 'barrier' | 'electric';
+    totem?: 'power' | 'bridge' | 'barrier' | 'electric';
     scene?: 'boot' | 'main';
   }
 ): CommandResult {
@@ -57,12 +57,14 @@ export function parseCommand(
         (context?.scene === 'boot'
           ? '  print(\'...\')    - Envia a instrução de texto para instanciar o kernel'
           : context?.totem === 'power'
-            ? '  energia = True  - Atribui valor booleano para ligar a energia'
-            : context?.totem === 'barrier'
-              ? '  chave = 42      - Define a chave como tipo inteiro (int)\n  int("42")       - Converte o texto para número inteiro'
-              : context?.totem === 'electric'
-                ? '  resistencia = X - Define a resistência em Ohms (ex: resistencia = 1000)\n  circuito.desligar() - Corta a tensão elétrica'
-                : '  [DICA] Aproxime-se de um totem e pressione [E] para interagir com o terminal.'),
+            ? '  energia = <booleano> - Atribui valor lógico para ligar a energia'
+            : context?.totem === 'bridge'
+              ? '  tamanho_ponte = X - Define o comprimento da esteira em metros (inteiro)'
+              : context?.totem === 'barrier'
+                ? '  chave = 42      - Define a chave como tipo inteiro (int)\n  int("42")       - Converte o texto para número inteiro'
+                : context?.totem === 'electric'
+                  ? '  resistencia = X - Define a resistência em Ohms (ex: resistencia = 1000)\n  circuito.desligar() - Corta a tensão elétrica'
+                  : '  [DICA] Aproxime-se de um totem e pressione [E] para interagir com o terminal.'),
     };
   }
 
@@ -166,12 +168,68 @@ export function parseCommand(
     };
   }
 
-  // Se o jogador estiver interagindo com o painel de energia e não acertou
-  if (context?.totem === 'power') {
+  // Se o jogador estiver interagindo com o painel de energia ou tentou atribuir a variável energia
+  if (context?.totem === 'power' || compactAssignment.startsWith('energia=')) {
     return {
       success: false,
       message:
-        "[SYNTAX ERROR] Mega Brain: 'Instrução inválida para o painel de distribuição. Tente atribuir um valor booleano: energia = True'",
+        "[SYNTAX ERROR] Mega Brain: 'Instrução completamente sem sentido. Você acha que circuitos elétricos funcionam na base do teclado aleatório? Atribua o estado lógico correto para a variável do painel.'",
+    };
+  }
+
+  // ==========================================
+  // DESAFIO 2: MECANISMO DE EXTENSÃO DA ESTEIRA (INTEIROS)
+  // ==========================================
+  const isBridgeTarget =
+    context?.totem === 'bridge' ||
+    compactAssignment.startsWith('tamanho_ponte=') ||
+    compactAssignment.startsWith('tamanho=') ||
+    compactAssignment.startsWith('ponte=') ||
+    compactAssignment.startsWith('esteira=') ||
+    compactAssignment.startsWith('tamanho_esteira=');
+
+  if (isBridgeTarget) {
+    // 1. Strings com aspas (ex: "8", 'oito', tamanho_ponte = "8", etc.)
+    const stringQuoteMatch = compactAssignment.match(
+      /^(?:(?:tamanho_ponte|tamanho|ponte|esteira|tamanho_esteira)=)?['"][^'"]*['"]$/
+    );
+
+    if (stringQuoteMatch) {
+      return {
+        success: false,
+        message:
+          "[TYPE ERROR] Mega Brain: 'Você jogou uma string na esteira hidráulica. Motores operam com grandeza numérica, não com redação do ensino médio.'",
+      };
+    }
+
+    // 2. Valores numéricos inteiros
+    const numMatch = compactAssignment.match(
+      /^(?:(?:tamanho_ponte|tamanho|ponte|esteira|tamanho_esteira)=)?(-?\d+(?:\.\d+)?)$/
+    );
+
+    if (numMatch) {
+      const val = parseFloat(numMatch[1]);
+      if (val < 8) {
+        return {
+          success: false,
+          message:
+            "[UNDERFLOW ERROR] Mega Brain: 'Sua esteira continuou curta demais e despencou no vácuo. Você nem se deu ao trabalho de conferir o relatório do sensor antes de chutar um número?'",
+        };
+      } else {
+        return {
+          success: true,
+          message: '[SUCESSO] Pistões pressurizados! Esteira expandida para a margem oposta.',
+          action: 'EXPAND_BRIDGE',
+          value: val,
+        };
+      }
+    }
+
+    // 3. Erro de sintaxe genérico
+    return {
+      success: false,
+      message:
+        "[SYNTAX ERROR] Mega Brain: 'Instrução inválida. É uma atribuição direta de variável inteira, não uma dissertação.'",
     };
   }
 
