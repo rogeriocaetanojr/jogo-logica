@@ -11,7 +11,9 @@ export class MainScene extends Phaser.Scene {
   private promptTextPower!: Phaser.GameObjects.Text;
   private beaconPower!: Phaser.GameObjects.Arc;
   private isPowerOn: boolean = false;
-  private powerOutageOverlay?: Phaser.GameObjects.Rectangle;
+
+  // Escuridão Global e Lanterna do Jogador
+  private darkness?: Phaser.GameObjects.RenderTexture;
 
   // Porta de Aço Trancada (Setor 0)
   private steelDoors!: Phaser.Physics.Arcade.StaticGroup;
@@ -75,17 +77,18 @@ export class MainScene extends Phaser.Scene {
   }
 
   create(): void {
-    // 1. Expansão do Mundo da MainScene para 2560 pixels
-    this.physics.world.setBounds(0, 0, 2560, 720);
-    this.cameras.main.setBounds(0, 0, 2560, 720);
+    // 1. Expansão do Mundo da MainScene para 6000 pixels
+    this.physics.world.setBounds(0, 0, 6000, 720);
+    this.cameras.main.setBounds(0, 0, 6000, 720);
     this.cameras.main.setBackgroundColor('#070b12');
 
     this.createScenery();
     this.createGround();
-    this.createPowerOutage();
+    this.createScrapPlatforms();
     this.createShockZone();
     this.createTotems();
     this.createPlayer();
+    this.createGlobalDarkness();
     this.createSteelDoor();
     this.createHydraulicGate();
     this.setupControls();
@@ -106,6 +109,9 @@ export class MainScene extends Phaser.Scene {
 
   update(): void {
     if (!this.player || !this.player.body) return;
+
+    // Atualização dinâmica contínua da lanterna acoplada ao jogador
+    this.updateDarkness();
 
     // Se estiver no ritual de boot, trava completamente o jogador
     if (this.isBootingSequence) {
@@ -129,7 +135,7 @@ export class MainScene extends Phaser.Scene {
 
     // Checagem de proximidade dos totens
     const distPower = Math.abs(this.player.x - this.totemPower.x);
-    const isNearPowerTotem = distPower < 95;
+    const isNearPowerTotem = distPower < 80;
     this.promptTextPower.setVisible(
       isNearPowerTotem && !this.isTerminalOpen && !this.isPowerOn
     );
@@ -216,10 +222,10 @@ export class MainScene extends Phaser.Scene {
   }
 
   private createScenery(): void {
-    // 1. Céu com degradê do azul-petróleo profundo #070b12 no topo até #141b26 na base (cobertura ampla para ultrawide)
+    // 1. Céu com degradê do azul-petróleo profundo #070b12 no topo até #141b26 na base (cobertura total de 6500px)
     if (!this.textures.exists('cyberpunk-sky')) {
       const g = this.make.graphics();
-      const skyW = 3800;
+      const skyW = 6500;
       const skyH = 880;
       for (let y = 0; y < skyH; y += 4) {
         const ratio = Math.min(y / 720, 1);
@@ -233,17 +239,14 @@ export class MainScene extends Phaser.Scene {
       g.generateTexture('cyberpunk-sky', skyW, skyH);
       g.destroy();
     }
-    this.add.image(1300, 360, 'cyberpunk-sky').setDepth(-10);
+    this.add.image(3000, 360, 'cyberpunk-sky').setDepth(-10);
 
     // 2. Elementos de cenário estáticos de fundo (Lixão dos Scripts Esquecidos)
     const bgGraphics = this.add.graphics().setDepth(-5);
 
-    // Cabos industriais pendurados descendo do teto cobrindo toda a extensão horizontal
+    // Cabos industriais pendurados descendo do teto cobrindo toda a extensão horizontal de 6000px
     bgGraphics.lineStyle(2, 0x0c141e, 0.9);
-    const cableXs = [
-      -40, 100, 240, 420, 580, 760, 940, 1120, 1300, 1480, 1660, 1840, 2020, 2200, 2380, 2560, 2740, 2920,
-    ];
-    cableXs.forEach((cx) => {
+    for (let cx = -40; cx <= 6200; cx += 180) {
       const curve1 = new Phaser.Curves.CubicBezier(
         new Phaser.Math.Vector2(cx, 0),
         new Phaser.Math.Vector2(cx - 35, 70),
@@ -259,7 +262,7 @@ export class MainScene extends Phaser.Scene {
         new Phaser.Math.Vector2(cx + 40, 160)
       );
       bgGraphics.strokePoints(curve2.getPoints(16));
-    });
+    }
 
     // Pilhas de sucatas de servidores e chassis descartados
     bgGraphics.fillStyle(0x0a1018, 0.95);
@@ -273,6 +276,12 @@ export class MainScene extends Phaser.Scene {
       { x: 2260, w: 240, h: 280 },
       { x: 2580, w: 220, h: 260 },
       { x: 2850, w: 260, h: 300 },
+      { x: 3400, w: 220, h: 270 },
+      { x: 3900, w: 250, h: 290 },
+      { x: 4400, w: 210, h: 250 },
+      { x: 4950, w: 240, h: 280 },
+      { x: 5450, w: 230, h: 260 },
+      { x: 5850, w: 260, h: 310 },
     ];
     scrapPiles.forEach((p) => {
       bgGraphics.fillRect(p.x, 680 - p.h, p.w, p.h);
@@ -295,6 +304,11 @@ export class MainScene extends Phaser.Scene {
       { x: 2320, y: 490, flicker: false },
       { x: 2660, y: 540, flicker: true },
       { x: 2920, y: 500, flicker: false },
+      { x: 3500, y: 520, flicker: true },
+      { x: 4100, y: 510, flicker: false },
+      { x: 4650, y: 530, flicker: true },
+      { x: 5200, y: 500, flicker: false },
+      { x: 5600, y: 540, flicker: true },
     ];
     crtPositions.forEach((pos, idx) => {
       this.add.rectangle(pos.x, pos.y, 36, 28, 0x161e29).setDepth(-4);
@@ -314,10 +328,10 @@ export class MainScene extends Phaser.Scene {
   }
 
   private createGround(): void {
-    // Piso Industrial Reforçado: metal com costuras, parafusos/rebites e borda desgastada (estendido para ultrawide)
+    // Piso Industrial Reforçado estendido para os 6000 pixels do mundo
     if (!this.textures.exists('ground-industrial')) {
       const g = this.make.graphics();
-      const w = 3800;
+      const w = 6500;
       const h = 200;
 
       // Base metálica escura preenchendo até o fundo
@@ -358,15 +372,149 @@ export class MainScene extends Phaser.Scene {
     }
 
     this.platforms = this.physics.add.staticGroup();
-    // Centro X = 1500, Y = 780 (com altura 200, a superfície do piso permanece em Y = 680)
-    this.platforms.create(1500, 780, 'ground-industrial');
+    // Centro X = 3000, Y = 780 (cobre de 0 a 6000+)
+    this.platforms.create(3000, 780, 'ground-industrial');
   }
 
-  private createPowerOutage(): void {
-    // Camada de escuridão / penumbra cobrindo o setor inicial (X: -50 até X: 470)
-    this.powerOutageOverlay = this.add
-      .rectangle(210, 360, 520, 720, 0x020617, 0.75)
-      .setDepth(15);
+  private createScrapPlatforms(): void {
+    // Plataformas elevadas de sucata entre X = 1200 e X = 1800 para respiro de gameplay
+    if (!this.textures.exists('scrap-platform')) {
+      const g = this.make.graphics();
+      const pw = 160;
+      const ph = 24;
+
+      // Base escura reforçada
+      g.fillStyle(0x19212c, 1);
+      g.fillRect(0, 0, pw, ph);
+
+      // Borda superior chanfrada de metal escovado
+      g.fillStyle(0x475569, 1);
+      g.fillRect(0, 0, pw, 4);
+      g.fillStyle(0x94a3b8, 0.9);
+      g.fillRect(0, 0, pw, 1);
+
+      // Frisos laterais neon ciano sutil
+      g.fillStyle(0x00e5ff, 0.8);
+      g.fillRect(0, 0, 4, ph);
+      g.fillRect(pw - 4, 0, 4, ph);
+
+      // Placas e rebites industriais
+      for (let x = 24; x < pw; x += 36) {
+        g.fillStyle(0x0e1319, 1);
+        g.fillRect(x, 4, 2, ph - 4);
+        g.fillStyle(0xcbd5e1, 1);
+        g.fillCircle(x - 8, 12, 2);
+        g.fillCircle(x + 10, 12, 2);
+      }
+
+      g.generateTexture('scrap-platform', pw, ph);
+      g.destroy();
+    }
+
+    // 3 plataformas balanceadas para parkour e respiro de exploração
+    const p1 = this.platforms.create(1350, 560, 'scrap-platform') as Phaser.Physics.Arcade.Sprite;
+    p1.refreshBody();
+    const p2 = this.platforms.create(1520, 460, 'scrap-platform') as Phaser.Physics.Arcade.Sprite;
+    p2.refreshBody();
+    const p3 = this.platforms.create(1690, 530, 'scrap-platform') as Phaser.Physics.Arcade.Sprite;
+    p3.refreshBody();
+  }
+
+  private createGlobalDarkness(): void {
+    // 1. Criar a Textura da Luz da Lanterna (círculo radial suave de raio 150px)
+    if (!this.textures.exists('flashlight_brush')) {
+      const canvas = this.textures.createCanvas('flashlight_brush', 300, 300);
+      if (canvas) {
+        const ctx = canvas.getContext();
+        const grad = ctx.createRadialGradient(150, 150, 0, 150, 150, 150);
+        grad.addColorStop(0, 'rgba(255, 255, 255, 1.0)');
+        grad.addColorStop(0.35, 'rgba(255, 255, 255, 0.85)');
+        grad.addColorStop(0.7, 'rgba(255, 255, 255, 0.35)');
+        grad.addColorStop(1, 'rgba(255, 255, 255, 0.0)');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(150, 150, 150, 0, Math.PI * 2);
+        ctx.fill();
+        canvas.refresh();
+      }
+    }
+
+    // 2. Criar a Camada de Escuridão (RenderTexture cobrindo toda a tela com profundidade 50)
+    this.darkness = this.add.renderTexture(0, 0, this.scale.width, this.scale.height);
+    this.darkness.setOrigin(0, 0);
+    this.darkness.setScrollFactor(0);
+    this.darkness.setDepth(50);
+    this.darkness.setRenderMode('all');
+
+    // Adaptador para suportar draw com blendMode ERASE
+    const originalDraw = this.darkness.draw.bind(this.darkness);
+    (this.darkness as any).draw = (
+      entries: any,
+      x?: number,
+      y?: number,
+      alpha?: number,
+      tint?: number,
+      blendMode?: number
+    ) => {
+      if (blendMode === Phaser.BlendModes.ERASE) {
+        (this.darkness!.texture as any).erase(entries, x, y, alpha, tint);
+      } else {
+        originalDraw(entries, x, y, alpha, tint);
+      }
+      return this.darkness;
+    };
+
+    // Atualiza imediatamente o primeiro quadro de escuridão
+    this.updateDarkness();
+  }
+
+  private updateDarkness(): void {
+    // Se o puzzle da energia já foi resolvido, não desenha mais a escuridão
+    if (!this.darkness || this.isPowerOn || !this.player) return;
+
+    this.darkness.clear();
+    // Breu quase total (95% opaco)
+    this.darkness.fill(0x030712, 0.95);
+
+    // Coordenadas do jogador relativas à câmera
+    const cam = this.cameras.main;
+    const screenX = this.player.x - cam.scrollX;
+    const screenY = this.player.y - cam.scrollY;
+
+    // Apague a escuridão onde o jogador está usando a lanterna
+    (this.darkness as any).draw(
+      'flashlight_brush',
+      screenX,
+      screenY,
+      1,
+      0xffffff,
+      Phaser.BlendModes.ERASE
+    );
+
+    // Apague também um ponto sutil de raio menor onde o totem está (apenas se ele estiver dentro da visão da câmera)
+    if (this.totemPower) {
+      const totemScreenX = this.totemPower.x - cam.scrollX;
+      const totemScreenY = this.totemPower.y - cam.scrollY;
+
+      if (
+        totemScreenX >= -150 &&
+        totemScreenX <= cam.width + 150 &&
+        totemScreenY >= -150 &&
+        totemScreenY <= cam.height + 150
+      ) {
+        (this.darkness as any).draw(
+          'flashlight_brush',
+          totemScreenX,
+          totemScreenY,
+          0.45,
+          0x00ff88,
+          Phaser.BlendModes.ERASE
+        );
+      }
+    }
+
+    // Executa e descarrega imediatamente os comandos no buffer de desenho
+    this.darkness.render();
   }
 
   private createSteelDoor(): void {
@@ -430,13 +578,14 @@ export class MainScene extends Phaser.Scene {
     }
 
     this.steelDoors = this.physics.add.staticGroup();
-    this.steelDoor = this.steelDoors.create(450, 340, 'steel-door-locked') as Phaser.Physics.Arcade.Sprite;
+    // Porta posicionada em X = 1150
+    this.steelDoor = this.steelDoors.create(1150, 340, 'steel-door-locked') as Phaser.Physics.Arcade.Sprite;
     this.steelDoor.setDepth(10);
     this.steelDoorCollider = this.physics.add.collider(this.player, this.steelDoors);
 
-    // Painel luminoso de trava magnética
+    // Painel luminoso de trava magnética em X = 1150
     this.steelDoorText = this.add
-      .text(450, 600, '[SEM ENERGIA]', {
+      .text(1150, 600, '[SEM ENERGIA]', {
         fontSize: '11px',
         color: '#ff1744',
         fontFamily: 'Consolas, monospace',
@@ -445,7 +594,7 @@ export class MainScene extends Phaser.Scene {
         padding: { x: 4, y: 3 },
       })
       .setOrigin(0.5)
-      .setDepth(22);
+      .setDepth(55);
   }
 
   private disableSteelDoor(): void {
@@ -461,28 +610,27 @@ export class MainScene extends Phaser.Scene {
     if (this.beaconPower) {
       this.tweens.killTweensOf(this.beaconPower);
       this.beaconPower.setFillStyle(0x00ff66);
+      this.beaconPower.setScale(1);
       this.beaconPower.setAlpha(1);
     }
 
-    // Flash ciano/neon e remoção da penumbra do setor
-    this.cameras.main.flash(700, 0, 229, 255);
-
-    if (this.powerOutageOverlay) {
+    // Desativação da escuridão com tween de fade out (alpha de 1 para 0 em 800ms)
+    if (this.darkness) {
       this.tweens.add({
-        targets: this.powerOutageOverlay,
+        targets: this.darkness,
         alpha: 0,
         duration: 800,
-        ease: 'Power2',
+        ease: 'Linear',
         onComplete: () => {
-          if (this.powerOutageOverlay) {
-            this.powerOutageOverlay.destroy();
-            this.powerOutageOverlay = undefined;
+          if (this.darkness) {
+            this.darkness.destroy();
+            this.darkness = undefined;
           }
         },
       });
     }
 
-    // Atualiza status da porta de aço e sobe a porta suavemente
+    // Atualiza status da porta de aço e sobe a porta suavemente para o teto
     if (this.steelDoorText) {
       this.steelDoorText.setText('[ENERGIA: ON]').setColor('#00ff66');
     }
@@ -496,7 +644,7 @@ export class MainScene extends Phaser.Scene {
       this.tweens.add({
         targets: targetsToLift,
         y: '-=680',
-        duration: 950,
+        duration: 1000,
         ease: 'Power2',
         onComplete: () => {
           if (this.steelDoor) {
@@ -560,7 +708,7 @@ export class MainScene extends Phaser.Scene {
       g.destroy();
     }
 
-    this.shockZone = this.physics.add.sprite(1395, 672, 'shock-zone-active');
+    this.shockZone = this.physics.add.sprite(2800, 672, 'shock-zone-active');
     const shockBody = this.shockZone.body as Phaser.Physics.Arcade.Body;
     shockBody.setAllowGravity(false);
     shockBody.setImmovable(true);
@@ -666,34 +814,41 @@ export class MainScene extends Phaser.Scene {
       g.destroy();
     }
 
-    // Totem 0: Painel de Energia (X = 380, Y = 653)
-    this.totemPower = this.add.image(380, 653, 'totem-crt-vintage');
+    // ==============================================================
+    // TOTEM 0: INTERRUPTOR / PAINEL DE ENERGIA (PONTO FOCAL EM X = 850)
+    // ==============================================================
+    this.totemPower = this.add.image(850, 653, 'totem-crt-vintage').setDepth(16);
+
+    // LED vermelho de standby pulsando suavemente no topo do gabinete do totem
+    this.beaconPower = this.add.circle(850, 624, 2.5, 0xff1744).setDepth(55);
+    this.tweens.add({
+      targets: this.beaconPower,
+      alpha: { from: 0.25, to: 1 },
+      scale: { from: 0.85, to: 1.25 },
+      yoyo: true,
+      repeat: -1,
+      duration: 500,
+    });
+
+    // Prompt sutil '[E] LIGAR TERMINAL' conforme jogador se aproxima (<80px)
     this.promptTextPower = this.add
-      .text(380, 610, '[E] PAINEL DE ENERGIA', {
+      .text(850, 605, '[E] LIGAR TERMINAL', {
         fontSize: '15px',
-        color: '#ffee00',
+        color: '#00ff66',
         fontFamily: 'monospace',
         stroke: '#000000',
         strokeThickness: 3,
       })
       .setOrigin(0.5)
-      .setDepth(25)
+      .setDepth(55)
       .setVisible(false);
 
-    // Luz de status no topo do Totem 0 (vermelha piscante indicando sem energia)
-    this.beaconPower = this.add.circle(380, 624, 3, 0xff1744).setDepth(25);
-    this.tweens.add({
-      targets: this.beaconPower,
-      alpha: { from: 0.2, to: 1 },
-      yoyo: true,
-      repeat: -1,
-      duration: 350,
-    });
-
-    // Totem 1: Comporta Hidráulica (X = 720, Y = 653)
-    this.totemBarrier = this.add.image(720, 653, 'totem-crt-vintage');
+    // ==============================================================
+    // TOTEM 1: COMPORTA HIDRÁULICA (MOVIDO PARA X = 2050)
+    // ==============================================================
+    this.totemBarrier = this.add.image(2050, 653, 'totem-crt-vintage');
     this.promptTextBarrier = this.add
-      .text(720, 610, '[E] DESTRAVAR COMPORTA', {
+      .text(2050, 610, '[E] DESTRAVAR COMPORTA', {
         fontSize: '15px',
         color: '#ffee00',
         fontFamily: 'monospace',
@@ -704,7 +859,7 @@ export class MainScene extends Phaser.Scene {
       .setVisible(false);
 
     // Luz de status no topo do Totem 1 (verde)
-    this.beaconBarrier = this.add.circle(720, 624, 3, 0x00ff66);
+    this.beaconBarrier = this.add.circle(2050, 624, 3, 0x00ff66);
     this.tweens.add({
       targets: this.beaconBarrier,
       alpha: { from: 0.2, to: 1 },
@@ -713,10 +868,12 @@ export class MainScene extends Phaser.Scene {
       duration: 400,
     });
 
-    // Totem 2: Regulador Elétrico (X = 1120, Y = 653)
-    this.totemElectric = this.add.image(1120, 653, 'totem-crt-vintage');
+    // ==============================================================
+    // TOTEM 2: REGULADOR ELÉTRICO (MOVIDO PARA X = 2550)
+    // ==============================================================
+    this.totemElectric = this.add.image(2550, 653, 'totem-crt-vintage');
     this.promptTextElectric = this.add
-      .text(1120, 610, '[E] CALIBRAR CIRCUITO', {
+      .text(2550, 610, '[E] CALIBRAR CIRCUITO', {
         fontSize: '15px',
         color: '#ffeb3b',
         fontFamily: 'monospace',
@@ -727,7 +884,7 @@ export class MainScene extends Phaser.Scene {
       .setVisible(false);
 
     // Luz de status no topo do Totem 2 (amarela)
-    this.beaconElectric = this.add.circle(1120, 624, 3, 0xffeb3b);
+    this.beaconElectric = this.add.circle(2550, 624, 3, 0xffeb3b);
     this.tweens.add({
       targets: this.beaconElectric,
       alpha: { from: 0.2, to: 1 },
@@ -806,12 +963,12 @@ export class MainScene extends Phaser.Scene {
     }
 
     this.barriers = this.physics.add.staticGroup();
-    this.barrier = this.barriers.create(850, 340, 'hydraulic-gate-heavy') as Phaser.Physics.Arcade.Sprite;
+    this.barrier = this.barriers.create(2250, 340, 'hydraulic-gate-heavy') as Phaser.Physics.Arcade.Sprite;
     this.barrierCollider = this.physics.add.collider(this.player, this.barriers);
 
     // Painel luminoso de trava [LOCKED] no centro da comporta na altura dos olhos
     this.gateLockText = this.add
-      .text(850, 600, '[LOCKED]', {
+      .text(2250, 600, '[LOCKED]', {
         fontSize: '11px',
         color: '#ff1744',
         fontFamily: 'Consolas, monospace',
@@ -978,17 +1135,17 @@ export class MainScene extends Phaser.Scene {
       {
         speaker: 'O ESTAGIÁRIO FANTASMA',
         avatar: '👻',
-        text: 'Ei! Carne nova no ferro-velho! Cuidado no escuro, o setor inicial está sem energia e a porta de aço trancou a passagem.',
+        text: 'Ei! Carne nova no ferro-velho! O galpão inteiro está às escuras por falta de energia.',
       },
       {
         speaker: 'O ESTAGIÁRIO FANTASMA',
         avatar: '👻',
-        text: 'O painel elétrico de distribuição está logo à frente em X = 380. Alguém cortou o fluxo lógico de energia.',
+        text: 'Sua lanterna ilumina apenas alguns passos ao seu redor. Avance com cuidado pelas sombras até o painel em X = 850.',
       },
       {
         speaker: 'O ESTAGIÁRIO FANTASMA',
         avatar: '👻',
-        text: 'Aperte [E] no painel de energia. Restabeleça o circuito com lógica booleana antes que o Mega Brain perceba nossa presença!',
+        text: 'Procure o brilho fraco do monitor verde e o LED vermelho piscando no breu. Aperte [E] para ligar o terminal!',
       },
     ]);
   }
@@ -1136,8 +1293,8 @@ export class MainScene extends Phaser.Scene {
         const lines = [
           '=== PAINEL DE DISTRIBUIÇÃO PRIMÁRIA ===',
           '> STATUS: energia = False',
-          '> PROTOCOLO: A tranca magnética só desengata sob fluxo contínuo.',
-          "> DICA DO ESTAGIÁRIO: No universo binário da lógica, só existem dois estados possíveis. Se 'False' mantém tudo nas trevas, qual palavra resta para iluminar o caminho?",
+          '> PROTOCOLO: A iluminação do galpão e a tranca magnética exigem fluxo contínuo.',
+          "> DICA DO ESTAGIÁRIO: No universo binário, se 'False' mantém o setor nas trevas, qual palavra resta para acender as luzes?",
           '> Digite a instrução:',
         ];
         lines.forEach((lineText) => {
