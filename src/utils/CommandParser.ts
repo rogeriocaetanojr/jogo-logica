@@ -8,7 +8,7 @@ export interface CommandResult {
 export function parseCommand(
   input: string,
   context?: {
-    totem?: 'barrier' | 'electric';
+    totem?: 'power' | 'barrier' | 'electric';
     scene?: 'boot' | 'main';
   }
 ): CommandResult {
@@ -56,11 +56,13 @@ export function parseCommand(
         '  help / ajuda    - Exibe esta lista de auxílio com os comandos\n' +
         (context?.scene === 'boot'
           ? '  print(\'...\')    - Envia a instrução de texto para instanciar o kernel'
-          : context?.totem === 'barrier'
-            ? '  chave = 42      - Define a chave como tipo inteiro (int)\n  int("42")       - Converte o texto para número inteiro'
-            : context?.totem === 'electric'
-              ? '  resistencia = X - Define a resistência em Ohms (ex: resistencia = 1000)\n  circuito.desligar() - Corta a tensão elétrica'
-              : '  [DICA] Aproxime-se de um totem e pressione [E] para interagir com o terminal.'),
+          : context?.totem === 'power'
+            ? '  energia = True  - Atribui valor booleano para ligar a energia'
+            : context?.totem === 'barrier'
+              ? '  chave = 42      - Define a chave como tipo inteiro (int)\n  int("42")       - Converte o texto para número inteiro'
+              : context?.totem === 'electric'
+                ? '  resistencia = X - Define a resistência em Ohms (ex: resistencia = 1000)\n  circuito.desligar() - Corta a tensão elétrica'
+                : '  [DICA] Aproxime-se de um totem e pressione [E] para interagir com o terminal.'),
     };
   }
 
@@ -107,6 +109,71 @@ export function parseCommand(
 
   // Remove espacos ao redor do operador '=' para facilitar comparacao
   const compactAssignment = normalized.replace(/\s*=\s*/g, '=');
+
+  // ==========================================
+  // DESAFIO 1: PAINEL DE ENERGIA (BOOLEANO)
+  // ==========================================
+
+  // 1. Redundância: energia = False
+  if (
+    compactAssignment === 'energia=false' ||
+    (context?.totem === 'power' && compactAssignment === 'false')
+  ) {
+    return {
+      success: false,
+      message:
+        "[REDUNDANCY ERROR] Mega Brain: 'Parabéns, você confirmou que o nada continua sendo nada.'",
+    };
+  }
+
+  // 2. Erro de Tipo: Números (ex: energia = 1)
+  const isPowerNumber =
+    /^energia=\d+$/.test(compactAssignment) ||
+    (context?.totem === 'power' && /^\d+$/.test(compactAssignment));
+
+  if (isPowerNumber) {
+    return {
+      success: false,
+      message:
+        "[TYPE MISMATCH] Mega Brain: 'Um bit numérico? Aqui usamos Python moderno, novato. Booleano raiz se escreve por extenso com inicial maiúscula!'",
+    };
+  }
+
+  // 3. Erro de Tipo: Strings (ex: energia = "ligada" ou 'ligada')
+  const isPowerString =
+    /^energia=['"][^'"]*['"]$/.test(compactAssignment) ||
+    (context?.totem === 'power' && /^['"][^'"]*['"]$/.test(compactAssignment));
+
+  if (isPowerString) {
+    return {
+      success: false,
+      message:
+        "[TYPE ERROR] Mega Brain: 'Jogou um texto no circuito e esperava o quê? Uma lâmpada de poesia? Use valores lógicos literais!'",
+    };
+  }
+
+  // 4. Sucesso: energia = True ou energia = true
+  const isPowerSuccess =
+    compactAssignment === 'energia=true' ||
+    (context?.totem === 'power' && compactAssignment === 'true');
+
+  if (isPowerSuccess) {
+    return {
+      success: true,
+      message:
+        '[SUCESSO] energia = True | Corrente contínua restabelecida! Tranca magnética desativada.',
+      action: 'DISABLE_STEEL_DOOR',
+    };
+  }
+
+  // Se o jogador estiver interagindo com o painel de energia e não acertou
+  if (context?.totem === 'power') {
+    return {
+      success: false,
+      message:
+        "[SYNTAX ERROR] Mega Brain: 'Instrução inválida para o painel de distribuição. Tente atribuir um valor booleano: energia = True'",
+    };
+  }
 
   // ==========================================
   // TOTEM 1: COMPORTA HIDRÁULICA (TIPOS)

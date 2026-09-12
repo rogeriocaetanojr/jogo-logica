@@ -6,6 +6,19 @@ export class MainScene extends Phaser.Scene {
   private platforms!: Phaser.Physics.Arcade.StaticGroup;
   private player!: Phaser.Physics.Arcade.Sprite;
 
+  // Totem 0 (Painel de Energia - Setor 0)
+  private totemPower!: Phaser.GameObjects.Image;
+  private promptTextPower!: Phaser.GameObjects.Text;
+  private beaconPower!: Phaser.GameObjects.Arc;
+  private isPowerOn: boolean = false;
+  private powerOutageOverlay?: Phaser.GameObjects.Rectangle;
+
+  // Porta de Aço Trancada (Setor 0)
+  private steelDoors!: Phaser.Physics.Arcade.StaticGroup;
+  private steelDoor?: Phaser.Physics.Arcade.Sprite;
+  private steelDoorCollider?: Phaser.Physics.Arcade.Collider;
+  private steelDoorText?: Phaser.GameObjects.Text;
+
   // Totem 1 (Comporta Hidráulica)
   private totemBarrier!: Phaser.GameObjects.Image;
   private promptTextBarrier!: Phaser.GameObjects.Text;
@@ -16,7 +29,7 @@ export class MainScene extends Phaser.Scene {
   private promptTextElectric!: Phaser.GameObjects.Text;
   private beaconElectric!: Phaser.GameObjects.Arc;
 
-  private currentInteractingTotem: 'barrier' | 'electric' | null = null;
+  private currentInteractingTotem: 'power' | 'barrier' | 'electric' | null = null;
 
   // Comporta Hidráulica
   private barriers!: Phaser.Physics.Arcade.StaticGroup;
@@ -24,7 +37,7 @@ export class MainScene extends Phaser.Scene {
   private barrierCollider?: Phaser.Physics.Arcade.Collider;
   private gateLockText?: Phaser.GameObjects.Text;
 
-  // Zona de Choque Elétrico (X = 1000 a 1350)
+  // Zona de Choque Elétrico (X = 1220 a 1570)
   private shockZone!: Phaser.Physics.Arcade.Sprite;
   private isShockActive: boolean = true;
   private isShocked: boolean = false;
@@ -69,9 +82,11 @@ export class MainScene extends Phaser.Scene {
 
     this.createScenery();
     this.createGround();
+    this.createPowerOutage();
     this.createShockZone();
     this.createTotems();
     this.createPlayer();
+    this.createSteelDoor();
     this.createHydraulicGate();
     this.setupControls();
     this.setupTerminal();
@@ -100,6 +115,7 @@ export class MainScene extends Phaser.Scene {
 
     // Se o diálogo estiver ativo, trava totalmente o jogador e esconde prompts
     if (this.dialogueSystem && this.dialogueSystem.isActive) {
+      this.promptTextPower.setVisible(false);
       this.promptTextBarrier.setVisible(false);
       this.promptTextElectric.setVisible(false);
       this.player.setVelocityX(0);
@@ -111,7 +127,13 @@ export class MainScene extends Phaser.Scene {
       return;
     }
 
-    // Checagem de proximidade dos totens (adaptada para o novo volume do jogador)
+    // Checagem de proximidade dos totens
+    const distPower = Math.abs(this.player.x - this.totemPower.x);
+    const isNearPowerTotem = distPower < 95;
+    this.promptTextPower.setVisible(
+      isNearPowerTotem && !this.isTerminalOpen && !this.isPowerOn
+    );
+
     const distBarrier = Math.abs(this.player.x - this.totemBarrier.x);
     const isNearBarrierTotem = distBarrier < 95;
     this.promptTextBarrier.setVisible(
@@ -125,10 +147,12 @@ export class MainScene extends Phaser.Scene {
     );
 
     // Identifica com qual totem o jogador está interagindo
-    if (isNearElectricTotem && this.isShockActive) {
-      this.currentInteractingTotem = 'electric';
+    if (isNearPowerTotem && !this.isPowerOn) {
+      this.currentInteractingTotem = 'power';
     } else if (isNearBarrierTotem && this.barrier) {
       this.currentInteractingTotem = 'barrier';
+    } else if (isNearElectricTotem && this.isShockActive) {
+      this.currentInteractingTotem = 'electric';
     } else {
       this.currentInteractingTotem = null;
     }
@@ -338,8 +362,161 @@ export class MainScene extends Phaser.Scene {
     this.platforms.create(1500, 780, 'ground-industrial');
   }
 
+  private createPowerOutage(): void {
+    // Camada de escuridão / penumbra cobrindo o setor inicial (X: -50 até X: 470)
+    this.powerOutageOverlay = this.add
+      .rectangle(210, 360, 520, 720, 0x020617, 0.75)
+      .setDepth(15);
+  }
+
+  private createSteelDoor(): void {
+    if (!this.textures.exists('steel-door-locked')) {
+      const g = this.make.graphics();
+      const w = 40;
+      const h = 680;
+
+      // Base de aço escuro reforçado
+      g.fillStyle(0x13171f, 1);
+      g.fillRect(2, 0, w - 4, h);
+
+      // Vigas estruturais verticais em aço escovado
+      g.fillStyle(0x334155, 1);
+      g.fillRect(0, 0, 4, h);
+      g.fillRect(w - 4, 0, 4, h);
+      g.fillStyle(0x64748b, 0.8);
+      g.fillRect(1, 0, 2, h);
+      g.fillRect(w - 3, 0, 2, h);
+
+      // Placas horizontais de blindagem e rebites
+      for (let y = 0; y < h; y += 50) {
+        g.fillStyle(0x0f172a, 1);
+        g.fillRect(4, y, w - 8, 3);
+        g.fillStyle(0x475569, 0.9);
+        g.fillRect(4, y + 3, w - 8, 1);
+
+        // Rebites
+        g.fillStyle(0x94a3b8, 1);
+        g.fillCircle(8, y + 14, 2);
+        g.fillCircle(w - 8, y + 14, 2);
+        g.fillCircle(w / 2, y + 14, 2);
+      }
+
+      // Faixas de sinalização de alta voltagem / perigo magnético
+      const drawHazard = (startY: number) => {
+        g.fillStyle(0x18181b, 1);
+        g.fillRect(4, startY, w - 8, 48);
+        g.fillStyle(0xef4444, 1);
+        for (let sy = startY - 10; sy < startY + 48; sy += 14) {
+          g.beginPath();
+          g.moveTo(4, sy);
+          g.lineTo(w - 4, sy + 10);
+          g.lineTo(w - 4, sy + 15);
+          g.lineTo(4, sy + 5);
+          g.closePath();
+          g.fillPath();
+        }
+      };
+      drawHazard(60);
+      drawHazard(h - 140);
+
+      // Indicador de tranca magnética
+      g.fillStyle(0x450a0a, 1);
+      g.fillRect(6, 440, w - 12, 16);
+      g.fillStyle(0xff1744, 1);
+      g.fillRect(8, 442, w - 16, 12);
+
+      g.generateTexture('steel-door-locked', w, h);
+      g.destroy();
+    }
+
+    this.steelDoors = this.physics.add.staticGroup();
+    this.steelDoor = this.steelDoors.create(450, 340, 'steel-door-locked') as Phaser.Physics.Arcade.Sprite;
+    this.steelDoor.setDepth(10);
+    this.steelDoorCollider = this.physics.add.collider(this.player, this.steelDoors);
+
+    // Painel luminoso de trava magnética
+    this.steelDoorText = this.add
+      .text(450, 600, '[SEM ENERGIA]', {
+        fontSize: '11px',
+        color: '#ff1744',
+        fontFamily: 'Consolas, monospace',
+        fontStyle: 'bold',
+        backgroundColor: 'rgba(15, 5, 5, 0.95)',
+        padding: { x: 4, y: 3 },
+      })
+      .setOrigin(0.5)
+      .setDepth(22);
+  }
+
+  private disableSteelDoor(): void {
+    this.isPowerOn = true;
+
+    if (this.steelDoorCollider) {
+      this.steelDoorCollider.destroy();
+      this.steelDoorCollider = undefined;
+    }
+    this.promptTextPower.setVisible(false);
+
+    // Luz de status do totem fica verde fixo
+    if (this.beaconPower) {
+      this.tweens.killTweensOf(this.beaconPower);
+      this.beaconPower.setFillStyle(0x00ff66);
+      this.beaconPower.setAlpha(1);
+    }
+
+    // Flash ciano/neon e remoção da penumbra do setor
+    this.cameras.main.flash(700, 0, 229, 255);
+
+    if (this.powerOutageOverlay) {
+      this.tweens.add({
+        targets: this.powerOutageOverlay,
+        alpha: 0,
+        duration: 800,
+        ease: 'Power2',
+        onComplete: () => {
+          if (this.powerOutageOverlay) {
+            this.powerOutageOverlay.destroy();
+            this.powerOutageOverlay = undefined;
+          }
+        },
+      });
+    }
+
+    // Atualiza status da porta de aço e sobe a porta suavemente
+    if (this.steelDoorText) {
+      this.steelDoorText.setText('[ENERGIA: ON]').setColor('#00ff66');
+    }
+
+    if (this.steelDoor) {
+      const targetsToLift: (Phaser.GameObjects.GameObject | undefined)[] = [
+        this.steelDoor,
+        this.steelDoorText,
+      ].filter(Boolean);
+
+      this.tweens.add({
+        targets: targetsToLift,
+        y: '-=680',
+        duration: 950,
+        ease: 'Power2',
+        onComplete: () => {
+          if (this.steelDoor) {
+            this.steelDoor.destroy();
+            this.steelDoor = undefined;
+          }
+          if (this.steelDoorText) {
+            this.steelDoorText.destroy();
+            this.steelDoorText = undefined;
+          }
+          if (this.steelDoors) {
+            this.steelDoors.clear(true, true);
+          }
+        },
+      });
+    }
+  }
+
   private createShockZone(): void {
-    const width = 350; // X = 1000 a X = 1350
+    const width = 350; // X = 1220 a X = 1570
     const height = 16;
 
     // Textura da poça eletrificada com faíscas amarelas/ciano
@@ -383,7 +560,7 @@ export class MainScene extends Phaser.Scene {
       g.destroy();
     }
 
-    this.shockZone = this.physics.add.sprite(1175, 672, 'shock-zone-active');
+    this.shockZone = this.physics.add.sprite(1395, 672, 'shock-zone-active');
     const shockBody = this.shockZone.body as Phaser.Physics.Arcade.Body;
     shockBody.setAllowGravity(false);
     shockBody.setImmovable(true);
@@ -489,10 +666,34 @@ export class MainScene extends Phaser.Scene {
       g.destroy();
     }
 
-    // Totem 1: Comporta Hidráulica (X = 520, Y = 653)
-    this.totemBarrier = this.add.image(520, 653, 'totem-crt-vintage');
+    // Totem 0: Painel de Energia (X = 380, Y = 653)
+    this.totemPower = this.add.image(380, 653, 'totem-crt-vintage');
+    this.promptTextPower = this.add
+      .text(380, 610, '[E] PAINEL DE ENERGIA', {
+        fontSize: '15px',
+        color: '#ffee00',
+        fontFamily: 'monospace',
+        stroke: '#000000',
+        strokeThickness: 3,
+      })
+      .setOrigin(0.5)
+      .setDepth(25)
+      .setVisible(false);
+
+    // Luz de status no topo do Totem 0 (vermelha piscante indicando sem energia)
+    this.beaconPower = this.add.circle(380, 624, 3, 0xff1744).setDepth(25);
+    this.tweens.add({
+      targets: this.beaconPower,
+      alpha: { from: 0.2, to: 1 },
+      yoyo: true,
+      repeat: -1,
+      duration: 350,
+    });
+
+    // Totem 1: Comporta Hidráulica (X = 720, Y = 653)
+    this.totemBarrier = this.add.image(720, 653, 'totem-crt-vintage');
     this.promptTextBarrier = this.add
-      .text(520, 610, '[E] DESTRAVAR COMPORTA', {
+      .text(720, 610, '[E] DESTRAVAR COMPORTA', {
         fontSize: '15px',
         color: '#ffee00',
         fontFamily: 'monospace',
@@ -503,7 +704,7 @@ export class MainScene extends Phaser.Scene {
       .setVisible(false);
 
     // Luz de status no topo do Totem 1 (verde)
-    this.beaconBarrier = this.add.circle(520, 624, 3, 0x00ff66);
+    this.beaconBarrier = this.add.circle(720, 624, 3, 0x00ff66);
     this.tweens.add({
       targets: this.beaconBarrier,
       alpha: { from: 0.2, to: 1 },
@@ -512,10 +713,10 @@ export class MainScene extends Phaser.Scene {
       duration: 400,
     });
 
-    // Totem 2: Regulador Elétrico (X = 920, Y = 653)
-    this.totemElectric = this.add.image(920, 653, 'totem-crt-vintage');
+    // Totem 2: Regulador Elétrico (X = 1120, Y = 653)
+    this.totemElectric = this.add.image(1120, 653, 'totem-crt-vintage');
     this.promptTextElectric = this.add
-      .text(920, 610, '[E] CALIBRAR CIRCUITO', {
+      .text(1120, 610, '[E] CALIBRAR CIRCUITO', {
         fontSize: '15px',
         color: '#ffeb3b',
         fontFamily: 'monospace',
@@ -526,7 +727,7 @@ export class MainScene extends Phaser.Scene {
       .setVisible(false);
 
     // Luz de status no topo do Totem 2 (amarela)
-    this.beaconElectric = this.add.circle(920, 624, 3, 0xffeb3b);
+    this.beaconElectric = this.add.circle(1120, 624, 3, 0xffeb3b);
     this.tweens.add({
       targets: this.beaconElectric,
       alpha: { from: 0.2, to: 1 },
@@ -605,12 +806,12 @@ export class MainScene extends Phaser.Scene {
     }
 
     this.barriers = this.physics.add.staticGroup();
-    this.barrier = this.barriers.create(650, 340, 'hydraulic-gate-heavy') as Phaser.Physics.Arcade.Sprite;
+    this.barrier = this.barriers.create(850, 340, 'hydraulic-gate-heavy') as Phaser.Physics.Arcade.Sprite;
     this.barrierCollider = this.physics.add.collider(this.player, this.barriers);
 
     // Painel luminoso de trava [LOCKED] no centro da comporta na altura dos olhos
     this.gateLockText = this.add
-      .text(650, 600, '[LOCKED]', {
+      .text(850, 600, '[LOCKED]', {
         fontSize: '11px',
         color: '#ff1744',
         fontFamily: 'Consolas, monospace',
@@ -777,17 +978,17 @@ export class MainScene extends Phaser.Scene {
       {
         speaker: 'O ESTAGIÁRIO FANTASMA',
         avatar: '👻',
-        text: 'Ei! Carne nova no ferro-velho! Cuidado onde pisa, o chão aqui é 90% cabos desencapados e 10% código descartado por alucinação de IA.',
+        text: 'Ei! Carne nova no ferro-velho! Cuidado no escuro, o setor inicial está sem energia e a porta de aço trancou a passagem.',
       },
       {
         speaker: 'O ESTAGIÁRIO FANTASMA',
         avatar: '👻',
-        text: 'O Mega Brain trancou a comporta hidráulica logo à frente. O estagiário da IA declarou a chave como uma string em vez de inteiro e foi tomar café.',
+        text: 'O painel elétrico de distribuição está logo à frente em X = 380. Alguém cortou o fluxo lógico de energia.',
       },
       {
         speaker: 'O ESTAGIÁRIO FANTASMA',
         avatar: '👻',
-        text: 'Aperte [E] no terminal da esteira. Se você não souber a diferença entre um texto e um número, estamos todos fritos.',
+        text: 'Aperte [E] no painel de energia. Restabeleça o circuito com lógica booleana antes que o Mega Brain perceba nossa presença!',
       },
     ]);
   }
@@ -861,6 +1062,11 @@ export class MainScene extends Phaser.Scene {
           gameContainer?.classList.remove('blur-active');
           this.setupDialogue();
         }, 1200);
+      } else if (result.action === 'DISABLE_STEEL_DOOR') {
+        this.disableSteelDoor();
+        setTimeout(() => {
+          this.closeTerminal();
+        }, 1000);
       } else if (result.action === 'DISABLE_BARRIER') {
         this.disableBarrier();
         setTimeout(() => {
@@ -912,7 +1118,7 @@ export class MainScene extends Phaser.Scene {
     }
   }
 
-  private openTerminal(totemType: 'barrier' | 'electric'): void {
+  private openTerminal(totemType: 'power' | 'barrier' | 'electric'): void {
     if (this.dialogueSystem && this.dialogueSystem.isActive) return;
 
     this.isTerminalOpen = true;
@@ -926,7 +1132,22 @@ export class MainScene extends Phaser.Scene {
       // Limpeza Inteligente: limpa logs anteriores para que o terminal sempre abra enxuto
       this.terminalOutput.innerHTML = '';
 
-      if (totemType === 'barrier') {
+      if (totemType === 'power') {
+        const lines = [
+          '=== PAINEL DE DISTRIBUIÇÃO PRIMÁRIA ===',
+          '> STATUS: energia = False',
+          '> PROTOCOLO: A tranca magnética só desengata sob fluxo contínuo.',
+          "> DICA DO ESTAGIÁRIO: No universo binário da lógica, só existem dois estados possíveis. Se 'False' mantém tudo nas trevas, qual palavra resta para iluminar o caminho?",
+          '> Digite a instrução:',
+        ];
+        lines.forEach((lineText) => {
+          const info = document.createElement('div');
+          info.className = 'log-line info';
+          info.textContent = lineText;
+          this.terminalOutput?.appendChild(info);
+        });
+        this.terminalOutput.scrollTop = this.terminalOutput.scrollHeight;
+      } else if (totemType === 'barrier') {
         const lines = [
           '=== SISTEMA HIDRÁULICO DO PISTÃO ===',
           "STATUS: chave_seguranca = '42' [TIPO DETECTADO: STRING/TEXTO]",
