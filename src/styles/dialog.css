@@ -1,38 +1,41 @@
 #dialog-overlay {
   position: absolute;
-  bottom: 24px;
+  top: 24px;
   left: 50%;
   transform: translateX(-50%);
-  width: 820px;
-  min-height: 130px;
-  background: rgba(10, 12, 20, 0.95);
+  width: 780px;
+  max-width: 90%;
+  min-height: 94px;
+  background: rgba(13, 17, 23, 0.9);
   border: 2px solid #8b5cf6;
-  border-radius: 8px;
+  border-image: linear-gradient(90deg, #00e5ff 0%, #a855f7 100%) 1;
   box-shadow:
-    0 0 25px rgba(139, 92, 246, 0.45),
-    inset 0 0 15px rgba(59, 130, 246, 0.15);
+    0 4px 20px rgba(0, 229, 255, 0.25),
+    0 0 15px rgba(168, 85, 247, 0.3),
+    inset 0 0 12px rgba(13, 17, 23, 0.8);
   display: flex;
-  padding: 16px 20px;
-  gap: 16px;
+  padding: 10px 16px;
+  gap: 14px;
   box-sizing: border-box;
   font-family: 'Consolas', 'Courier New', monospace;
   z-index: 150;
-  backdrop-filter: blur(6px);
+  backdrop-filter: blur(8px);
   user-select: none;
 }
 
 #dialog-avatar {
-  width: 72px;
-  height: 72px;
-  border: 2px solid #00e5ff;
-  border-radius: 6px;
+  width: 58px;
+  height: 58px;
+  border: 1px solid #00e5ff;
+  border-radius: 4px;
   display: flex;
   justify-content: center;
   align-items: center;
-  font-size: 36px;
-  background: rgba(0, 229, 255, 0.08);
-  box-shadow: 0 0 12px rgba(0, 229, 255, 0.35);
+  font-size: 28px;
+  background: rgba(0, 229, 255, 0.1);
+  box-shadow: 0 0 10px rgba(0, 229, 255, 0.3);
   flex-shrink: 0;
+  align-self: center;
 }
 
 .dialog-content {
@@ -43,32 +46,32 @@
 }
 
 #dialog-speaker {
-  font-size: 14px;
+  font-size: 12px;
   font-weight: bold;
-  color: #c084fc;
+  color: #00e5ff;
   letter-spacing: 1px;
-  text-shadow: 0 0 8px rgba(192, 132, 252, 0.7);
-  margin-bottom: 6px;
+  text-shadow: 0 0 6px rgba(0, 229, 255, 0.6);
+  margin-bottom: 4px;
+  text-transform: uppercase;
 }
 
 #dialog-text {
-  font-size: 16px;
-  line-height: 1.5;
-  color: #f8fafc;
+  font-size: 14px;
+  line-height: 1.4;
+  color: #f1f5f9;
   flex: 1;
-  min-height: 48px;
   word-break: break-word;
 }
 
 .dialog-prompt {
   align-self: flex-end;
-  font-size: 12px;
-  color: #00e5ff;
+  font-size: 10px;
+  color: #a855f7;
   font-weight: bold;
   letter-spacing: 1px;
-  text-shadow: 0 0 6px rgba(0, 229, 255, 0.6);
+  text-shadow: 0 0 5px rgba(168, 85, 247, 0.7);
   animation: blink-dialog-prompt 1.2s infinite ease-in-out;
-  margin-top: 4px;
+  margin-top: 2px;
 }
 
 @keyframes blink-dialog-prompt {

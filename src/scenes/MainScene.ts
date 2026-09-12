@@ -9,16 +9,20 @@ export class MainScene extends Phaser.Scene {
   // Totem 1 (Comporta Hidráulica)
   private totemBarrier!: Phaser.GameObjects.Image;
   private promptTextBarrier!: Phaser.GameObjects.Text;
+  private beaconBarrier!: Phaser.GameObjects.Arc;
 
   // Totem 2 (Regulador Elétrico)
   private totemElectric!: Phaser.GameObjects.Image;
   private promptTextElectric!: Phaser.GameObjects.Text;
+  private beaconElectric!: Phaser.GameObjects.Arc;
 
   private currentInteractingTotem: 'barrier' | 'electric' | null = null;
 
+  // Comporta Hidráulica
   private barriers!: Phaser.Physics.Arcade.StaticGroup;
   private barrier?: Phaser.Physics.Arcade.Sprite;
   private barrierCollider?: Phaser.Physics.Arcade.Collider;
+  private gateLockText?: Phaser.GameObjects.Text;
 
   // Zona de Choque Elétrico (X = 1000 a 1350)
   private shockZone!: Phaser.Physics.Arcade.Sprite;
@@ -53,21 +57,11 @@ export class MainScene extends Phaser.Scene {
   }
 
   create(): void {
-    this.cameras.main.setBackgroundColor('#10141d');
-
     // 1. Expansão do Mundo da MainScene para 2560 pixels
     this.physics.world.setBounds(0, 0, 2560, 720);
     this.cameras.main.setBounds(0, 0, 2560, 720);
 
-    // Marcador visual na margem segura após o obstáculo elétrico
-    this.add
-      .text(1650, 580, '✓ ZONA SEGURA: CIRCUITO ULTRAPASSADO', {
-        fontSize: '18px',
-        color: '#00ff88',
-        fontFamily: 'monospace',
-      })
-      .setOrigin(0.5);
-
+    this.createScenery();
     this.createGround();
     this.createShockZone();
     this.createTotems();
@@ -139,7 +133,7 @@ export class MainScene extends Phaser.Scene {
       return;
     }
 
-    // Movimentação horizontal
+    // Movimentação horizontal com orientação visual (FlipX)
     const isLeftDown =
       (this.cursors?.left.isDown ?? false) ||
       (this.wasdKeys?.left.isDown ?? false);
@@ -149,8 +143,10 @@ export class MainScene extends Phaser.Scene {
 
     if (isLeftDown) {
       this.player.setVelocityX(-200);
+      this.player.setFlipX(true); // Olha para a esquerda
     } else if (isRightDown) {
       this.player.setVelocityX(200);
+      this.player.setFlipX(false); // Olha para a direita
     } else {
       this.player.setVelocityX(0);
     }
@@ -175,21 +171,138 @@ export class MainScene extends Phaser.Scene {
     }
   }
 
-  private createGround(): void {
-    // Piso contínuo por toda a extensão do mundo (2560px)
-    if (!this.textures.exists('ground-full')) {
+  private createScenery(): void {
+    // 1. Céu com degradê do azul-petróleo profundo #070b12 no topo até #141b26 na base
+    if (!this.textures.exists('cyberpunk-sky')) {
       const g = this.make.graphics();
-      g.fillStyle(0x18202c, 1);
-      g.fillRect(0, 0, 2560, 40);
-      g.fillStyle(0x00ff88, 1);
-      g.fillRect(0, 0, 2560, 3);
-      g.generateTexture('ground-full', 2560, 40);
+      for (let y = 0; y < 720; y += 4) {
+        const ratio = y / 720;
+        const r = Math.round(7 + (20 - 7) * ratio);
+        const gr = Math.round(11 + (27 - 11) * ratio);
+        const b = Math.round(18 + (38 - 18) * ratio);
+        const color = (r << 16) | (gr << 8) | b;
+        g.fillStyle(color, 1);
+        g.fillRect(0, y, 2560, 4);
+      }
+      g.generateTexture('cyberpunk-sky', 2560, 720);
+      g.destroy();
+    }
+    this.add.image(1280, 360, 'cyberpunk-sky').setDepth(-10);
+
+    // 2. Elementos de cenário estáticos de fundo (Lixão dos Scripts Esquecidos)
+    const bgGraphics = this.add.graphics().setDepth(-5);
+
+    // Cabos industriais pendurados descendo do teto
+    bgGraphics.lineStyle(2, 0x0c141e, 0.9);
+    const cableXs = [140, 320, 520, 760, 980, 1220, 1480, 1780, 2060, 2380];
+    cableXs.forEach((cx) => {
+      const curve1 = new Phaser.Curves.CubicBezier(
+        new Phaser.Math.Vector2(cx, 0),
+        new Phaser.Math.Vector2(cx - 35, 70),
+        new Phaser.Math.Vector2(cx + 45, 130),
+        new Phaser.Math.Vector2(cx + 15, 210)
+      );
+      bgGraphics.strokePoints(curve1.getPoints(16));
+
+      const curve2 = new Phaser.Curves.CubicBezier(
+        new Phaser.Math.Vector2(cx + 30, 0),
+        new Phaser.Math.Vector2(cx + 60, 50),
+        new Phaser.Math.Vector2(cx + 10, 110),
+        new Phaser.Math.Vector2(cx + 40, 160)
+      );
+      bgGraphics.strokePoints(curve2.getPoints(16));
+    });
+
+    // Pilhas de sucatas de servidores e chassis descartados
+    bgGraphics.fillStyle(0x0a1018, 0.95);
+    const scrapPiles = [
+      { x: 160, w: 180, h: 230 },
+      { x: 380, w: 120, h: 160 },
+      { x: 740, w: 200, h: 270 },
+      { x: 1420, w: 230, h: 290 },
+      { x: 1860, w: 190, h: 240 },
+      { x: 2260, w: 240, h: 280 },
+    ];
+    scrapPiles.forEach((p) => {
+      bgGraphics.fillRect(p.x, 680 - p.h, p.w, p.h);
+      for (let sy = 680 - p.h + 20; sy < 680; sy += 32) {
+        bgGraphics.lineStyle(1, 0x141f2d, 0.8);
+        bgGraphics.strokeRect(p.x + 8, sy, p.w - 16, 24);
+      }
+    });
+
+    // Monitores CRT empilhados com telas apagadas ou com fósforo verde sutil
+    const crtPositions = [
+      { x: 210, y: 560, flicker: true },
+      { x: 260, y: 520, flicker: false },
+      { x: 790, y: 510, flicker: true },
+      { x: 840, y: 560, flicker: false },
+      { x: 1480, y: 470, flicker: true },
+      { x: 1530, y: 530, flicker: false },
+      { x: 1920, y: 520, flicker: true },
+      { x: 2320, y: 490, flicker: false },
+    ];
+    crtPositions.forEach((pos, idx) => {
+      this.add.rectangle(pos.x, pos.y, 36, 28, 0x161e29).setDepth(-4);
+      const screenColor = pos.flicker ? 0x003314 : 0x0a1118;
+      const screen = this.add.rectangle(pos.x, pos.y, 26, 18, screenColor).setDepth(-3);
+
+      if (pos.flicker) {
+        this.tweens.add({
+          targets: screen,
+          alpha: { from: 0.35, to: 0.9 },
+          yoyo: true,
+          repeat: -1,
+          duration: 500 + idx * 180,
+        });
+      }
+    });
+  }
+
+  private createGround(): void {
+    // Piso Industrial Reforçado: metal com costuras, parafusos/rebites e borda desgastada
+    if (!this.textures.exists('ground-industrial')) {
+      const g = this.make.graphics();
+      const w = 2560;
+      const h = 40;
+
+      // Base metálica escura
+      g.fillStyle(0x19212c, 1);
+      g.fillRect(0, 0, w, h);
+
+      // Borda superior metálica chanfrada e desgastada
+      g.fillStyle(0x4b5563, 1);
+      g.fillRect(0, 0, w, 4);
+      g.fillStyle(0x9ca3af, 0.85);
+      g.fillRect(0, 0, w, 1);
+
+      // Placas de metal industriais a cada 80px
+      for (let x = 0; x < w; x += 80) {
+        // Costura / junta de solda
+        g.fillStyle(0x0e1319, 1);
+        g.fillRect(x, 2, 2, h - 2);
+        g.fillStyle(0x374151, 0.7);
+        g.fillRect(x + 2, 2, 1, h - 2);
+
+        // Parafusos / rebites
+        g.fillStyle(0xcbd5e1, 1);
+        g.fillCircle(x + 10, 12, 2);
+        g.fillCircle(x + 70, 12, 2);
+        g.fillCircle(x + 10, 30, 2);
+        g.fillCircle(x + 70, 30, 2);
+
+        // Ranhura antiderrapante industrial
+        g.fillStyle(0x111822, 0.95);
+        g.fillRect(x + 22, 19, 36, 3);
+      }
+
+      g.generateTexture('ground-industrial', w, h);
       g.destroy();
     }
 
     this.platforms = this.physics.add.staticGroup();
     // Centro X = 1280, Y = 700 (superfície do piso em Y = 680)
-    this.platforms.create(1280, 700, 'ground-full');
+    this.platforms.create(1280, 700, 'ground-industrial');
   }
 
   private createShockZone(): void {
@@ -199,14 +312,11 @@ export class MainScene extends Phaser.Scene {
     // Textura da poça eletrificada com faíscas amarelas/ciano
     if (!this.textures.exists('shock-zone-active')) {
       const g = this.make.graphics();
-      // Poça condutora escura
       g.fillStyle(0x0a192f, 0.95);
       g.fillRect(0, 4, width, 12);
-      // Fios de cobre desencapados
       g.fillStyle(0xd97706, 1);
       g.fillRect(0, 8, width, 4);
 
-      // Faíscas elétricas em zigue-zague amarelo e ciano
       g.lineStyle(2, 0xffeb3b, 1);
       for (let x = 10; x < width; x += 25) {
         g.beginPath();
@@ -230,7 +340,6 @@ export class MainScene extends Phaser.Scene {
       g.destroy();
     }
 
-    // Textura neutra e inofensiva após estabilizar
     if (!this.textures.exists('shock-zone-neutral')) {
       const g = this.make.graphics();
       g.fillStyle(0x272e39, 0.95);
@@ -241,13 +350,11 @@ export class MainScene extends Phaser.Scene {
       g.destroy();
     }
 
-    // Centro X = 1175, apoiado sobre a superfície do piso em Y = 680 (centro Y = 672)
     this.shockZone = this.physics.add.sprite(1175, 672, 'shock-zone-active');
     const shockBody = this.shockZone.body as Phaser.Physics.Arcade.Body;
     shockBody.setAllowGravity(false);
     shockBody.setImmovable(true);
 
-    // Efeito de faíscas elétricas piscando suavemente (alpha via tween)
     this.shockTween = this.tweens.add({
       targets: this.shockZone,
       alpha: { from: 0.5, to: 1 },
@@ -261,13 +368,9 @@ export class MainScene extends Phaser.Scene {
     if (this.isShocked || !this.isShockActive) return;
     this.isShocked = true;
 
-    // Knockback horizontal para trás e impulso vertical leve
     this.player.setVelocity(-250, -150);
-
-    // Flash amarelo na tela
     this.cameras.main.flash(200, 255, 230, 50);
 
-    // Alerta temporário na tela
     const alert = this.add
       .text(this.player.x, this.player.y - 45, 'PERIGO: 220V / Corrente Crítica!', {
         fontSize: '16px',
@@ -286,7 +389,6 @@ export class MainScene extends Phaser.Scene {
       onComplete: () => alert.destroy(),
     });
 
-    // Perde controle por 0.3s
     this.time.delayedCall(300, () => {
       this.isShocked = false;
     });
@@ -309,39 +411,56 @@ export class MainScene extends Phaser.Scene {
   }
 
   private createTotems(): void {
-    if (!this.textures.exists('totem')) {
+    // Gabinete CRT Vintage: Bege/cinza, ranhuras de ar, disquete 3.5" e tela curva de fósforo verde
+    if (!this.textures.exists('totem-crt-vintage')) {
       const g = this.make.graphics();
+      const w = 40;
+      const h = 54;
+
+      // Base/gabinete bege retrô com borda chanfrada
+      g.fillStyle(0x05070a, 1);
+      g.fillRect(0, 0, w, h); // Contorno escuro 1px
+
+      g.fillStyle(0xc5beab, 1);
+      g.fillRect(1, 1, w - 2, h - 2);
+
+      // Ranhuras de ventilação horizontais na lateral da base
+      g.fillStyle(0x8a816e, 1);
+      g.fillRect(5, 42, 14, 2);
+      g.fillRect(5, 46, 14, 2);
+
+      // Slot para disquete de 3.5" e micro LED
+      g.fillStyle(0x18181b, 1);
+      g.fillRect(23, 43, 12, 2);
       g.fillStyle(0x00ff66, 1);
-      g.fillRect(0, 0, 32, 48);
-      g.fillStyle(0x0a1410, 1);
-      g.fillRect(4, 6, 24, 20);
-      g.fillStyle(0x00ff66, 0.9);
-      g.fillRect(6, 10, 12, 2);
-      g.fillRect(6, 14, 16, 2);
-      g.fillRect(6, 18, 8, 2);
-      g.generateTexture('totem', 32, 48);
+      g.fillCircle(25, 48, 1);
+
+      // Moldura curva do monitor CRT
+      g.fillStyle(0x27272a, 1);
+      g.fillRoundedRect(4, 5, 32, 32, 4);
+
+      // Tela de tubo (fósforo verde) com scanlines
+      g.fillStyle(0x041f0e, 1);
+      g.fillRoundedRect(6, 7, 28, 28, 3);
+
+      g.fillStyle(0x00ff66, 0.4);
+      for (let sy = 9; sy < 34; sy += 3) {
+        g.fillRect(8, sy, 24, 1);
+      }
+
+      // Cursor piscante de terminal
+      g.fillStyle(0x00ff66, 0.95);
+      g.fillRect(10, 14, 6, 2);
+
+      g.generateTexture('totem-crt-vintage', w, h);
       g.destroy();
     }
 
-    if (!this.textures.exists('totem-electric')) {
-      const g = this.make.graphics();
-      g.fillStyle(0xffeb3b, 1);
-      g.fillRect(0, 0, 32, 48);
-      g.fillStyle(0x1a1505, 1);
-      g.fillRect(4, 6, 24, 20);
-      g.fillStyle(0xffeb3b, 0.9);
-      g.fillRect(6, 10, 14, 2);
-      g.fillRect(6, 14, 10, 2);
-      g.fillRect(6, 18, 16, 2);
-      g.generateTexture('totem-electric', 32, 48);
-      g.destroy();
-    }
-
-    // Totem 1: Comporta Hidráulica (X = 520, Y = 656)
-    this.totemBarrier = this.add.image(520, 656, 'totem');
+    // Totem 1: Comporta Hidráulica (X = 520, Y = 653)
+    this.totemBarrier = this.add.image(520, 653, 'totem-crt-vintage');
     this.promptTextBarrier = this.add
-      .text(520, 615, '[E] DESTRAVAR COMPORTA', {
-        fontSize: '16px',
+      .text(520, 610, '[E] DESTRAVAR COMPORTA', {
+        fontSize: '15px',
         color: '#ffee00',
         fontFamily: 'monospace',
         stroke: '#000000',
@@ -350,11 +469,21 @@ export class MainScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setVisible(false);
 
-    // Totem 2: Regulador Elétrico (X = 920, Y = 656)
-    this.totemElectric = this.add.image(920, 656, 'totem-electric');
+    // Luz de status no topo do Totem 1 (verde)
+    this.beaconBarrier = this.add.circle(520, 624, 3, 0x00ff66);
+    this.tweens.add({
+      targets: this.beaconBarrier,
+      alpha: { from: 0.2, to: 1 },
+      yoyo: true,
+      repeat: -1,
+      duration: 400,
+    });
+
+    // Totem 2: Regulador Elétrico (X = 920, Y = 653)
+    this.totemElectric = this.add.image(920, 653, 'totem-crt-vintage');
     this.promptTextElectric = this.add
-      .text(920, 615, '[E] CALIBRAR CIRCUITO', {
-        fontSize: '16px',
+      .text(920, 610, '[E] CALIBRAR CIRCUITO', {
+        fontSize: '15px',
         color: '#ffeb3b',
         fontFamily: 'monospace',
         stroke: '#000000',
@@ -362,54 +491,101 @@ export class MainScene extends Phaser.Scene {
       })
       .setOrigin(0.5)
       .setVisible(false);
+
+    // Luz de status no topo do Totem 2 (amarela)
+    this.beaconElectric = this.add.circle(920, 624, 3, 0xffeb3b);
+    this.tweens.add({
+      targets: this.beaconElectric,
+      alpha: { from: 0.2, to: 1 },
+      yoyo: true,
+      repeat: -1,
+      duration: 350,
+    });
   }
 
   private createHydraulicGate(): void {
-    if (!this.textures.exists('hydraulic-gate')) {
+    // Comporta pesada com pistões cromados, mangueiras e painel de trava
+    if (!this.textures.exists('hydraulic-gate-heavy')) {
       const g = this.make.graphics();
-      const w = 36;
+      const w = 48;
       const h = 680;
 
-      g.fillStyle(0x232730, 1);
-      g.fillRect(0, 0, w, h);
+      // Corpo central de metal escuro
+      g.fillStyle(0x1b2029, 1);
+      g.fillRect(4, 0, w - 8, h);
 
-      g.fillStyle(0x3e4756, 1);
-      g.fillRect(0, 0, 4, h);
-      g.fillRect(w - 4, 0, 4, h);
+      // Pistão hidráulico cromado esquerdo
+      g.fillStyle(0x475569, 1);
+      g.fillRect(0, 0, 5, h);
+      g.fillStyle(0xe2e8f0, 1);
+      g.fillRect(1, 0, 2, h);
 
-      for (let y = 0; y < h; y += 60) {
-        g.fillStyle(0x181a20, 1);
-        g.fillRect(4, y, w - 8, 4);
-        g.fillStyle(0x8a97a8, 1);
-        g.fillCircle(8, y + 10, 2);
-        g.fillCircle(w - 8, y + 10, 2);
+      // Pistão hidráulico cromado direito
+      g.fillStyle(0x475569, 1);
+      g.fillRect(w - 5, 0, 5, h);
+      g.fillStyle(0xe2e8f0, 1);
+      g.fillRect(w - 3, 0, 2, h);
+
+      // Mangueiras de pressão hidráulica (com abraçadeiras de latão)
+      for (let y = 30; y < h; y += 90) {
+        g.fillStyle(0x090d13, 1);
+        g.fillRect(5, y, 4, 35);
+        g.fillRect(w - 9, y + 20, 4, 35);
+        // Abraçadeiras
+        g.fillStyle(0xd97706, 1);
+        g.fillRect(5, y, 4, 3);
+        g.fillRect(5, y + 32, 4, 3);
+        g.fillRect(w - 9, y + 20, 4, 3);
+        g.fillRect(w - 9, y + 52, 4, 3);
       }
 
+      // Placas horizontais de reforço e rebites
+      for (let y = 0; y < h; y += 60) {
+        g.fillStyle(0x11161f, 1);
+        g.fillRect(8, y, w - 16, 4);
+        g.fillStyle(0x94a3b8, 1);
+        g.fillCircle(12, y + 10, 2);
+        g.fillCircle(w - 12, y + 10, 2);
+      }
+
+      // Faixas de aviso de perigo amarelo/preto
       const drawStripes = (startY: number, sectionHeight: number) => {
         g.fillStyle(0x111827, 1);
-        g.fillRect(4, startY, w - 8, sectionHeight);
+        g.fillRect(8, startY, w - 16, sectionHeight);
         g.fillStyle(0xfacc15, 1);
         for (let sy = startY - 20; sy < startY + sectionHeight; sy += 16) {
           g.beginPath();
-          g.moveTo(4, sy);
-          g.lineTo(w - 4, sy + 12);
-          g.lineTo(w - 4, sy + 18);
-          g.lineTo(4, sy + 6);
+          g.moveTo(8, sy);
+          g.lineTo(w - 8, sy + 14);
+          g.lineTo(w - 8, sy + 20);
+          g.lineTo(8, sy + 6);
           g.closePath();
           g.fillPath();
         }
       };
 
       drawStripes(40, 70);
-      drawStripes(h - 120, 70);
+      drawStripes(h - 130, 70);
 
-      g.generateTexture('hydraulic-gate', w, h);
+      g.generateTexture('hydraulic-gate-heavy', w, h);
       g.destroy();
     }
 
     this.barriers = this.physics.add.staticGroup();
-    this.barrier = this.barriers.create(650, 340, 'hydraulic-gate') as Phaser.Physics.Arcade.Sprite;
+    this.barrier = this.barriers.create(650, 340, 'hydraulic-gate-heavy') as Phaser.Physics.Arcade.Sprite;
     this.barrierCollider = this.physics.add.collider(this.player, this.barriers);
+
+    // Painel luminoso de trava [LOCKED] no centro da comporta na altura dos olhos
+    this.gateLockText = this.add
+      .text(650, 600, '[LOCKED]', {
+        fontSize: '11px',
+        color: '#ff1744',
+        fontFamily: 'Consolas, monospace',
+        fontStyle: 'bold',
+        backgroundColor: 'rgba(15, 5, 5, 0.95)',
+        padding: { x: 4, y: 3 },
+      })
+      .setOrigin(0.5);
   }
 
   private disableBarrier(): void {
@@ -419,16 +595,31 @@ export class MainScene extends Phaser.Scene {
     }
     this.promptTextBarrier.setVisible(false);
 
+    // Muda a trava para verde [UNLOCKED]
+    if (this.gateLockText) {
+      this.gateLockText.setText('[UNLOCKED]').setColor('#00ff66');
+    }
+
     if (this.barrier) {
+      // Sobe a comporta e a trava juntas para o teto com tween vertical
+      const targetsToLift: (Phaser.GameObjects.GameObject | undefined)[] = [
+        this.barrier,
+        this.gateLockText,
+      ].filter(Boolean);
+
       this.tweens.add({
-        targets: this.barrier,
-        y: -340,
-        duration: 900,
+        targets: targetsToLift,
+        y: '-=680',
+        duration: 950,
         ease: 'Power2',
         onComplete: () => {
           if (this.barrier) {
             this.barrier.destroy();
             this.barrier = undefined;
+          }
+          if (this.gateLockText) {
+            this.gateLockText.destroy();
+            this.gateLockText = undefined;
           }
           if (this.barriers) {
             this.barriers.clear(true, true);
@@ -439,13 +630,46 @@ export class MainScene extends Phaser.Scene {
   }
 
   private createPlayer(): void {
+    // Redesenho do Jogador: Rebelde Retro-Tech com jaqueta escura, visor ciano neon e contorno de 1px
     if (!this.textures.exists('player')) {
       const g = this.make.graphics();
+      const w = 32;
+      const h = 48;
+
+      // 1px contorno escuro bem definido
+      g.fillStyle(0x05070a, 1);
+      g.fillRoundedRect(0, 0, w, h, 4);
+
+      // Botas industriais e pernas articuladas
+      g.fillStyle(0x1f2937, 1);
+      g.fillRect(5, 34, 9, 11); // Perna esquerda
+      g.fillRect(18, 34, 9, 11); // Perna direita
+      // Botas pesadas
+      g.fillStyle(0x475569, 1);
+      g.fillRect(4, 41, 11, 6);
+      g.fillRect(17, 41, 11, 6);
+
+      // Corpo: Jaqueta de hacker grafite com detalhes neon
+      g.fillStyle(0x111827, 1);
+      g.fillRect(4, 18, 24, 18);
+
+      // Frisos cibernéticos neon na jaqueta (roxo e ciano)
+      g.fillStyle(0x8b5cf6, 1);
+      g.fillRect(14, 18, 4, 18);
+      g.fillStyle(0x00e5ff, 0.85);
+      g.fillRect(6, 32, 20, 2);
+
+      // Capuz / Cabeça cibernética
+      g.fillStyle(0x1f2937, 1);
+      g.fillRoundedRect(5, 3, 22, 17, 3);
+
+      // Visor luminoso ciano neon (voltado para a direita por padrão)
       g.fillStyle(0x00e5ff, 1);
-      g.fillRoundedRect(0, 0, 32, 48, 4);
+      g.fillRect(14, 8, 12, 6);
       g.fillStyle(0xffffff, 0.9);
-      g.fillRect(6, 10, 20, 6);
-      g.generateTexture('player', 32, 48);
+      g.fillRect(17, 9, 8, 2);
+
+      g.generateTexture('player', w, h);
       g.destroy();
     }
 
