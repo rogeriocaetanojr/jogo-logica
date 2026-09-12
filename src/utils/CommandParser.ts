@@ -7,7 +7,7 @@ export interface CommandResult {
 
 export function parseCommand(
   input: string,
-  context?: { totem?: 'barrier' | 'physics' }
+  context?: { totem?: 'barrier' | 'electric' }
 ): CommandResult {
   const raw = input.trim();
   if (!raw) {
@@ -25,6 +25,10 @@ export function parseCommand(
 
   // Remove espacos ao redor do operador '=' para facilitar comparacao
   const compactAssignment = normalized.replace(/\s*=\s*/g, '=');
+
+  // ==========================================
+  // TOTEM 1: COMPORTA HIDRÁULICA (TIPOS)
+  // ==========================================
 
   // 1. Verificação de ERRO DE TIPO (uso de aspas para representar números)
   const isStringError =
@@ -47,7 +51,7 @@ export function parseCommand(
     };
   }
 
-  // 2. Comandos de Sucesso para a Comporta Hidráulica (Conversão de tipo)
+  // 2. Comandos de Sucesso para a Comporta Hidráulica
   const isGateSuccess =
     compactAssignment === 'chave=42' ||
     compactAssignment === 'chave_seguranca=42' ||
@@ -71,72 +75,70 @@ export function parseCommand(
     };
   }
 
-  // 3. Manipulação de Gravidade (Totem 2 - Física)
-  const gravityMatch = compactAssignment.match(
-    /^(?:gravidade|gravidade_mundo|gravity)=(\d+(?:\.\d+)?)$/
-  );
-  if (gravityMatch) {
-    const val = parseFloat(gravityMatch[1]);
-    if (val <= 300 && val >= 50) {
-      return {
-        success: true,
-        message: `[SUCESSO] gravidade = ${val}. O campo gravitacional foi reduzido com sucesso!`,
-        action: 'SET_GRAVITY',
-        value: val,
-      };
-    } else if (val > 300) {
-      return {
-        success: false,
-        message: `[AVISO] gravidade = ${val} ainda e muito pesada para saltar o abismo de 450px. Tente um valor <= 300.`,
-      };
-    } else {
-      return {
-        success: false,
-        message: `[AVISO] Valor de gravidade muito baixo ou perigoso. Tente entre 100 e 300.`,
-      };
-    }
-  }
+  // ==========================================
+  // TOTEM 2: REGULADOR ELÉTRICO (LEI DE OHM)
+  // ==========================================
 
-  // 4. Manipulação da Força de Pulo (Totem 2 - Física)
-  const jumpMatch = compactAssignment.match(
-    /^(?:forca_pulo|forca_do_pulo|jump_force|player\.jump_force)=(\d+(?:\.\d+)?)$/
-  );
-  if (jumpMatch) {
-    const val = parseFloat(jumpMatch[1]);
-    if (val >= 550 && val <= 1200) {
-      return {
-        success: true,
-        message: `[SUCESSO] forca_pulo = ${val}. Propulsores ajustados para salto longo!`,
-        action: 'SET_JUMP_FORCE',
-        value: val,
-      };
-    } else if (val < 550) {
-      return {
-        success: false,
-        message: `[AVISO] forca_pulo = ${val} e insuficiente para cobrir o abismo de 450px. Tente um valor >= 550.`,
-      };
-    } else {
-      return {
-        success: false,
-        message: `[AVISO] Força de pulo excessiva! Cuidado para não quebrar os motores.`,
-      };
-    }
-  }
+  // Desligamento direto ou tensão zerada
+  const isElectricShutdown =
+    compactAssignment === 'circuito.desligar()' ||
+    compactAssignment === 'circuito.desligar' ||
+    compactAssignment === 'desligar' ||
+    compactAssignment === 'desligar()' ||
+    compactAssignment === 'tensao=0' ||
+    compactAssignment === 'voltagem=0' ||
+    compactAssignment === 'v=0' ||
+    compactAssignment === 'tensao=0v';
 
-  // 5. Se o jogador estiver no Totem de Física e digitar comando inválido
-  if (context?.totem === 'physics') {
-    const taunts = [
-      "[ERRO 400] Mega Brain: 'Sintaxe horrivel. Nem minha IA generativa mais barata geraria esse lixo.'",
-      "[ERRO 404] Comando nao reconhecido. Altere 'gravidade = 250' ou 'forca_pulo = 600'.",
-      "[ERRO 500] Mega Brain: 'Tentativa patetica. O firewall nem sentiu cosquinha.'",
-    ];
+  if (isElectricShutdown) {
     return {
-      success: false,
-      message: taunts[Math.floor(Math.random() * taunts.length)],
+      success: true,
+      message: '[SUCESSO] Corrente estabilizada em níveis seguros! Faíscas neutralizadas.',
+      action: 'DISABLE_SHOCK',
     };
   }
 
-  // Padrão para a comporta
+  // Aumento de resistência (resistencia >= 500)
+  const resistanceMatch = compactAssignment.match(
+    /^(?:resistencia|resistencia_circuito|r)=(\d+(?:\.\d+)?)(?:ohm|ohms|k|kohm)?$/
+  );
+  if (resistanceMatch) {
+    const val = parseFloat(resistanceMatch[1]);
+    if (val >= 500) {
+      return {
+        success: true,
+        message: '[SUCESSO] Corrente estabilizada em níveis seguros! Faíscas neutralizadas.',
+        action: 'DISABLE_SHOCK',
+      };
+    } else if (val === 0) {
+      return {
+        success: false,
+        message:
+          '[ALUCINAÇÃO DE IA] Divisão por zero detectada. Seus elétrons entraram em colapso existencial. Tente colocar um número válido.',
+      };
+    } else {
+      return {
+        success: false,
+        message: `[AVISO] Resistência de ${val}Ω é muito baixa! A corrente continua em curto letal. Tente um valor >= 500.`,
+      };
+    }
+  }
+
+  // Erro explícito de divisão por zero ou sintaxe errada no Totem Elétrico
+  if (
+    context?.totem === 'electric' ||
+    compactAssignment.includes('/0') ||
+    compactAssignment === 'resistencia=0' ||
+    compactAssignment === 'r=0'
+  ) {
+    return {
+      success: false,
+      message:
+        '[ALUCINAÇÃO DE IA] Divisão por zero detectada. Seus elétrons entraram em colapso existencial. Tente colocar um número válido.',
+    };
+  }
+
+  // Padrão de erro para o totem da comporta
   return {
     success: false,
     message:

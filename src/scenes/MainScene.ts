@@ -4,22 +4,27 @@ import { DialogueSystem } from '../utils/DialogueSystem';
 
 export class MainScene extends Phaser.Scene {
   private platforms!: Phaser.Physics.Arcade.StaticGroup;
-  private spikes!: Phaser.Physics.Arcade.StaticGroup;
   private player!: Phaser.Physics.Arcade.Sprite;
 
   // Totem 1 (Comporta Hidráulica)
   private totemBarrier!: Phaser.GameObjects.Image;
   private promptTextBarrier!: Phaser.GameObjects.Text;
 
-  // Totem 2 (Física)
-  private totemPhysics!: Phaser.GameObjects.Image;
-  private promptTextPhysics!: Phaser.GameObjects.Text;
+  // Totem 2 (Regulador Elétrico)
+  private totemElectric!: Phaser.GameObjects.Image;
+  private promptTextElectric!: Phaser.GameObjects.Text;
 
-  private currentInteractingTotem: 'barrier' | 'physics' | null = null;
+  private currentInteractingTotem: 'barrier' | 'electric' | null = null;
 
   private barriers!: Phaser.Physics.Arcade.StaticGroup;
   private barrier?: Phaser.Physics.Arcade.Sprite;
   private barrierCollider?: Phaser.Physics.Arcade.Collider;
+
+  // Zona de Choque Elétrico (X = 1000 a 1350)
+  private shockZone!: Phaser.Physics.Arcade.Sprite;
+  private isShockActive: boolean = true;
+  private isShocked: boolean = false;
+  private shockTween?: Phaser.Tweens.Tween;
 
   private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
   private wasdKeys?: {
@@ -33,9 +38,8 @@ export class MainScene extends Phaser.Scene {
   private interactKey?: Phaser.Input.Keyboard.Key;
   private escKey?: Phaser.Input.Keyboard.Key;
 
-  // Variáveis físicas do jogador
+  // Variáveis de movimentação
   private jumpForce: number = 450;
-  private isRespawning: boolean = false;
 
   private isTerminalOpen: boolean = false;
   private terminalOverlay: HTMLElement | null = null;
@@ -55,16 +59,17 @@ export class MainScene extends Phaser.Scene {
     this.physics.world.setBounds(0, 0, 2560, 720);
     this.cameras.main.setBounds(0, 0, 2560, 720);
 
-    // Marcador visual na margem segura após o abismo
+    // Marcador visual na margem segura após o obstáculo elétrico
     this.add
-      .text(1650, 580, '✓ ZONA SEGURA: MARGEM OPOSTA ALCANCADA', {
+      .text(1650, 580, '✓ ZONA SEGURA: CIRCUITO ULTRAPASSADO', {
         fontSize: '18px',
         color: '#00ff88',
         fontFamily: 'monospace',
       })
       .setOrigin(0.5);
 
-    this.createGroundAndAbyss();
+    this.createGround();
+    this.createShockZone();
     this.createTotems();
     this.createPlayer();
     this.createHydraulicGate();
@@ -82,14 +87,13 @@ export class MainScene extends Phaser.Scene {
     // Se o diálogo estiver ativo, trava totalmente o jogador e esconde prompts
     if (this.dialogueSystem && this.dialogueSystem.isActive) {
       this.promptTextBarrier.setVisible(false);
-      this.promptTextPhysics.setVisible(false);
+      this.promptTextElectric.setVisible(false);
       this.player.setVelocityX(0);
       return;
     }
 
-    // Se o jogador cair no fundo do abismo
-    if (this.player.y > 720) {
-      this.handleSpikeHit();
+    // Se o jogador estiver em estado de choque (knockback ativo por 0.3s)
+    if (this.isShocked) {
       return;
     }
 
@@ -100,13 +104,15 @@ export class MainScene extends Phaser.Scene {
       isNearBarrierTotem && !this.isTerminalOpen && Boolean(this.barrier)
     );
 
-    const distPhysics = Math.abs(this.player.x - this.totemPhysics.x);
-    const isNearPhysicsTotem = distPhysics < 80;
-    this.promptTextPhysics.setVisible(isNearPhysicsTotem && !this.isTerminalOpen);
+    const distElectric = Math.abs(this.player.x - this.totemElectric.x);
+    const isNearElectricTotem = distElectric < 80;
+    this.promptTextElectric.setVisible(
+      isNearElectricTotem && !this.isTerminalOpen && this.isShockActive
+    );
 
     // Identifica com qual totem o jogador está interagindo
-    if (isNearPhysicsTotem) {
-      this.currentInteractingTotem = 'physics';
+    if (isNearElectricTotem && this.isShockActive) {
+      this.currentInteractingTotem = 'electric';
     } else if (isNearBarrierTotem && this.barrier) {
       this.currentInteractingTotem = 'barrier';
     } else {
@@ -149,7 +155,7 @@ export class MainScene extends Phaser.Scene {
       this.player.setVelocityX(0);
     }
 
-    // Pulo estilo Mega Man com força de pulo dinâmica
+    // Pulo estilo Mega Man
     const isJumpDown =
       (this.cursors?.up.isDown ?? false) ||
       (this.jumpKeys?.w.isDown ?? false) ||
@@ -163,84 +169,143 @@ export class MainScene extends Phaser.Scene {
     }
 
     // Pulo variável: cortar velocidade vertical se o jogador soltar o botão durante a subida
-    const cutThreshold = -Math.min(150, this.jumpForce / 3);
+    const cutThreshold = -150;
     if (!isJumpDown && this.player.body.velocity.y < cutThreshold) {
       this.player.setVelocityY(cutThreshold);
     }
   }
 
-  private createGroundAndAbyss(): void {
-    // Piso 1: X = 0 a 950 (largura 950, centro 475)
-    if (!this.textures.exists('ground-section-1')) {
+  private createGround(): void {
+    // Piso contínuo por toda a extensão do mundo (2560px)
+    if (!this.textures.exists('ground-full')) {
       const g = this.make.graphics();
       g.fillStyle(0x18202c, 1);
-      g.fillRect(0, 0, 950, 40);
+      g.fillRect(0, 0, 2560, 40);
       g.fillStyle(0x00ff88, 1);
-      g.fillRect(0, 0, 950, 3);
-      g.generateTexture('ground-section-1', 950, 40);
-      g.destroy();
-    }
-
-    // Piso 2: X = 1400 a 2560 (largura 1160, centro 1980)
-    if (!this.textures.exists('ground-section-2')) {
-      const g = this.make.graphics();
-      g.fillStyle(0x18202c, 1);
-      g.fillRect(0, 0, 1160, 40);
-      g.fillStyle(0x00ff88, 1);
-      g.fillRect(0, 0, 1160, 3);
-      g.generateTexture('ground-section-2', 1160, 40);
-      g.destroy();
-    }
-
-    // Textura dos espinhos vermelhos neon no abismo (X = 950 a 1400, largura 450)
-    if (!this.textures.exists('spikes-abyss')) {
-      const g = this.make.graphics();
-      g.fillStyle(0xff1744, 1);
-      const spikeW = 15;
-      const count = 450 / spikeW;
-      for (let i = 0; i < count; i++) {
-        const x = i * spikeW;
-        g.beginPath();
-        g.moveTo(x, 20);
-        g.lineTo(x + spikeW / 2, 0);
-        g.lineTo(x + spikeW, 20);
-        g.closePath();
-        g.fillPath();
-      }
-      g.generateTexture('spikes-abyss', 450, 20);
+      g.fillRect(0, 0, 2560, 3);
+      g.generateTexture('ground-full', 2560, 40);
       g.destroy();
     }
 
     this.platforms = this.physics.add.staticGroup();
-    this.platforms.create(475, 700, 'ground-section-1');
-    this.platforms.create(1980, 700, 'ground-section-2');
-
-    this.spikes = this.physics.add.staticGroup();
-    this.spikes.create(1175, 710, 'spikes-abyss');
+    // Centro X = 1280, Y = 700 (superfície do piso em Y = 680)
+    this.platforms.create(1280, 700, 'ground-full');
   }
 
-  private handleSpikeHit(): void {
-    if (this.isRespawning) return;
-    this.isRespawning = true;
+  private createShockZone(): void {
+    const width = 350; // X = 1000 a X = 1350
+    const height = 16;
 
-    // Respawn imediato na última posição segura antes do abismo (X = 900, Y = 600)
-    this.player.setPosition(900, 600);
-    this.player.setVelocity(0, 0);
+    // Textura da poça eletrificada com faíscas amarelas/ciano
+    if (!this.textures.exists('shock-zone-active')) {
+      const g = this.make.graphics();
+      // Poça condutora escura
+      g.fillStyle(0x0a192f, 0.95);
+      g.fillRect(0, 4, width, 12);
+      // Fios de cobre desencapados
+      g.fillStyle(0xd97706, 1);
+      g.fillRect(0, 8, width, 4);
 
-    // Efeito visual rápido de flash na câmera e piscar no player sem travar o jogo
-    this.cameras.main.flash(180, 255, 30, 60);
+      // Faíscas elétricas em zigue-zague amarelo e ciano
+      g.lineStyle(2, 0xffeb3b, 1);
+      for (let x = 10; x < width; x += 25) {
+        g.beginPath();
+        g.moveTo(x, 14);
+        g.lineTo(x + 5, 2);
+        g.lineTo(x + 10, 12);
+        g.lineTo(x + 16, 0);
+        g.strokePath();
+      }
+
+      g.lineStyle(1.5, 0x00e5ff, 1);
+      for (let x = 20; x < width; x += 30) {
+        g.beginPath();
+        g.moveTo(x, 12);
+        g.lineTo(x + 6, 4);
+        g.lineTo(x + 12, 14);
+        g.strokePath();
+      }
+
+      g.generateTexture('shock-zone-active', width, height);
+      g.destroy();
+    }
+
+    // Textura neutra e inofensiva após estabilizar
+    if (!this.textures.exists('shock-zone-neutral')) {
+      const g = this.make.graphics();
+      g.fillStyle(0x272e39, 0.95);
+      g.fillRect(0, 4, width, 12);
+      g.fillStyle(0x475569, 1);
+      g.fillRect(0, 8, width, 4);
+      g.generateTexture('shock-zone-neutral', width, height);
+      g.destroy();
+    }
+
+    // Centro X = 1175, apoiado sobre a superfície do piso em Y = 680 (centro Y = 672)
+    this.shockZone = this.physics.add.sprite(1175, 672, 'shock-zone-active');
+    const shockBody = this.shockZone.body as Phaser.Physics.Arcade.Body;
+    shockBody.setAllowGravity(false);
+    shockBody.setImmovable(true);
+
+    // Efeito de faíscas elétricas piscando suavemente (alpha via tween)
+    this.shockTween = this.tweens.add({
+      targets: this.shockZone,
+      alpha: { from: 0.5, to: 1 },
+      yoyo: true,
+      repeat: -1,
+      duration: 120,
+    });
+  }
+
+  private handleShock(): void {
+    if (this.isShocked || !this.isShockActive) return;
+    this.isShocked = true;
+
+    // Knockback horizontal para trás e impulso vertical leve
+    this.player.setVelocity(-250, -150);
+
+    // Flash amarelo na tela
+    this.cameras.main.flash(200, 255, 230, 50);
+
+    // Alerta temporário na tela
+    const alert = this.add
+      .text(this.player.x, this.player.y - 45, 'PERIGO: 220V / Corrente Crítica!', {
+        fontSize: '16px',
+        color: '#ffeb3b',
+        fontFamily: 'monospace',
+        stroke: '#000000',
+        strokeThickness: 3,
+      })
+      .setOrigin(0.5);
 
     this.tweens.add({
-      targets: this.player,
-      alpha: 0.2,
-      yoyo: true,
-      repeat: 3,
-      duration: 70,
-      onComplete: () => {
-        this.player.setAlpha(1);
-        this.isRespawning = false;
-      },
+      targets: alert,
+      y: alert.y - 30,
+      alpha: 0,
+      duration: 800,
+      onComplete: () => alert.destroy(),
     });
+
+    // Perde controle por 0.3s
+    this.time.delayedCall(300, () => {
+      this.isShocked = false;
+    });
+  }
+
+  private disableShockZone(): void {
+    this.isShockActive = false;
+
+    if (this.shockTween) {
+      this.shockTween.stop();
+      this.shockTween = undefined;
+    }
+
+    if (this.shockZone) {
+      this.shockZone.setTexture('shock-zone-neutral');
+      this.shockZone.setAlpha(0.85);
+    }
+
+    this.promptTextElectric.setVisible(false);
   }
 
   private createTotems(): void {
@@ -258,17 +323,17 @@ export class MainScene extends Phaser.Scene {
       g.destroy();
     }
 
-    if (!this.textures.exists('totem-physics')) {
+    if (!this.textures.exists('totem-electric')) {
       const g = this.make.graphics();
-      g.fillStyle(0x00e5ff, 1);
+      g.fillStyle(0xffeb3b, 1);
       g.fillRect(0, 0, 32, 48);
-      g.fillStyle(0x051520, 1);
+      g.fillStyle(0x1a1505, 1);
       g.fillRect(4, 6, 24, 20);
-      g.fillStyle(0x00e5ff, 0.9);
+      g.fillStyle(0xffeb3b, 0.9);
       g.fillRect(6, 10, 14, 2);
       g.fillRect(6, 14, 10, 2);
       g.fillRect(6, 18, 16, 2);
-      g.generateTexture('totem-physics', 32, 48);
+      g.generateTexture('totem-electric', 32, 48);
       g.destroy();
     }
 
@@ -285,12 +350,12 @@ export class MainScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setVisible(false);
 
-    // Totem 2: Puzzle de Física (X = 920, Y = 656)
-    this.totemPhysics = this.add.image(920, 656, 'totem-physics');
-    this.promptTextPhysics = this.add
-      .text(920, 615, '[E] HACKEAR FÍSICA', {
+    // Totem 2: Regulador Elétrico (X = 920, Y = 656)
+    this.totemElectric = this.add.image(920, 656, 'totem-electric');
+    this.promptTextElectric = this.add
+      .text(920, 615, '[E] CALIBRAR CIRCUITO', {
         fontSize: '16px',
-        color: '#00e5ff',
+        color: '#ffeb3b',
         fontFamily: 'monospace',
         stroke: '#000000',
         strokeThickness: 3,
@@ -300,22 +365,18 @@ export class MainScene extends Phaser.Scene {
   }
 
   private createHydraulicGate(): void {
-    // Comporta de metal industrial pesado com faixas de aviso amarelo/preto
     if (!this.textures.exists('hydraulic-gate')) {
       const g = this.make.graphics();
       const w = 36;
       const h = 680;
 
-      // Base cinza escuro industrial
       g.fillStyle(0x232730, 1);
       g.fillRect(0, 0, w, h);
 
-      // Bordas reforçadas de metal/chumbo
       g.fillStyle(0x3e4756, 1);
       g.fillRect(0, 0, 4, h);
       g.fillRect(w - 4, 0, 4, h);
 
-      // Placas e rebites horizontais
       for (let y = 0; y < h; y += 60) {
         g.fillStyle(0x181a20, 1);
         g.fillRect(4, y, w - 8, 4);
@@ -324,7 +385,6 @@ export class MainScene extends Phaser.Scene {
         g.fillCircle(w - 8, y + 10, 2);
       }
 
-      // Faixas de aviso de perigo amarelo/preto (Hazard Stripes)
       const drawStripes = (startY: number, sectionHeight: number) => {
         g.fillStyle(0x111827, 1);
         g.fillRect(4, startY, w - 8, sectionHeight);
@@ -348,13 +408,11 @@ export class MainScene extends Phaser.Scene {
     }
 
     this.barriers = this.physics.add.staticGroup();
-    // Posição X = 650, centro Y = 340 (bloqueia completamente do topo Y = 0 até o chão Y = 680)
     this.barrier = this.barriers.create(650, 340, 'hydraulic-gate') as Phaser.Physics.Arcade.Sprite;
     this.barrierCollider = this.physics.add.collider(this.player, this.barriers);
   }
 
   private disableBarrier(): void {
-    // Destrói imediatamente a colisão física para permitir passagem
     if (this.barrierCollider) {
       this.barrierCollider.destroy();
       this.barrierCollider = undefined;
@@ -362,7 +420,6 @@ export class MainScene extends Phaser.Scene {
     this.promptTextBarrier.setVisible(false);
 
     if (this.barrier) {
-      // Animação da comporta subindo para o teto com tween vertical
       this.tweens.add({
         targets: this.barrier,
         y: -340,
@@ -396,9 +453,11 @@ export class MainScene extends Phaser.Scene {
     this.player.setCollideWorldBounds(true);
     this.physics.add.collider(this.player, this.platforms);
 
-    // Detecção de contato com espinhos
-    this.physics.add.overlap(this.player, this.spikes, () => {
-      this.handleSpikeHit();
+    // Detecção de contato com a zona de choque
+    this.physics.add.overlap(this.player, this.shockZone, () => {
+      if (this.isShockActive) {
+        this.handleShock();
+      }
     });
   }
 
@@ -492,10 +551,8 @@ export class MainScene extends Phaser.Scene {
     if (result.success) {
       if (result.action === 'DISABLE_BARRIER') {
         this.disableBarrier();
-      } else if (result.action === 'SET_GRAVITY' && result.value !== undefined) {
-        this.physics.world.gravity.y = result.value;
-      } else if (result.action === 'SET_JUMP_FORCE' && result.value !== undefined) {
-        this.jumpForce = result.value;
+      } else if (result.action === 'DISABLE_SHOCK') {
+        this.disableShockZone();
       }
 
       setTimeout(() => {
@@ -504,7 +561,7 @@ export class MainScene extends Phaser.Scene {
     }
   }
 
-  private openTerminal(totemType: 'barrier' | 'physics'): void {
+  private openTerminal(totemType: 'barrier' | 'electric'): void {
     if (this.dialogueSystem && this.dialogueSystem.isActive) return;
 
     this.isTerminalOpen = true;
@@ -514,7 +571,6 @@ export class MainScene extends Phaser.Scene {
       this.terminalOverlay.classList.remove('hidden');
     }
 
-    // Logs contextuais específicos para cada totem
     if (this.terminalOutput) {
       if (totemType === 'barrier') {
         const lines = [
@@ -530,12 +586,19 @@ export class MainScene extends Phaser.Scene {
           this.terminalOutput?.appendChild(info);
         });
         this.terminalOutput.scrollTop = this.terminalOutput.scrollHeight;
-      } else if (totemType === 'physics') {
-        const info = document.createElement('div');
-        info.className = 'log-line info';
-        info.textContent =
-          'PROPRIEDADES DO SISTEMA: gravidade_mundo = 600. O abismo tem 450px de largura. Você precisa alterar a gravidade ou a forca_pulo para conseguir saltar.';
-        this.terminalOutput.appendChild(info);
+      } else if (totemType === 'electric') {
+        const lines = [
+          '=== REGULADOR DE TENSÃO DO LIXÃO ===',
+          'STATUS: tensao = 220 | resistencia = 0',
+          'DIAGNÓSTICO: corrente = tensao / resistencia -> [DIVISÃO POR ZERO! O circuito está em curto-circuito total].',
+          '> DICA DO ESTAGIÁRIO: Uma IA preguiçosa esqueceu da Lei de Ohm! Aumente a resistência (ex: resistencia = 1000) ou corte a tensão (tensao = 0) para neutralizar o choque.',
+        ];
+        lines.forEach((lineText) => {
+          const info = document.createElement('div');
+          info.className = 'log-line info';
+          info.textContent = lineText;
+          this.terminalOutput?.appendChild(info);
+        });
         this.terminalOutput.scrollTop = this.terminalOutput.scrollHeight;
       }
     }
