@@ -8,7 +8,7 @@ export interface CommandResult {
 export function parseCommand(
   input: string,
   context?: {
-    totem?: 'power' | 'bridge' | 'barrier' | 'electric';
+    totem?: 'power' | 'bridge' | 'elevator' | 'barrier' | 'electric';
     scene?: 'boot' | 'main';
   }
 ): CommandResult {
@@ -60,7 +60,9 @@ export function parseCommand(
             ? '  energia = <booleano> - Atribui valor lógico para ligar a energia'
             : context?.totem === 'bridge'
               ? '  tamanho_ponte = X - Define o comprimento da esteira em metros (inteiro)'
-              : context?.totem === 'barrier'
+              : context?.totem === 'elevator'
+                ? '  senha = texto1 + texto2 - Concatena variáveis de texto (string)'
+                : context?.totem === 'barrier'
                 ? '  chave = 42      - Define a chave como tipo inteiro (int)\n  int("42")       - Converte o texto para número inteiro'
                 : context?.totem === 'electric'
                   ? '  resistencia = X - Define a resistência em Ohms (ex: resistencia = 1000)\n  circuito.desligar() - Corta a tensão elétrica'
@@ -230,6 +232,67 @@ export function parseCommand(
       success: false,
       message:
         "[SYNTAX ERROR] Mega Brain: 'Instrução sem pé nem cabeça. Declare a variável com um valor inteiro válido.'",
+    };
+  }
+
+  // ==========================================
+  // DESAFIO 3: CONSOLE DO ELEVADOR (CONCATENAÇÃO DE STRINGS)
+  // ==========================================
+  const isElevatorTarget =
+    context?.totem === 'elevator' ||
+    compactAssignment.startsWith('senha=') ||
+    compactAssignment.startsWith('chave_elevador=');
+
+  if (isElevatorTarget) {
+    const expr = compactAssignment
+      .replace(/^(?:senha|chave_elevador)=/, '')
+      .replace(/\s+/g, '');
+
+    // 1. Sucesso: concatenação correta de variáveis ou strings literais
+    const isConcatSuccess =
+      expr === 'parte1+parte2' ||
+      expr === '"mega"+"fail"' ||
+      expr === "'mega'+'fail'" ||
+      expr === '"mega"+\'fail\'' ||
+      expr === "'mega'+\"fail\"" ||
+      expr === '"megafail"' ||
+      expr === "'megafail'";
+
+    if (isConcatSuccess) {
+      return {
+        success: true,
+        message:
+          "[ACESSO CONCEDIDO] Hash validado: 'MegaFail'. Destravando guincho hidráulico...",
+        action: 'LOWER_ELEVATOR',
+      };
+    }
+
+    // 2. Erro de Tipo: tentar somar números com texto (ex: parte1 + 2)
+    const hasNumbers = /\d/.test(expr);
+    if (hasNumbers) {
+      return {
+        success: false,
+        message:
+          "[TYPE ERROR] Mega Brain: 'Tentando misturar texto com aritmética de padaria? Concatenação exige strings compatíveis.'",
+      };
+    }
+
+    // 3. Erro de Nome: esqueceu aspas ou identificador não definido (ex: Mega + Fail, mega + fail, MegaFail sem aspas)
+    const hasQuotes = /['"]/.test(expr);
+    const hasKeywords = expr.includes('mega') || expr.includes('fail');
+    if (!hasQuotes && hasKeywords) {
+      return {
+        success: false,
+        message:
+          "[NAME ERROR] Mega Brain: 'Identificadores não definidos. Ou você usa as variáveis declaradas no terminal, ou coloca aspas nas palavras literais.'",
+      };
+    }
+
+    // 4. Comando sem sentido / segurança negada (ex: senha = "abrir", texto aleatório, etc.)
+    return {
+      success: false,
+      message:
+        "[SECURITY DENIED] Mega Brain: 'Acesso negado. Essa senha não combina com os registradores corrompidos na tela.'",
     };
   }
 

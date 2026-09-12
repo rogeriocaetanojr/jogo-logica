@@ -32,17 +32,31 @@ export class MainScene extends Phaser.Scene {
   private ventExhaust?: Phaser.Physics.Arcade.Sprite;
   private lastVentTime: number = 0;
 
-  // Totem 2 (Comporta Hidráulica)
+  // Totem 2: Terminal do Elevador de Carga (Desafio 3 - Concatenação de Strings)
+  private totemElevator!: Phaser.GameObjects.Image;
+  private promptTextElevator!: Phaser.GameObjects.Text;
+  private beaconElevator!: Phaser.GameObjects.Arc;
+  private isElevatorLowered: boolean = false;
+  private elevatorPlatform!: Phaser.Physics.Arcade.Sprite;
+  private elevatorShaftCables?: Phaser.GameObjects.Graphics;
+
+  // Totem 4 (Comporta Hidráulica)
   private totemBarrier!: Phaser.GameObjects.Image;
   private promptTextBarrier!: Phaser.GameObjects.Text;
   private beaconBarrier!: Phaser.GameObjects.Arc;
 
-  // Totem 3 (Regulador Elétrico)
+  // Totem 5 (Regulador Elétrico)
   private totemElectric!: Phaser.GameObjects.Image;
   private promptTextElectric!: Phaser.GameObjects.Text;
   private beaconElectric!: Phaser.GameObjects.Arc;
 
-  private currentInteractingTotem: 'power' | 'bridge' | 'barrier' | 'electric' | null = null;
+  private currentInteractingTotem:
+    | 'power'
+    | 'bridge'
+    | 'elevator'
+    | 'barrier'
+    | 'electric'
+    | null = null;
 
   // Comporta Hidráulica
   private barriers!: Phaser.Physics.Arcade.StaticGroup;
@@ -97,6 +111,7 @@ export class MainScene extends Phaser.Scene {
     this.createGround();
     this.createScrapPlatforms();
     this.createConveyorBridge();
+    this.createElevator();
     this.createShockZone();
     this.createTotems();
     this.createPlayer();
@@ -135,6 +150,7 @@ export class MainScene extends Phaser.Scene {
     if (this.dialogueSystem && this.dialogueSystem.isActive) {
       this.promptTextPower.setVisible(false);
       this.promptTextBridge.setVisible(false);
+      this.promptTextElevator.setVisible(false);
       this.promptTextBarrier.setVisible(false);
       this.promptTextElectric.setVisible(false);
       this.player.setVelocityX(0);
@@ -160,6 +176,13 @@ export class MainScene extends Phaser.Scene {
       isNearBridgeTotem && !this.isTerminalOpen && !this.isBridgeExpanded
     );
 
+    const distElevatorX = Math.abs(this.player.x - this.totemElevator.x);
+    const distElevatorY = Math.abs(this.player.y - this.totemElevator.y);
+    const isNearElevatorTotem = distElevatorX < 85 && distElevatorY < 95;
+    this.promptTextElevator.setVisible(
+      isNearElevatorTotem && !this.isTerminalOpen && !this.isElevatorLowered
+    );
+
     const distBarrier = Math.abs(this.player.x - this.totemBarrier.x);
     const isNearBarrierTotem = distBarrier < 95;
     this.promptTextBarrier.setVisible(
@@ -177,6 +200,8 @@ export class MainScene extends Phaser.Scene {
       this.currentInteractingTotem = 'power';
     } else if (isNearBridgeTotem && !this.isBridgeExpanded) {
       this.currentInteractingTotem = 'bridge';
+    } else if (isNearElevatorTotem && !this.isElevatorLowered) {
+      this.currentInteractingTotem = 'elevator';
     } else if (isNearBarrierTotem && this.barrier) {
       this.currentInteractingTotem = 'barrier';
     } else if (isNearElectricTotem && this.isShockActive) {
@@ -864,9 +889,9 @@ export class MainScene extends Phaser.Scene {
     strutG.setDepth(4);
 
     // ==============================================================
-    // 7. MEZANINO DO SETOR 3 (DESTINO EM X = 2250, Y = 330)
+    // 7. PLATAFORMA ELEVADA DE CHEGADA DA ESTEIRA (X = 2250 A 2370, Y = 330)
     // ==============================================================
-    const mezDestW = 160;
+    const mezDestW = 120;
     if (!this.textures.exists('mezzanine-elevated-dest')) {
       const g = this.make.graphics();
       g.fillStyle(0x19212c, 1);
@@ -881,7 +906,7 @@ export class MainScene extends Phaser.Scene {
       g.generateTexture('mezzanine-elevated-dest', mezDestW, mezH);
       g.destroy();
     }
-    const mezDest = this.platforms.create(2330, 340, 'mezzanine-elevated-dest') as Phaser.Physics.Arcade.Sprite;
+    const mezDest = this.platforms.create(2310, 340, 'mezzanine-elevated-dest') as Phaser.Physics.Arcade.Sprite;
     mezDest.setDepth(8);
     mezDest.refreshBody();
     const bMezDest = mezDest.body as Phaser.Physics.Arcade.Body;
@@ -890,23 +915,204 @@ export class MainScene extends Phaser.Scene {
     bMezDest.checkCollision.right = false;
     bMezDest.checkCollision.up = true;
 
-    // Plataforma de descida suave para o chão do Setor 3
-    if (!this.textures.exists('scrap-platform-step')) {
+    // ==============================================================
+    // 8. DESAFIO 3: CONTÊINER INDUSTRIAL 1 (X = 2460, TOPO EM Y = 330)
+    // ==============================================================
+    const c1W = 110;
+    const c1H = 80;
+    if (!this.textures.exists('industrial-container-single')) {
       const g = this.make.graphics();
-      g.fillStyle(0x19212c, 1);
-      g.fillRect(0, 0, 110, 20);
-      g.fillStyle(0x475569, 1);
-      g.fillRect(0, 0, 110, 3);
-      g.generateTexture('scrap-platform-step', 110, 20);
+      // Corpo escuro do contêiner corrugado
+      g.fillStyle(0x131d2a, 1);
+      g.fillRect(0, 0, c1W, c1H);
+
+      // Moldura e cantoneiras de aço reforçado
+      g.fillStyle(0x334155, 1);
+      g.fillRect(0, 0, c1W, 5);
+      g.fillRect(0, c1H - 5, c1W, 5);
+      g.fillRect(0, 0, 6, c1H);
+      g.fillRect(c1W - 6, 0, 6, c1H);
+
+      // Friso superior cromado antiderrapante
+      g.fillStyle(0x94a3b8, 1);
+      g.fillRect(0, 0, c1W, 2);
+
+      // Nervuras corrugadas verticais
+      for (let cx = 14; cx < c1W - 14; cx += 12) {
+        g.fillStyle(0x0a1017, 1);
+        g.fillRect(cx, 6, 4, c1H - 12);
+        g.fillStyle(0x1e293b, 1);
+        g.fillRect(cx + 4, 6, 4, c1H - 12);
+      }
+
+      // Estêncil industrial
+      g.fillStyle(0xfacc15, 0.9);
+      g.fillRect(18, 14, 28, 6);
+      g.fillStyle(0x0f172a, 1);
+      g.fillRect(20, 15, 24, 4);
+
+      // Rebites nos vértices
+      g.fillStyle(0xcbd5e1, 1);
+      g.fillCircle(3, 3, 1.5);
+      g.fillCircle(c1W - 3, 3, 1.5);
+      g.fillCircle(3, c1H - 3, 1.5);
+      g.fillCircle(c1W - 3, c1H - 3, 1.5);
+
+      g.generateTexture('industrial-container-single', c1W, c1H);
       g.destroy();
     }
-    const stepDown = this.platforms.create(2440, 510, 'scrap-platform-step') as Phaser.Physics.Arcade.Sprite;
-    stepDown.refreshBody();
-    const bStepDown = stepDown.body as Phaser.Physics.Arcade.Body;
-    bStepDown.checkCollision.down = false;
-    bStepDown.checkCollision.left = false;
-    bStepDown.checkCollision.right = false;
-    bStepDown.checkCollision.up = true;
+
+    const container1 = this.platforms.create(2460, 370, 'industrial-container-single') as Phaser.Physics.Arcade.Sprite;
+    container1.setDepth(8);
+    container1.refreshBody();
+    const bC1 = container1.body as Phaser.Physics.Arcade.Body;
+    bC1.checkCollision.down = false;
+    bC1.checkCollision.left = false;
+    bC1.checkCollision.right = false;
+    bC1.checkCollision.up = true;
+
+    // Cabos elétricos caídos e pendendo entre Contêiner 1 e o próximo obstáculo (X = 2515 a 2565)
+    const fallenCables1 = this.add.graphics();
+    fallenCables1.lineStyle(3, 0x18181b, 0.95);
+    fallenCables1.beginPath();
+    fallenCables1.moveTo(2515, 332);
+    fallenCables1.lineTo(2535, 380);
+    fallenCables1.lineTo(2565, 340);
+    fallenCables1.strokePath();
+
+    fallenCables1.lineStyle(2, 0xb91c1c, 0.9);
+    fallenCables1.beginPath();
+    fallenCables1.moveTo(2515, 335);
+    fallenCables1.lineTo(2540, 395);
+    fallenCables1.lineTo(2565, 345);
+    fallenCables1.strokePath();
+    fallenCables1.setDepth(7);
+
+    // Faíscas elétricas intermitentes nos cabos caídos
+    const sparkCable = this.add.circle(2540, 395, 2.5, 0x00e5ff);
+    sparkCable.setDepth(15);
+    this.tweens.add({
+      targets: sparkCable,
+      alpha: { from: 0.1, to: 1 },
+      scale: { from: 0.5, to: 1.8 },
+      yoyo: true,
+      repeat: -1,
+      duration: 180,
+    });
+
+    // ==============================================================
+    // 9. DESAFIO 3: DOIS CONTÊINERES INDUSTRIAIS EMPILHADOS (X = 2620, TOPO EM Y = 260)
+    // ==============================================================
+    const stackW = 110;
+    const stackH = 150; // De Y = 410 até Y = 260 (dois contêineres de 75px empilhados)
+    if (!this.textures.exists('industrial-container-stacked')) {
+      const g = this.make.graphics();
+
+      // Contêiner Inferior (Y = 75 a 150)
+      g.fillStyle(0x131d2a, 1);
+      g.fillRect(0, 75, stackW, 75);
+      g.fillStyle(0x334155, 1);
+      g.fillRect(0, 75, stackW, 5);
+      g.fillRect(0, 145, stackW, 5);
+      g.fillRect(0, 75, 6, 75);
+      g.fillRect(stackW - 6, 75, 6, 75);
+      for (let cx = 14; cx < stackW - 14; cx += 12) {
+        g.fillStyle(0x0a1017, 1);
+        g.fillRect(cx, 80, 4, 65);
+        g.fillStyle(0x1e293b, 1);
+        g.fillRect(cx + 4, 80, 4, 65);
+      }
+
+      // Junção e cantoneiras de travamento ISO amarelas
+      g.fillStyle(0xfacc15, 1);
+      g.fillRect(0, 72, stackW, 4);
+      g.fillStyle(0x0f172a, 1);
+      for (let x = 6; x < stackW; x += 16) {
+        g.fillRect(x, 72, 8, 4);
+      }
+
+      // Contêiner Superior (Y = 0 a 75)
+      g.fillStyle(0x1e2638, 1);
+      g.fillRect(4, 0, stackW - 8, 72);
+      g.fillStyle(0x475569, 1);
+      g.fillRect(4, 0, stackW - 8, 5);
+      g.fillRect(4, 0, 5, 72);
+      g.fillRect(stackW - 9, 0, 5, 72);
+
+      // Friso superior de aço antiderrapante
+      g.fillStyle(0x94a3b8, 1);
+      g.fillRect(4, 0, stackW - 8, 2);
+
+      for (let cx = 16; cx < stackW - 16; cx += 12) {
+        g.fillStyle(0x0f172a, 1);
+        g.fillRect(cx, 6, 4, 64);
+        g.fillStyle(0x2d3748, 1);
+        g.fillRect(cx + 4, 6, 4, 64);
+      }
+
+      // Estêncil e logo do contêiner superior
+      g.fillStyle(0x00e5ff, 0.85);
+      g.fillRect(20, 16, 32, 5);
+      g.fillStyle(0x0f172a, 1);
+      g.fillRect(22, 17, 28, 3);
+
+      g.generateTexture('industrial-container-stacked', stackW, stackH);
+      g.destroy();
+    }
+
+    // Centro em X = 2620, Y = 335 (topo em Y = 260)
+    const stackedContainers = this.platforms.create(2620, 335, 'industrial-container-stacked') as Phaser.Physics.Arcade.Sprite;
+    stackedContainers.setDepth(8);
+    stackedContainers.refreshBody();
+    const bStack = stackedContainers.body as Phaser.Physics.Arcade.Body;
+    bStack.checkCollision.down = false;
+    bStack.checkCollision.left = false;
+    bStack.checkCollision.right = false;
+    bStack.checkCollision.up = true;
+
+    // Cabos elétricos caídos descendo do contêiner empilhado até a plataforma seguinte (X = 2675 a 2700)
+    const fallenCables2 = this.add.graphics();
+    fallenCables2.lineStyle(3, 0x18181b, 0.95);
+    fallenCables2.beginPath();
+    fallenCables2.moveTo(2675, 265);
+    fallenCables2.lineTo(2690, 320);
+    fallenCables2.lineTo(2705, 335);
+    fallenCables2.strokePath();
+
+    fallenCables2.lineStyle(2, 0xd97706, 0.9);
+    fallenCables2.beginPath();
+    fallenCables2.moveTo(2675, 268);
+    fallenCables2.lineTo(2694, 328);
+    fallenCables2.lineTo(2710, 338);
+    fallenCables2.strokePath();
+    fallenCables2.setDepth(7);
+
+    // ==============================================================
+    // 10. DESAFIO 3: PLATAFORMA DO TOTEM DO ELEVADOR (X = 2740, Y = 330)
+    // ==============================================================
+    const totemPlatW = 100;
+    if (!this.textures.exists('elevator-terminal-platform')) {
+      const g = this.make.graphics();
+      g.fillStyle(0x19212c, 1);
+      g.fillRect(0, 0, totemPlatW, mezH);
+      g.fillStyle(0x475569, 1);
+      g.fillRect(0, 0, totemPlatW, 4);
+      g.fillStyle(0x94a3b8, 0.95);
+      g.fillRect(0, 0, totemPlatW, 1.5);
+      g.fillStyle(0x00e5ff, 0.9);
+      g.fillRect(0, 0, 4, mezH);
+      g.fillRect(totemPlatW - 4, 0, 4, mezH);
+      g.generateTexture('elevator-terminal-platform', totemPlatW, mezH);
+      g.destroy();
+    }
+    const totemPlat = this.platforms.create(2740, 340, 'elevator-terminal-platform') as Phaser.Physics.Arcade.Sprite;
+    totemPlat.setDepth(8);
+    totemPlat.refreshBody();
+    const bTotemPlat = totemPlat.body as Phaser.Physics.Arcade.Body;
+    bTotemPlat.checkCollision.down = false;
+    bTotemPlat.checkCollision.left = false;
+    bTotemPlat.checkCollision.right = false;
+    bTotemPlat.checkCollision.up = true;
   }
 
   private createConveyorBridge(): void {
@@ -1004,6 +1210,277 @@ export class MainScene extends Phaser.Scene {
           this.bridge.setCrop(0, 0, 400, 20);
           const body = this.bridge.body as Phaser.Physics.Arcade.Body;
           body.setSize(400, 20);
+        }
+      },
+    });
+  }
+
+  private createElevator(): void {
+    const shaftX1 = 2800;
+    const shaftX2 = 2960;
+    const platW = 140;
+    const platH = 22;
+
+    // 1. Estrutura de Treliça Metálica do Poço do Elevador (de Y = 0 a Y = 700)
+    const shaftG = this.add.graphics();
+    shaftG.lineStyle(3, 0x1e293b, 1);
+    shaftG.fillStyle(0x0f172a, 0.85);
+
+    // Colunas verticais do poço (X = 2800 e X = 2960)
+    shaftG.fillRect(shaftX1, 0, 10, 700);
+    shaftG.fillRect(shaftX2, 0, 10, 700);
+
+    // Treliças diagonais e travessas a cada 50px
+    shaftG.lineStyle(2, 0x334155, 0.7);
+    for (let y = 30; y < 680; y += 50) {
+      shaftG.beginPath();
+      shaftG.moveTo(shaftX1, y);
+      shaftG.lineTo(shaftX2 + 10, y);
+      shaftG.moveTo(shaftX1 + 10, y);
+      shaftG.lineTo(shaftX2, y + 50);
+      shaftG.moveTo(shaftX2, y);
+      shaftG.lineTo(shaftX1 + 10, y + 50);
+      shaftG.strokePath();
+    }
+
+    // Motor guincho e engrenagens industriais no teto (Y = 20 a 60)
+    shaftG.fillStyle(0x111827, 1);
+    shaftG.fillRect(shaftX1 + 15, 20, 130, 40);
+    shaftG.fillStyle(0x475569, 1);
+    shaftG.fillCircle(shaftX1 + 45, 45, 16);
+    shaftG.fillCircle(shaftX2 - 35, 45, 16);
+    shaftG.fillStyle(0x00e5ff, 0.9);
+    shaftG.fillCircle(shaftX1 + 45, 45, 5);
+    shaftG.fillCircle(shaftX2 - 35, 45, 5);
+
+    shaftG.setDepth(6);
+
+    // 2. Textura da Plataforma do Elevador Industrial
+    if (!this.textures.exists('elevator-platform-pattern')) {
+      const g = this.make.graphics();
+      // Base sólida escura
+      g.fillStyle(0x0f172a, 1);
+      g.fillRect(0, 0, platW, platH);
+
+      // Chapa de aço xadrez reforçada (piso antiderrapante)
+      g.fillStyle(0x334155, 1);
+      g.fillRect(0, 0, platW, 6);
+      g.fillStyle(0x94a3b8, 1);
+      for (let x = 4; x < platW; x += 10) {
+        g.fillRect(x, 1, 4, 3);
+      }
+
+      // Viga mestre de sustentação (Y = 6 a 14)
+      g.fillStyle(0x1e293b, 1);
+      g.fillRect(0, 6, platW, 8);
+      g.fillStyle(0x475569, 1);
+      g.fillRect(0, 8, platW, 2);
+
+      // Faixas zebradas amarelo e preto de perigo na borda inferior (Y = 14 a 22)
+      g.fillStyle(0x18181b, 1);
+      g.fillRect(0, 14, platW, 8);
+      g.fillStyle(0xfacc15, 1);
+      for (let x = -10; x < platW; x += 14) {
+        g.beginPath();
+        g.moveTo(x, 22);
+        g.lineTo(x + 7, 14);
+        g.lineTo(x + 12, 14);
+        g.lineTo(x + 5, 22);
+        g.closePath();
+        g.fillPath();
+      }
+
+      // Olhais de içamento metálicos nas extremidades
+      g.fillStyle(0x64748b, 1);
+      g.fillCircle(8, 0, 4);
+      g.fillCircle(platW - 8, 0, 4);
+
+      g.generateTexture('elevator-platform-pattern', platW, platH);
+      g.destroy();
+    }
+
+    // Cabos dinâmicos do guincho desenhados via Graphics
+    this.elevatorShaftCables = this.add.graphics().setDepth(11);
+
+    // Cabine do elevador começa travada no teto (Y = 120, centro X = 2880)
+    this.elevatorPlatform = this.physics.add.sprite(2880, 120, 'elevator-platform-pattern');
+    this.elevatorPlatform.setDepth(12);
+
+    const body = this.elevatorPlatform.body as Phaser.Physics.Arcade.Body;
+    body.setAllowGravity(false);
+    body.setImmovable(true);
+    body.setSize(platW, platH);
+    // Colisão sólida no topo ativada para o jogador poder subir
+    body.checkCollision.up = true;
+    body.checkCollision.down = false;
+    body.checkCollision.left = false;
+    body.checkCollision.right = false;
+
+    this.updateElevatorCables();
+  }
+
+  private updateElevatorCables(): void {
+    if (!this.elevatorShaftCables || !this.elevatorPlatform) return;
+    this.elevatorShaftCables.clear();
+
+    const platY = this.elevatorPlatform.y;
+    // Cabos de aço duplos sustentando a cabine do teto (Y = 60) até a plataforma
+    this.elevatorShaftCables.lineStyle(2, 0x475569, 0.9);
+    // Cabo esquerdo
+    this.elevatorShaftCables.beginPath();
+    this.elevatorShaftCables.moveTo(2825, 60);
+    this.elevatorShaftCables.lineTo(2825, platY - 10);
+    // Cabo direito
+    this.elevatorShaftCables.moveTo(2935, 60);
+    this.elevatorShaftCables.lineTo(2935, platY - 10);
+    this.elevatorShaftCables.strokePath();
+
+    // Roldana central e cabo tensor ciano
+    this.elevatorShaftCables.lineStyle(1.5, 0x00e5ff, 0.8);
+    this.elevatorShaftCables.beginPath();
+    this.elevatorShaftCables.moveTo(2880, 60);
+    this.elevatorShaftCables.lineTo(2880, platY - 10);
+    this.elevatorShaftCables.strokePath();
+  }
+
+  private spawnFallingCoffeeCup(): void {
+    if (!this.textures.exists('cyber-coffee-cup')) {
+      const g = this.make.graphics();
+      // Caneca cerâmica branca/cinza
+      g.fillStyle(0xe2e8f0, 1);
+      g.fillRoundedRect(2, 4, 10, 10, 2);
+      // Asa da caneca
+      g.lineStyle(2, 0xe2e8f0, 1);
+      g.strokeCircle(11, 9, 3);
+      // Café quente no topo
+      g.fillStyle(0x3e2723, 1);
+      g.fillRect(3, 4, 8, 3);
+      // Vapor ciano sutil
+      g.fillStyle(0x00e5ff, 0.9);
+      g.fillRect(4, 1, 2, 2);
+      g.fillRect(7, 0, 2, 3);
+
+      g.generateTexture('cyber-coffee-cup', 16, 16);
+      g.destroy();
+    }
+
+    // Spawna a xícara na altura do painel do totem (X = 2750, Y = 280)
+    const cup = this.add.image(2750, 280, 'cyber-coffee-cup').setDepth(25);
+
+    // Queda com rotação rápida até o piso (Y = 328)
+    this.tweens.add({
+      targets: cup,
+      y: 328,
+      angle: 210,
+      duration: 480,
+      ease: 'Quad.easeIn',
+      onComplete: () => {
+        const cupX = cup.x;
+        const cupY = cup.y;
+        cup.destroy();
+
+        // Partículas de cerâmica e café quebrando e espirrando
+        for (let i = 0; i < 12; i++) {
+          const isCoffee = i % 2 === 0;
+          const color = isCoffee ? 0x4a2c11 : 0xe2e8f0;
+          const size = isCoffee ? 2.5 : 2;
+          const p = this.add.circle(cupX, cupY, size, color).setDepth(25);
+          const angle = Phaser.Math.FloatBetween(0, Math.PI);
+          const speed = Phaser.Math.FloatBetween(40, 120);
+          const vx = Math.cos(angle) * (i % 2 === 0 ? speed : -speed);
+          const vy = -Math.sin(angle) * (speed * 0.8);
+
+          this.tweens.add({
+            targets: p,
+            x: p.x + vx * 0.4,
+            y: p.y + vy * 0.4 + 12,
+            alpha: 0,
+            scale: 0.3,
+            duration: 550,
+            ease: 'Power2',
+            onComplete: () => p.destroy(),
+          });
+        }
+
+        // Mini texto sonoro/cômico
+        const alert = this.add
+          .text(cupX, cupY - 15, '*CRASH!* [CAFÉ DERRAMADO]', {
+            fontSize: '11px',
+            color: '#f59e0b',
+            fontFamily: 'monospace',
+            fontStyle: 'bold',
+            stroke: '#000000',
+            strokeThickness: 3,
+          })
+          .setOrigin(0.5)
+          .setDepth(26);
+
+        this.tweens.add({
+          targets: alert,
+          y: alert.y - 25,
+          alpha: 0,
+          duration: 900,
+          onComplete: () => alert.destroy(),
+        });
+      },
+    });
+  }
+
+  private lowerElevator(): void {
+    if (this.isElevatorLowered) return;
+    this.isElevatorLowered = true;
+
+    // Efeito cômico: spawne uma pequena xícara de café cibernética caindo do painel e se quebrando
+    this.spawnFallingCoffeeCup();
+
+    // Beacon do totem muda para verde fixo
+    if (this.beaconElevator) {
+      this.tweens.killTweensOf(this.beaconElevator);
+      this.beaconElevator.setFillStyle(0x00ff66);
+      this.beaconElevator.setScale(1);
+      this.beaconElevator.setAlpha(1);
+    }
+    this.promptTextElevator.setVisible(false);
+
+    // Tween descendo a plataforma do elevador suavemente de Y = 120 até Y = 330
+    this.tweens.add({
+      targets: this.elevatorPlatform,
+      y: 330,
+      duration: 1500,
+      ease: 'Cubic.easeInOut',
+      onUpdate: () => {
+        if (this.elevatorPlatform && this.elevatorPlatform.body) {
+          const body = this.elevatorPlatform.body as Phaser.Physics.Arcade.Body;
+          body.y = this.elevatorPlatform.y - this.elevatorPlatform.displayHeight / 2;
+          this.updateElevatorCables();
+        }
+      },
+      onComplete: () => {
+        if (this.elevatorPlatform && this.elevatorPlatform.body) {
+          this.elevatorPlatform.y = 330;
+          const body = this.elevatorPlatform.body as Phaser.Physics.Arcade.Body;
+          body.y = 330 - this.elevatorPlatform.displayHeight / 2;
+          body.checkCollision.up = true;
+          this.updateElevatorCables();
+        }
+
+        // Tremor sutil de impacto e vapor pneumático
+        this.cameras.main.shake(120, 0.0025);
+
+        for (let i = 0; i < 4; i++) {
+          const steam = this.add.graphics();
+          steam.fillStyle(0x00e5ff, 0.6);
+          steam.fillCircle(2820 + i * 40, 342, 4);
+          steam.setDepth(15);
+          this.tweens.add({
+            targets: steam,
+            y: 360,
+            x: 2820 + i * 40 + (i % 2 === 0 ? -15 : 15),
+            alpha: 0,
+            scale: 2.2,
+            duration: 400,
+            onComplete: () => steam.destroy(),
+          });
         }
       },
     });
@@ -1275,7 +1752,7 @@ export class MainScene extends Phaser.Scene {
       g.destroy();
     }
 
-    this.shockZone = this.physics.add.sprite(3200, 672, 'shock-zone-active');
+    this.shockZone = this.physics.add.sprite(4100, 672, 'shock-zone-active');
     const shockBody = this.shockZone.body as Phaser.Physics.Arcade.Body;
     shockBody.setAllowGravity(false);
     shockBody.setImmovable(true);
@@ -1442,11 +1919,42 @@ export class MainScene extends Phaser.Scene {
       .setVisible(false);
 
     // ==============================================================
-    // TOTEM 2: COMPORTA HIDRÁULICA (SETOR 3 EM X = 2520)
+    // TOTEM 2: TERMINAL DO ELEVADOR DE CARGA (DESAFIO 3 - EM X = 2750, Y = 330)
     // ==============================================================
-    this.totemBarrier = this.add.image(2520, 653, 'totem-crt-vintage');
+    this.totemElevator = this.add.image(2750, 303, 'totem-crt-vintage');
+    this.totemElevator.setDepth(10);
+
+    // LED de status do elevador (vermelho enquanto no teto, verde após descer)
+    this.beaconElevator = this.add.circle(2750, 274, 2.5, 0xff1744);
+    this.beaconElevator.setDepth(11);
+    this.tweens.add({
+      targets: this.beaconElevator,
+      alpha: { from: 0.25, to: 1 },
+      scale: { from: 0.85, to: 1.25 },
+      yoyo: true,
+      repeat: -1,
+      duration: 450,
+    });
+
+    // Prompt sutil '[E] TERMINAL DO ELEVADOR'
+    this.promptTextElevator = this.add
+      .text(2750, 250, '[E] TERMINAL DO ELEVADOR', {
+        fontSize: '15px',
+        color: '#00e5ff',
+        fontFamily: 'monospace',
+        stroke: '#000000',
+        strokeThickness: 3,
+      })
+      .setOrigin(0.5)
+      .setDepth(110)
+      .setVisible(false);
+
+    // ==============================================================
+    // TOTEM 4: COMPORTA HIDRÁULICA (SETOR POSTERIOR EM X = 3350)
+    // ==============================================================
+    this.totemBarrier = this.add.image(3350, 653, 'totem-crt-vintage');
     this.promptTextBarrier = this.add
-      .text(2520, 610, '[E] DESTRAVAR COMPORTA', {
+      .text(3350, 610, '[E] DESTRAVAR COMPORTA', {
         fontSize: '15px',
         color: '#ffee00',
         fontFamily: 'monospace',
@@ -1456,8 +1964,8 @@ export class MainScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setVisible(false);
 
-    // Luz de status no topo do Totem 2 (verde)
-    this.beaconBarrier = this.add.circle(2520, 624, 3, 0x00ff66);
+    // Luz de status no topo do Totem da Comporta (verde)
+    this.beaconBarrier = this.add.circle(3350, 624, 3, 0x00ff66);
     this.tweens.add({
       targets: this.beaconBarrier,
       alpha: { from: 0.2, to: 1 },
@@ -1467,11 +1975,11 @@ export class MainScene extends Phaser.Scene {
     });
 
     // ==============================================================
-    // TOTEM 3: REGULADOR ELÉTRICO (MOVIDO PARA X = 3050)
+    // TOTEM 5: REGULADOR ELÉTRICO (SETOR POSTERIOR EM X = 3900)
     // ==============================================================
-    this.totemElectric = this.add.image(3050, 653, 'totem-crt-vintage');
+    this.totemElectric = this.add.image(3900, 653, 'totem-crt-vintage');
     this.promptTextElectric = this.add
-      .text(3050, 610, '[E] CALIBRAR CIRCUITO', {
+      .text(3900, 610, '[E] CALIBRAR CIRCUITO', {
         fontSize: '15px',
         color: '#ffeb3b',
         fontFamily: 'monospace',
@@ -1481,8 +1989,8 @@ export class MainScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setVisible(false);
 
-    // Luz de status no topo do Totem 3 (amarela)
-    this.beaconElectric = this.add.circle(3050, 624, 3, 0xffeb3b);
+    // Luz de status no topo do Totem Elétrico (amarela)
+    this.beaconElectric = this.add.circle(3900, 624, 3, 0xffeb3b);
     this.tweens.add({
       targets: this.beaconElectric,
       alpha: { from: 0.2, to: 1 },
@@ -1561,12 +2069,12 @@ export class MainScene extends Phaser.Scene {
     }
 
     this.barriers = this.physics.add.staticGroup();
-    this.barrier = this.barriers.create(2680, 340, 'hydraulic-gate-heavy') as Phaser.Physics.Arcade.Sprite;
+    this.barrier = this.barriers.create(3500, 340, 'hydraulic-gate-heavy') as Phaser.Physics.Arcade.Sprite;
     this.barrierCollider = this.physics.add.collider(this.player, this.barriers);
 
     // Painel luminoso de trava [LOCKED] no centro da comporta na altura dos olhos
     this.gateLockText = this.add
-      .text(2680, 600, '[LOCKED]', {
+      .text(3500, 600, '[LOCKED]', {
         fontSize: '11px',
         color: '#ff1744',
         fontFamily: 'Consolas, monospace',
@@ -1706,6 +2214,11 @@ export class MainScene extends Phaser.Scene {
       this.physics.add.collider(this.player, this.bridge);
     }
 
+    // Colisão com a plataforma do elevador industrial
+    if (this.elevatorPlatform) {
+      this.physics.add.collider(this.player, this.elevatorPlatform);
+    }
+
     // Detecção de contato com a zona de choque
     this.physics.add.overlap(this.player, this.shockZone, () => {
       if (this.isShockActive) {
@@ -1843,6 +2356,11 @@ export class MainScene extends Phaser.Scene {
         setTimeout(() => {
           this.closeTerminal();
         }, 1000);
+      } else if (result.action === 'LOWER_ELEVATOR') {
+        this.lowerElevator();
+        setTimeout(() => {
+          this.closeTerminal();
+        }, 1200);
       } else if (result.action === 'DISABLE_BARRIER') {
         this.disableBarrier();
         setTimeout(() => {
@@ -1894,7 +2412,9 @@ export class MainScene extends Phaser.Scene {
     }
   }
 
-  private openTerminal(totemType: 'power' | 'bridge' | 'barrier' | 'electric'): void {
+  private openTerminal(
+    totemType: 'power' | 'bridge' | 'elevator' | 'barrier' | 'electric'
+  ): void {
     if (this.dialogueSystem && this.dialogueSystem.isActive) return;
 
     this.isTerminalOpen = true;
@@ -1929,6 +2449,23 @@ export class MainScene extends Phaser.Scene {
           '> STATUS: tamanho_ponte = 2',
           '> RELATÓRIO DO SENSOR: O mezanino à frente está a 8 metros de distância aérea. A esteira atual não alcança nem a metade do trajeto.',
           '> COMUNICADOR REBELDE: Subiu até aqui pra ficar olhando pro precipício? Redefina o comprimento da esteira suspensa antes de pular pro nada.',
+          '> Digite a instrução:',
+        ];
+        lines.forEach((lineText) => {
+          const info = document.createElement('div');
+          info.className = 'log-line info';
+          info.textContent = lineText;
+          this.terminalOutput?.appendChild(info);
+        });
+        this.terminalOutput.scrollTop = this.terminalOutput.scrollHeight;
+      } else if (totemType === 'elevator') {
+        const lines = [
+          '=== CONSOLE DE LIBERAÇÃO DO ELEVADOR DE CARGA ===',
+          '> REGISTRADORES CORROMPIDOS:',
+          "> parte1 = 'Mega'",
+          "> parte2 = 'Fail'",
+          "> PROTOCOLO DE ACESSO: A chave de liberação foi fragmentada. O barramento exige a união das duas palavras na variável 'senha'.",
+          "> COMUNICADOR REBELDE: O estagiário anterior salvou a senha quebrada no meio pra 'poupar memória'. Junte os dois pedaços de texto antes que o elevador despenque na cabeça de alguém.",
           '> Digite a instrução:',
         ];
         lines.forEach((lineText) => {
