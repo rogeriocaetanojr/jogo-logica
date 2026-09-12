@@ -55,18 +55,6 @@ export class MainScene extends Phaser.Scene {
     this.physics.world.setBounds(0, 0, 2560, 720);
     this.cameras.main.setBounds(0, 0, 2560, 720);
 
-    // HUD sutil e elegante fixo no topo (não flutua no meio do cenário)
-    this.add
-      .text(24, 18, '// SETOR 1: O ABISMO DE RECURSAO //', {
-        fontSize: '13px',
-        color: '#ff4d4d',
-        fontFamily: 'monospace',
-        backgroundColor: 'rgba(10, 15, 20, 0.7)',
-        padding: { x: 8, y: 4 },
-      })
-      .setScrollFactor(0)
-      .setDepth(10);
-
     // Marcador visual na margem segura após o abismo
     this.add
       .text(1650, 580, '✓ ZONA SEGURA: MARGEM OPOSTA ALCANCADA', {
@@ -391,19 +379,19 @@ export class MainScene extends Phaser.Scene {
     this.player.setVelocityX(0);
     this.dialogueSystem.startDialogue([
       {
-        speaker: 'MEGA BRAIN [IA SUPREMA]',
-        avatar: '🤖',
-        text: "Olha só... mais um 'desenvolvedor raiz' achando que vai me derrotar digitando sintaxe na mão.",
+        speaker: 'O ESTAGIÁRIO FANTASMA',
+        avatar: '👻',
+        text: 'Ei! Carne nova no ferro-velho! Cuidado onde pisa, o chão aqui é 90% cabos desencapados e 10% código descartado por alucinação de IA.',
       },
       {
-        speaker: 'MEGA BRAIN [IA SUPREMA]',
-        avatar: '🤖',
-        text: 'Eu sou o MEGA BRAIN. Eu gerei 400 bibliotecas genéricas enquanto você dava um pulo.',
+        speaker: 'O ESTAGIÁRIO FANTASMA',
+        avatar: '👻',
+        text: 'O Mega Brain trancou a comporta hidráulica logo à frente. O estagiário da IA declarou a chave como uma string em vez de inteiro e foi tomar café.',
       },
       {
-        speaker: 'MEGA BRAIN [IA SUPREMA]',
-        avatar: '🤖',
-        text: 'Quer passar daquela barreira? Vai ter que usar a cabeça... se é que você lembra como se pensa sem um autocomplete.',
+        speaker: 'O ESTAGIÁRIO FANTASMA',
+        avatar: '👻',
+        text: 'Aperte [E] no terminal da esteira. Se você não souber a diferença entre um texto e um número, estamos todos fritos.',
       },
     ]);
   }
