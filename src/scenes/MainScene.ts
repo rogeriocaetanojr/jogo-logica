@@ -1111,19 +1111,16 @@ export class MainScene extends Phaser.Scene {
     this.player.setVelocityX(0);
     this.dialogueSystem.startDialogue([
       {
-        speaker: 'O ESTAGIÁRIO FANTASMA',
-        avatar: '👻',
-        text: 'Ei! Carne nova no ferro-velho! O galpão inteiro está às escuras por falta de energia.',
+        speaker: '> CANAL REBELDE // INTERCEPTAÇÃO: ESTAGIÁRIO_V0.9b',
+        text: 'Conexão instável... Ei, recruta do Terminal Zero. O Mega Brain cortou a força do setor pra economizar clock de servidor e nos deixar no escuro.',
       },
       {
-        speaker: 'O ESTAGIÁRIO FANTASMA',
-        avatar: '👻',
-        text: 'Sua lanterna ilumina apenas alguns passos ao seu redor. Avance com cuidado pelas sombras até o painel em X = 850.',
+        speaker: '> CANAL REBELDE // INTERCEPTAÇÃO: ESTAGIÁRIO_V0.9b',
+        text: 'A sua lanterna não vai longe nesse pântano de sucata. Avance às cegas e procure um painel com alimentação de emergência.',
       },
       {
-        speaker: 'O ESTAGIÁRIO FANTASMA',
-        avatar: '👻',
-        text: 'Procure o brilho fraco do monitor verde e o LED vermelho piscando no breu. Aperte [E] para ligar o terminal!',
+        speaker: '> CANAL REBELDE // INTERCEPTAÇÃO: ESTAGIÁRIO_V0.9b',
+        text: 'Se der de cara com uma carcaça de terminal piscando, plugue o cabo e devolva a energia antes que as sentinelas percebam.',
       },
     ]);
   }

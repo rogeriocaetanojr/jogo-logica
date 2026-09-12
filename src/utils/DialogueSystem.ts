@@ -56,8 +56,12 @@ export class DialogueSystem {
       this.speakerElement.textContent = this.currentLine.speaker;
     }
 
-    if (this.avatarElement && this.currentLine.avatar) {
-      this.avatarElement.innerHTML = `<span class="avatar-icon">${this.currentLine.avatar}</span>`;
+    if (this.avatarElement) {
+      if (this.currentLine.avatar) {
+        this.avatarElement.innerHTML = this.currentLine.avatar;
+      } else {
+        this.avatarElement.innerHTML = '<span class="avatar-line">[ T-0 ]</span><span class="avatar-line">[ REC ]</span>';
+      }
     }
 
     if (this.textElement) {
