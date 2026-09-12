@@ -421,29 +421,29 @@ export class MainScene extends Phaser.Scene {
   }
 
   private createGlobalDarkness(): void {
-    // 1. Criar a Textura da Luz da Lanterna (círculo radial suave de raio 150px)
+    // 1. Criar a Textura da Luz da Lanterna (círculo radial suave de raio 120px)
     if (!this.textures.exists('flashlight_brush')) {
-      const canvas = this.textures.createCanvas('flashlight_brush', 300, 300);
+      const canvas = this.textures.createCanvas('flashlight_brush', 240, 240);
       if (canvas) {
         const ctx = canvas.getContext();
-        const grad = ctx.createRadialGradient(150, 150, 0, 150, 150, 150);
+        const grad = ctx.createRadialGradient(120, 120, 0, 120, 120, 120);
         grad.addColorStop(0, 'rgba(255, 255, 255, 1.0)');
         grad.addColorStop(0.35, 'rgba(255, 255, 255, 0.85)');
         grad.addColorStop(0.7, 'rgba(255, 255, 255, 0.35)');
         grad.addColorStop(1, 'rgba(255, 255, 255, 0.0)');
         ctx.fillStyle = grad;
         ctx.beginPath();
-        ctx.arc(150, 150, 150, 0, Math.PI * 2);
+        ctx.arc(120, 120, 120, 0, Math.PI * 2);
         ctx.fill();
         canvas.refresh();
       }
     }
 
-    // 2. Criar a Camada de Escuridão (RenderTexture cobrindo toda a tela com profundidade 50)
+    // 2. Criar a Camada de Escuridão (RenderTexture cobrindo toda a tela com profundidade 100)
     this.darkness = this.add.renderTexture(0, 0, this.scale.width, this.scale.height);
     this.darkness.setOrigin(0, 0);
     this.darkness.setScrollFactor(0);
-    this.darkness.setDepth(50);
+    this.darkness.setDepth(100);
     this.darkness.setRenderMode('all');
 
     // Adaptador para suportar draw com blendMode ERASE
@@ -473,15 +473,15 @@ export class MainScene extends Phaser.Scene {
     if (!this.darkness || this.isPowerOn || !this.player) return;
 
     this.darkness.clear();
-    // Breu quase total (95% opaco)
-    this.darkness.fill(0x030712, 0.95);
+    // Breu quase total (98% opaco)
+    this.darkness.fill(0x02040a, 0.98);
 
     // Coordenadas do jogador relativas à câmera
     const cam = this.cameras.main;
     const screenX = this.player.x - cam.scrollX;
     const screenY = this.player.y - cam.scrollY;
 
-    // Apague a escuridão onde o jogador está usando a lanterna
+    // Apague a escuridão apenas onde o jogador está usando a lanterna
     (this.darkness as any).draw(
       'flashlight_brush',
       screenX,
@@ -490,28 +490,6 @@ export class MainScene extends Phaser.Scene {
       0xffffff,
       Phaser.BlendModes.ERASE
     );
-
-    // Apague também um ponto sutil de raio menor onde o totem está (apenas se ele estiver dentro da visão da câmera)
-    if (this.totemPower) {
-      const totemScreenX = this.totemPower.x - cam.scrollX;
-      const totemScreenY = this.totemPower.y - cam.scrollY;
-
-      if (
-        totemScreenX >= -150 &&
-        totemScreenX <= cam.width + 150 &&
-        totemScreenY >= -150 &&
-        totemScreenY <= cam.height + 150
-      ) {
-        (this.darkness as any).draw(
-          'flashlight_brush',
-          totemScreenX,
-          totemScreenY,
-          0.45,
-          0x00ff88,
-          Phaser.BlendModes.ERASE
-        );
-      }
-    }
 
     // Executa e descarrega imediatamente os comandos no buffer de desenho
     this.darkness.render();
@@ -594,7 +572,7 @@ export class MainScene extends Phaser.Scene {
         padding: { x: 4, y: 3 },
       })
       .setOrigin(0.5)
-      .setDepth(55);
+      .setDepth(10);
   }
 
   private disableSteelDoor(): void {
@@ -817,10 +795,10 @@ export class MainScene extends Phaser.Scene {
     // ==============================================================
     // TOTEM 0: INTERRUPTOR / PAINEL DE ENERGIA (PONTO FOCAL EM X = 850)
     // ==============================================================
-    this.totemPower = this.add.image(850, 653, 'totem-crt-vintage').setDepth(16);
+    this.totemPower = this.add.image(850, 653, 'totem-crt-vintage').setDepth(10);
 
-    // LED vermelho de standby pulsando suavemente no topo do gabinete do totem
-    this.beaconPower = this.add.circle(850, 624, 2.5, 0xff1744).setDepth(55);
+    // LED vermelho de standby no topo do gabinete (oculto no breu total junto com o totem)
+    this.beaconPower = this.add.circle(850, 624, 2.5, 0xff1744).setDepth(10);
     this.tweens.add({
       targets: this.beaconPower,
       alpha: { from: 0.25, to: 1 },
@@ -840,7 +818,7 @@ export class MainScene extends Phaser.Scene {
         strokeThickness: 3,
       })
       .setOrigin(0.5)
-      .setDepth(55)
+      .setDepth(110)
       .setVisible(false);
 
     // ==============================================================
