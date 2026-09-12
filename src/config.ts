@@ -15,8 +15,10 @@ export const config: Phaser.Types.Core.GameConfig = {
     },
   },
   scale: {
-    mode: Phaser.Scale.FIT,
+    mode: Phaser.Scale.ENVELOP,
     autoCenter: Phaser.Scale.CENTER_BOTH,
+    width: 1280,
+    height: 720,
   },
   scene: [BootScene, MainScene],
 };

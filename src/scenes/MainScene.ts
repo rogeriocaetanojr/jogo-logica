@@ -60,6 +60,7 @@ export class MainScene extends Phaser.Scene {
     // 1. Expansão do Mundo da MainScene para 2560 pixels
     this.physics.world.setBounds(0, 0, 2560, 720);
     this.cameras.main.setBounds(0, 0, 2560, 720);
+    this.cameras.main.setBackgroundColor('#070b12');
 
     this.createScenery();
     this.createGround();
@@ -172,29 +173,33 @@ export class MainScene extends Phaser.Scene {
   }
 
   private createScenery(): void {
-    // 1. Céu com degradê do azul-petróleo profundo #070b12 no topo até #141b26 na base
+    // 1. Céu com degradê do azul-petróleo profundo #070b12 no topo até #141b26 na base (cobertura ampla para ultrawide)
     if (!this.textures.exists('cyberpunk-sky')) {
       const g = this.make.graphics();
-      for (let y = 0; y < 720; y += 4) {
-        const ratio = y / 720;
+      const skyW = 3800;
+      const skyH = 880;
+      for (let y = 0; y < skyH; y += 4) {
+        const ratio = Math.min(y / 720, 1);
         const r = Math.round(7 + (20 - 7) * ratio);
         const gr = Math.round(11 + (27 - 11) * ratio);
         const b = Math.round(18 + (38 - 18) * ratio);
         const color = (r << 16) | (gr << 8) | b;
         g.fillStyle(color, 1);
-        g.fillRect(0, y, 2560, 4);
+        g.fillRect(0, y, skyW, 4);
       }
-      g.generateTexture('cyberpunk-sky', 2560, 720);
+      g.generateTexture('cyberpunk-sky', skyW, skyH);
       g.destroy();
     }
-    this.add.image(1280, 360, 'cyberpunk-sky').setDepth(-10);
+    this.add.image(1300, 360, 'cyberpunk-sky').setDepth(-10);
 
     // 2. Elementos de cenário estáticos de fundo (Lixão dos Scripts Esquecidos)
     const bgGraphics = this.add.graphics().setDepth(-5);
 
-    // Cabos industriais pendurados descendo do teto
+    // Cabos industriais pendurados descendo do teto cobrindo toda a extensão horizontal
     bgGraphics.lineStyle(2, 0x0c141e, 0.9);
-    const cableXs = [140, 320, 520, 760, 980, 1220, 1480, 1780, 2060, 2380];
+    const cableXs = [
+      -40, 100, 240, 420, 580, 760, 940, 1120, 1300, 1480, 1660, 1840, 2020, 2200, 2380, 2560, 2740, 2920,
+    ];
     cableXs.forEach((cx) => {
       const curve1 = new Phaser.Curves.CubicBezier(
         new Phaser.Math.Vector2(cx, 0),
@@ -216,12 +221,15 @@ export class MainScene extends Phaser.Scene {
     // Pilhas de sucatas de servidores e chassis descartados
     bgGraphics.fillStyle(0x0a1018, 0.95);
     const scrapPiles = [
+      { x: -80, w: 200, h: 260 },
       { x: 160, w: 180, h: 230 },
       { x: 380, w: 120, h: 160 },
       { x: 740, w: 200, h: 270 },
       { x: 1420, w: 230, h: 290 },
       { x: 1860, w: 190, h: 240 },
       { x: 2260, w: 240, h: 280 },
+      { x: 2580, w: 220, h: 260 },
+      { x: 2850, w: 260, h: 300 },
     ];
     scrapPiles.forEach((p) => {
       bgGraphics.fillRect(p.x, 680 - p.h, p.w, p.h);
@@ -233,6 +241,7 @@ export class MainScene extends Phaser.Scene {
 
     // Monitores CRT empilhados com telas apagadas ou com fósforo verde sutil
     const crtPositions = [
+      { x: -30, y: 530, flicker: false },
       { x: 210, y: 560, flicker: true },
       { x: 260, y: 520, flicker: false },
       { x: 790, y: 510, flicker: true },
@@ -241,6 +250,8 @@ export class MainScene extends Phaser.Scene {
       { x: 1530, y: 530, flicker: false },
       { x: 1920, y: 520, flicker: true },
       { x: 2320, y: 490, flicker: false },
+      { x: 2660, y: 540, flicker: true },
+      { x: 2920, y: 500, flicker: false },
     ];
     crtPositions.forEach((pos, idx) => {
       this.add.rectangle(pos.x, pos.y, 36, 28, 0x161e29).setDepth(-4);
@@ -260,13 +271,13 @@ export class MainScene extends Phaser.Scene {
   }
 
   private createGround(): void {
-    // Piso Industrial Reforçado: metal com costuras, parafusos/rebites e borda desgastada
+    // Piso Industrial Reforçado: metal com costuras, parafusos/rebites e borda desgastada (estendido para ultrawide)
     if (!this.textures.exists('ground-industrial')) {
       const g = this.make.graphics();
-      const w = 2560;
-      const h = 40;
+      const w = 3800;
+      const h = 200;
 
-      // Base metálica escura
+      // Base metálica escura preenchendo até o fundo
       g.fillStyle(0x19212c, 1);
       g.fillRect(0, 0, w, h);
 
@@ -290,10 +301,13 @@ export class MainScene extends Phaser.Scene {
         g.fillCircle(x + 70, 12, 2);
         g.fillCircle(x + 10, 30, 2);
         g.fillCircle(x + 70, 30, 2);
+        g.fillCircle(x + 10, 60, 2);
+        g.fillCircle(x + 70, 60, 2);
 
         // Ranhura antiderrapante industrial
         g.fillStyle(0x111822, 0.95);
         g.fillRect(x + 22, 19, 36, 3);
+        g.fillRect(x + 22, 45, 36, 3);
       }
 
       g.generateTexture('ground-industrial', w, h);
@@ -301,8 +315,8 @@ export class MainScene extends Phaser.Scene {
     }
 
     this.platforms = this.physics.add.staticGroup();
-    // Centro X = 1280, Y = 700 (superfície do piso em Y = 680)
-    this.platforms.create(1280, 700, 'ground-industrial');
+    // Centro X = 1500, Y = 780 (com altura 200, a superfície do piso permanece em Y = 680)
+    this.platforms.create(1500, 780, 'ground-industrial');
   }
 
   private createShockZone(): void {
