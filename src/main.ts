@@ -2,6 +2,7 @@ import './style.css';
 import './styles/terminal.css';
 import './styles/dialog.css';
 import Phaser from 'phaser';
-import { config } from './config';
+import { configuracaoJogo } from './nucleo/configuracao';
 
-new Phaser.Game(config);
+// Inicialização da instância do jogo Phaser com a configuração do núcleo
+new Phaser.Game(configuracaoJogo);

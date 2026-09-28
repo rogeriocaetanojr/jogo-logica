@@ -1,8 +1,9 @@
 import Phaser from 'phaser';
-import { parseCommand } from '../utils/CommandParser';
-import { DialogueSystem } from '../utils/DialogueSystem';
+import { CenaBase } from '../../compartilhado/CenaBase';
+import type { ResultadoComando } from '../../compartilhado/tipos';
+import { interpretarComandoTutorial } from './InterpretadorTutorial';
 
-export class MainScene extends Phaser.Scene {
+export class CenaTutorial extends CenaBase {
   private platforms!: Phaser.Physics.Arcade.StaticGroup;
   private player!: Phaser.Physics.Arcade.Sprite;
 
@@ -70,17 +71,10 @@ export class MainScene extends Phaser.Scene {
 
   // Variáveis de movimentação
   private jumpForce: number = 515;
-
-  private isTerminalOpen: boolean = false;
-  private terminalOverlay: HTMLElement | null = null;
-  private terminalOutput: HTMLElement | null = null;
-  private terminalInput: HTMLInputElement | null = null;
-
-  private dialogueSystem?: DialogueSystem;
   private isBootingSequence: boolean = false;
 
   constructor() {
-    super('MainScene');
+    super('CenaTutorial', 'fase0_tutorial');
   }
 
   init(data?: { isBooting?: boolean }): void {
@@ -88,31 +82,34 @@ export class MainScene extends Phaser.Scene {
   }
 
   create(): void {
-    // 1. Limites do Mundo da MainScene para 3600 pixels (Encerramento da Demo após Desafio 3)
+    super.create();
+    this.criarHUDSuperior('TUTORIAL // O DESPERTAR DO KERNEL');
+
+    // 1. Limites do Mundo da CenaTutorial para 3600 pixels
     this.physics.world.setBounds(0, 0, 3600, 720);
     this.cameras.main.setBounds(0, 0, 3600, 720);
     this.cameras.main.setBackgroundColor('#070b12');
 
-    this.createScenery();
-    this.createGround();
-    this.createScrapPlatforms();
-    this.createConveyorBridge();
-    this.createElevator();
-    this.createConstructionWall();
-    this.createTotems();
-    this.createPlayer();
-    this.createGlobalDarkness();
-    this.createSteelDoor();
-    this.setupControls();
-    this.setupTerminal();
+    this.criarCenario();
+    this.criarChao();
+    this.criarPlataformasSucata();
+    this.criarEsteira();
+    this.criarElevador();
+    this.criarMuroConstrucao();
+    this.criarTotens();
+    this.criarJogador();
+    this.criarEscuridaoGlobal();
+    this.criarPortaAco();
+    this.configurarControles();
+    this.configurarTerminal();
 
     if (this.isBootingSequence) {
       this.player.setVelocity(0, 0);
       const gameContainer = document.getElementById('game-container');
       gameContainer?.classList.add('blur-active');
-      this.openBootTerminal();
+      this.abrirTerminalBoot();
     } else {
-      this.setupDialogue();
+      this.configurarDialogo();
     }
 
     // Câmera segue o jogador suavemente
@@ -123,7 +120,7 @@ export class MainScene extends Phaser.Scene {
     if (!this.player || !this.player.body) return;
 
     // Atualização dinâmica contínua da lanterna acoplada ao jogador
-    this.updateDarkness();
+    this.atualizarEscuridao();
 
     // Se estiver no ritual de boot, trava completamente o jogador
     if (this.isBootingSequence) {
@@ -132,7 +129,7 @@ export class MainScene extends Phaser.Scene {
     }
 
     // Se o diálogo estiver ativo, trava totalmente o jogador e esconde prompts
-    if (this.dialogueSystem && this.dialogueSystem.isActive) {
+    if (this.comunicador && this.comunicador.estaAtivo) {
       this.promptTextPower.setVisible(false);
       this.promptTextBridge.setVisible(false);
       this.promptTextElevator.setVisible(false);
@@ -147,28 +144,28 @@ export class MainScene extends Phaser.Scene {
 
     // Checagem de proximidade do Muro de Obras para encerramento da demo (<100px)
     if (!this.isDemoEndTriggered && Math.abs(this.player.x - 3200) < 100) {
-      this.triggerDemoEndDialogue();
+      this.dispararDialogoFimDemo();
     }
 
     // Checagem de proximidade dos totens
     const distPower = Math.abs(this.player.x - this.totemPower.x);
     const isNearPowerTotem = distPower < 80;
     this.promptTextPower.setVisible(
-      isNearPowerTotem && !this.isTerminalOpen && !this.isPowerOn
+      isNearPowerTotem && !this.terminal.estaAberto && !this.isPowerOn
     );
 
     const distBridgeX = Math.abs(this.player.x - this.totemBridge.x);
     const distBridgeY = Math.abs(this.player.y - this.totemBridge.y);
     const isNearBridgeTotem = distBridgeX < 85 && distBridgeY < 95;
     this.promptTextBridge.setVisible(
-      isNearBridgeTotem && !this.isTerminalOpen && !this.isBridgeExpanded
+      isNearBridgeTotem && !this.terminal.estaAberto && !this.isBridgeExpanded
     );
 
     const distElevatorX = Math.abs(this.player.x - this.totemElevator.x);
     const distElevatorY = Math.abs(this.player.y - this.totemElevator.y);
     const isNearElevatorTotem = distElevatorX < 85 && distElevatorY < 95;
     this.promptTextElevator.setVisible(
-      isNearElevatorTotem && !this.isTerminalOpen && !this.isElevatorLowered
+      isNearElevatorTotem && !this.terminal.estaAberto && !this.isElevatorLowered
     );
 
     // Identifica com qual totem o jogador está interagindo
@@ -184,15 +181,15 @@ export class MainScene extends Phaser.Scene {
 
     // Abrir terminal com tecla E quando próximo
     if (this.interactKey && Phaser.Input.Keyboard.JustDown(this.interactKey)) {
-      if (this.currentInteractingTotem && !this.isTerminalOpen) {
-        this.openTerminal(this.currentInteractingTotem);
+      if (this.currentInteractingTotem && !this.terminal.estaAberto) {
+        this.abrirTerminalTotem(this.currentInteractingTotem);
       }
     }
 
     // Fechar terminal com Escape no Phaser
     if (this.escKey && Phaser.Input.Keyboard.JustDown(this.escKey)) {
-      if (this.isTerminalOpen) {
-        this.closeTerminal();
+      if (this.terminal.estaAberto) {
+        this.terminal.fechar();
       }
     }
 
@@ -202,7 +199,7 @@ export class MainScene extends Phaser.Scene {
     }
 
     // Travar movimentação se o terminal estiver aberto
-    if (this.isTerminalOpen) {
+    if (this.terminal.estaAberto) {
       this.player.setVelocityX(0);
       return;
     }
@@ -245,7 +242,7 @@ export class MainScene extends Phaser.Scene {
     }
   }
 
-  private createScenery(): void {
+  private criarCenario(): void {
     // 1. Céu com degradê do azul-petróleo profundo #070b12 no topo até #141b26 na base (cobertura total de 6500px)
     if (!this.textures.exists('cyberpunk-sky')) {
       const g = this.make.graphics();
@@ -351,7 +348,7 @@ export class MainScene extends Phaser.Scene {
     });
   }
 
-  private createGround(): void {
+  private criarChao(): void {
     this.platforms = this.physics.add.staticGroup();
 
     // Helper para gerar textura de piso industrial de dimensões específicas
@@ -410,13 +407,13 @@ export class MainScene extends Phaser.Scene {
     this.platforms.create(2925, 780, 'ground-section-right');
 
     // 3. Fundo do Abismo com Sucata Cortante (X = 1850 a X = 2250 no chão lá embaixo)
-    this.createAbyssHazard();
+    this.criarPerigoAbismo();
 
     // 4. Espinhos do Vão Sob os Contêineres (Setor 3: X = 2250 a 2960)
-    this.createSector3Hazard();
+    this.criarPerigoSetor3();
   }
 
-  private createSector3Hazard(): void {
+  private criarPerigoSetor3(): void {
     const hazardWidth = 710; // X = 2250 a X = 2960
     const hazardHeight = 36;
 
@@ -459,7 +456,7 @@ export class MainScene extends Phaser.Scene {
     hazardBody.setImmovable(true);
   }
 
-  private handleSector3Fall(): void {
+  private tratarQuedaSetor3(): void {
     if (this.isFallingInScrap) return;
     this.isFallingInScrap = true;
 
@@ -493,7 +490,7 @@ export class MainScene extends Phaser.Scene {
     });
   }
 
-  private createAbyssHazard(): void {
+  private criarPerigoAbismo(): void {
     const hazardWidth = 400; // X = 1850 a X = 2250
     const hazardHeight = 36;
 
@@ -538,7 +535,7 @@ export class MainScene extends Phaser.Scene {
     hazardBody.setImmovable(true);
   }
 
-  private handleScrapFall(): void {
+  private tratarQuedaAbismo(): void {
     if (this.isFallingInScrap) return;
     this.isFallingInScrap = true;
 
@@ -571,7 +568,7 @@ export class MainScene extends Phaser.Scene {
     });
   }
 
-  private handleVentThrust(): void {
+  private tratarImpulsoVent(): void {
     const now = this.time.now;
     if (now - this.lastVentTime < 260) return;
     this.lastVentTime = now;
@@ -601,7 +598,7 @@ export class MainScene extends Phaser.Scene {
     });
   }
 
-  private createScrapPlatforms(): void {
+  private criarPlataformasSucata(): void {
     // ==============================================================
     // 1. DEGRAU 1: PRIMEIRA CAIXA DE SUCATA AFASTADA (X = 1240)
     // ==============================================================
@@ -1178,7 +1175,7 @@ export class MainScene extends Phaser.Scene {
     strutTotem.setDepth(4);
   }
 
-  private createConveyorBridge(): void {
+  private criarEsteira(): void {
     const bridgeW = 400; // Vão aberto no ar de 400px (8 metros na escala) entre X = 1850 e X = 2250
     const bridgeH = 20;
 
@@ -1242,7 +1239,7 @@ export class MainScene extends Phaser.Scene {
     bridgeBody.setSize(100, bridgeH);
   }
 
-  private expandBridge(): void {
+  private expandirEsteira(): void {
     if (this.isBridgeExpanded) return;
     this.isBridgeExpanded = true;
 
@@ -1278,7 +1275,7 @@ export class MainScene extends Phaser.Scene {
     });
   }
 
-  private createElevator(): void {
+  private criarElevador(): void {
     const shaftX1 = 2960;
     const shaftX2 = 3120;
     const platW = 140;
@@ -1377,10 +1374,10 @@ export class MainScene extends Phaser.Scene {
     body.checkCollision.left = false;
     body.checkCollision.right = false;
 
-    this.updateElevatorCables();
+    this.atualizarCabosElevador();
   }
 
-  private updateElevatorCables(): void {
+  private atualizarCabosElevador(): void {
     if (!this.elevatorShaftCables || !this.elevatorPlatform) return;
     this.elevatorShaftCables.clear();
 
@@ -1404,7 +1401,7 @@ export class MainScene extends Phaser.Scene {
     this.elevatorShaftCables.strokePath();
   }
 
-  private spawnFallingCoffeeCup(): void {
+  private gerarXicaraCafeCaindo(): void {
     if (!this.textures.exists('cyber-coffee-cup')) {
       const g = this.make.graphics();
       // Caneca cerâmica branca/cinza
@@ -1487,12 +1484,12 @@ export class MainScene extends Phaser.Scene {
     });
   }
 
-  private lowerElevator(): void {
+  private descerElevador(): void {
     if (this.isElevatorLowered) return;
     this.isElevatorLowered = true;
 
     // Efeito cômico: spawne uma pequena xícara de café cibernética caindo do painel e se quebrando
-    this.spawnFallingCoffeeCup();
+    this.gerarXicaraCafeCaindo();
 
     // Beacon do totem muda para verde fixo
     if (this.beaconElevator) {
@@ -1512,13 +1509,13 @@ export class MainScene extends Phaser.Scene {
       ease: 'Power2',
       onUpdate: () => {
         body.updateFromGameObject();
-        this.updateElevatorCables();
+        this.atualizarCabosElevador();
       },
       onComplete: () => {
         this.elevatorPlatform.y = 230;
         body.updateFromGameObject();
         body.checkCollision.up = true;
-        this.updateElevatorCables();
+        this.atualizarCabosElevador();
 
         // Tremor sutil de impacto e vapor pneumático
         this.cameras.main.shake(120, 0.0025);
@@ -1542,7 +1539,7 @@ export class MainScene extends Phaser.Scene {
     });
   }
 
-  private createGlobalDarkness(): void {
+  private criarEscuridaoGlobal(): void {
     // 1. Criar a Textura da Luz da Lanterna (círculo radial suave de raio 120px)
     if (!this.textures.exists('flashlight_brush')) {
       const canvas = this.textures.createCanvas('flashlight_brush', 240, 240);
@@ -1587,10 +1584,10 @@ export class MainScene extends Phaser.Scene {
     };
 
     // Atualiza imediatamente o primeiro quadro de escuridão
-    this.updateDarkness();
+    this.atualizarEscuridao();
   }
 
-  private updateDarkness(): void {
+  private atualizarEscuridao(): void {
     // Se o puzzle da energia já foi resolvido, não desenha mais a escuridão
     if (!this.darkness || this.isPowerOn || !this.player) return;
 
@@ -1617,7 +1614,7 @@ export class MainScene extends Phaser.Scene {
     this.darkness.render();
   }
 
-  private createSteelDoor(): void {
+  private criarPortaAco(): void {
     if (!this.textures.exists('steel-door-locked')) {
       const g = this.make.graphics();
       const w = 40;
@@ -1697,7 +1694,7 @@ export class MainScene extends Phaser.Scene {
       .setDepth(10);
   }
 
-  private disableSteelDoor(): void {
+  private desativarPortaAco(): void {
     this.isPowerOn = true;
 
     if (this.steelDoorCollider) {
@@ -1763,7 +1760,7 @@ export class MainScene extends Phaser.Scene {
     }
   }
 
-  private handleCableShock(): void {
+  private tratarChoqueCabo(): void {
     if (this.isShocked || !this.isCableShockActive) return;
     this.isShocked = true;
 
@@ -1794,7 +1791,7 @@ export class MainScene extends Phaser.Scene {
     });
   }
 
-  private createTotems(): void {
+  private criarTotens(): void {
     // Gabinete CRT Vintage: Bege/cinza, ranhuras de ar, disquete 3.5" e tela curva de fósforo verde
     if (!this.textures.exists('totem-crt-vintage')) {
       const g = this.make.graphics();
@@ -1932,7 +1929,7 @@ export class MainScene extends Phaser.Scene {
       .setVisible(false);
   }
 
-  private createConstructionWall(): void {
+  private criarMuroConstrucao(): void {
     // ==============================================================
     // 1. PASSARELA DE SAÍDA DO ELEVADOR (X = 3110 a X = 3200, Y = 230)
     // ==============================================================
@@ -2174,21 +2171,32 @@ export class MainScene extends Phaser.Scene {
       .setDepth(17);
   }
 
-  private triggerDemoEndDialogue(): void {
+  private dispararDialogoFimDemo(): void {
+    if (this.isDemoEndTriggered) return;
     this.isDemoEndTriggered = true;
-    if (!this.dialogueSystem) {
-      this.dialogueSystem = new DialogueSystem();
-    }
+    this.concluirFaseAtual();
+
     this.player.setVelocityX(0);
-    this.dialogueSystem.startDialogue([
-      {
-        speaker: '> CANAL REBELDE // INTERCEPTAÇÃO: ESTAGIÁRIO_V0.9b',
-        text: 'Kernel restaurado, esteira calibrada e chave de segurança recombinada. Por enquanto é até aqui que o servidor processa. Bom trabalho, recruta. Desconectando...',
-      },
-    ]);
+    this.comunicador.iniciarDialogo(
+      [
+        {
+          falante: '> CANAL REBELDE // INTERCEPTAÇÃO: ESTAGIÁRIO_V0.9b',
+          texto:
+            'Kernel restaurado, esteira calibrada e chave de segurança recombinada. Excelente trabalho, recruta!',
+        },
+        {
+          falante: '> CANAL REBELDE // INTERCEPTAÇÃO: ESTAGIÁRIO_V0.9b',
+          texto:
+            'O acesso aos setores avançados da Resistência foi liberado no Hub Central. Desconectando deste setor...',
+        },
+      ],
+      () => {
+        this.retornarAoHub();
+      }
+    );
   }
 
-  private createPlayer(): void {
+  private criarJogador(): void {
     // Redesenho do Jogador (64x96): Rebelde Retro-Tech com jaqueta escura, visor ciano neon e contorno
     if (!this.textures.exists('player')) {
       const g = this.make.graphics();
@@ -2285,33 +2293,33 @@ export class MainScene extends Phaser.Scene {
     // Detecção de queda no abismo com sucata cortante
     if (this.scrapHazard) {
       this.physics.add.overlap(this.player, this.scrapHazard, () => {
-        this.handleScrapFall();
+        this.tratarQuedaAbismo();
       });
     }
 
     // Detecção de contato com o exaustor pneumático do fosso (anti-softlock)
     if (this.ventExhaust) {
       this.physics.add.overlap(this.player, this.ventExhaust, () => {
-        this.handleVentThrust();
+        this.tratarImpulsoVent();
       });
     }
 
     // Detecção de contato com o cabo elétrico caído com choque intermitente
     if (this.cableShockHazard) {
       this.physics.add.overlap(this.player, this.cableShockHazard, () => {
-        this.handleCableShock();
+        this.tratarChoqueCabo();
       });
     }
 
     // Detecção de queda nos espinhos do vão abaixo dos contêineres (Setor 3)
     if (this.scrapHazardSector3) {
       this.physics.add.overlap(this.player, this.scrapHazardSector3, () => {
-        this.handleSector3Fall();
+        this.tratarQuedaSetor3();
       });
     }
   }
 
-  private setupControls(): void {
+  private configurarControles(): void {
     if (this.input.keyboard) {
       this.cursors = this.input.keyboard.createCursorKeys();
       this.wasdKeys = {
@@ -2327,236 +2335,121 @@ export class MainScene extends Phaser.Scene {
     }
   }
 
-  private setupDialogue(): void {
-    this.dialogueSystem = new DialogueSystem();
-
+  private configurarDialogo(): void {
     this.player.setVelocityX(0);
-    this.dialogueSystem.startDialogue([
+    this.comunicador.iniciarDialogo([
       {
-        speaker: '> CANAL REBELDE // INTERCEPTAÇÃO: ESTAGIÁRIO_V0.9b',
-        text: 'Conexão instável... Ei, recruta do Terminal Zero. O Mega Brain cortou a força do setor pra economizar clock de servidor e nos deixar no escuro.',
+        falante: '> CANAL REBELDE // INTERCEPTAÇÃO: ESTAGIÁRIO_V0.9b',
+        texto:
+          'Conexão instável... Ei, recruta do Terminal Zero. O Mega Brain cortou a força do setor pra economizar clock de servidor e nos deixar no escuro.',
       },
       {
-        speaker: '> CANAL REBELDE // INTERCEPTAÇÃO: ESTAGIÁRIO_V0.9b',
-        text: 'A sua lanterna não vai longe nesse pântano de sucata. Avance às cegas e procure um painel com alimentação de emergência.',
+        falante: '> CANAL REBELDE // INTERCEPTAÇÃO: ESTAGIÁRIO_V0.9b',
+        texto:
+          'A sua lanterna não vai longe nesse pântano de sucata. Avance às cegas e procure um painel com alimentação de emergência.',
       },
       {
-        speaker: '> CANAL REBELDE // INTERCEPTAÇÃO: ESTAGIÁRIO_V0.9b',
-        text: 'Se der de cara com uma carcaça de terminal piscando, plugue o cabo e devolva a energia antes que as sentinelas percebam.',
+        falante: '> CANAL REBELDE // INTERCEPTAÇÃO: ESTAGIÁRIO_V0.9b',
+        texto:
+          'Se der de cara com uma carcaça de terminal piscando, plugue o cabo e devolva a energia antes que as sentinelas percebam.',
       },
     ]);
   }
 
-  private setupTerminal(): void {
-    this.terminalOverlay = document.getElementById('terminal-overlay');
-    this.terminalOutput = document.getElementById('terminal-output');
-    this.terminalInput = document.getElementById('terminal-input') as HTMLInputElement | null;
-
-    if (this.terminalInput) {
-      this.terminalInput.addEventListener('keydown', (e: KeyboardEvent) => {
-        e.stopPropagation();
-        if (e.key === 'Escape') {
-          this.closeTerminal();
-        } else if (e.key === 'Enter') {
-          this.handleCommandSubmit();
-        }
-      });
-    }
-
-    window.addEventListener('keydown', (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && this.isTerminalOpen) {
-        this.closeTerminal();
-      }
+  private configurarTerminal(): void {
+    this.terminal.definirInterpretador(interpretarComandoTutorial);
+    this.terminal.definirAoSubmeter((resultado: ResultadoComando) => {
+      this.tratarAcaoResultado(resultado);
     });
   }
 
-  private handleCommandSubmit(): void {
-    if (!this.terminalInput) return;
-    const value = this.terminalInput.value;
-    if (!value.trim()) return;
+  private tratarAcaoResultado(resultado: ResultadoComando): void {
+    if (!resultado.sucesso) return;
 
-    const result = parseCommand(value, {
-      totem: this.currentInteractingTotem ?? undefined,
-      scene: this.isBootingSequence ? 'boot' : 'main',
-    });
-
-    // Execução do comando clear / cls: limpa o terminal sem ecoar mensagens
-    if (result.action === 'CLEAR_TERMINAL') {
-      if (this.terminalOutput) {
-        this.terminalOutput.innerHTML = '';
-      }
-      this.terminalInput.value = '';
-      return;
-    }
-
-    if (this.terminalOutput) {
-      const cmdElement = document.createElement('div');
-      cmdElement.className = 'log-line command';
-      cmdElement.textContent = `> ${value}`;
-      this.terminalOutput.appendChild(cmdElement);
-
-      if (result.message) {
-        const respElement = document.createElement('div');
-        respElement.className = `log-line ${result.success ? 'success' : 'error'}`;
-        respElement.textContent = result.message;
-        this.terminalOutput.appendChild(respElement);
-      }
-
-      this.terminalOutput.scrollTop = this.terminalOutput.scrollHeight;
-    }
-
-    this.terminalInput.value = '';
-
-    if (result.success) {
-      if (result.action === 'BOOT_SUCCESS') {
-        setTimeout(() => {
-          this.isBootingSequence = false;
-          this.closeTerminal();
-          const gameContainer = document.getElementById('game-container');
-          gameContainer?.classList.remove('blur-active');
-          this.setupDialogue();
-        }, 1200);
-      } else if (result.action === 'DISABLE_STEEL_DOOR') {
-        this.disableSteelDoor();
-        setTimeout(() => {
-          this.closeTerminal();
-        }, 1000);
-      } else if (result.action === 'EXPAND_BRIDGE') {
-        this.expandBridge();
-        setTimeout(() => {
-          this.closeTerminal();
-        }, 1000);
-      } else if (result.action === 'LOWER_ELEVATOR') {
-        this.lowerElevator();
-        setTimeout(() => {
-          this.closeTerminal();
-        }, 1200);
-      }
+    if (resultado.acao === 'BOOT_SUCCESS') {
+      setTimeout(() => {
+        this.isBootingSequence = false;
+        this.terminal.fecharForcado();
+        const containerJogo = document.getElementById('game-container');
+        containerJogo?.classList.remove('blur-active');
+        this.configurarDialogo();
+      }, 1200);
+    } else if (resultado.acao === 'DISABLE_STEEL_DOOR') {
+      this.desativarPortaAco();
+      setTimeout(() => {
+        this.terminal.fechar();
+      }, 1000);
+    } else if (resultado.acao === 'EXPAND_BRIDGE') {
+      this.expandirEsteira();
+      setTimeout(() => {
+        this.terminal.fechar();
+      }, 1000);
+    } else if (resultado.acao === 'LOWER_ELEVATOR') {
+      this.descerElevador();
+      setTimeout(() => {
+        this.terminal.fechar();
+      }, 1200);
     }
   }
 
-  private openBootTerminal(): void {
-    this.isTerminalOpen = true;
+  private abrirTerminalBoot(): void {
     this.player.setVelocityX(0);
-
-    if (this.terminalOverlay) {
-      this.terminalOverlay.classList.remove('hidden');
-    }
-
-    if (this.terminalOutput) {
-      this.terminalOutput.innerHTML = '';
-
-      const ritualLines = [
+    this.terminal.abrir({
+      titulo: 'SISTEMA OPERACIONAL OG // PROTOCOLO DE RECONEXÃO COGNITIVA',
+      contexto: { cena: 'boot' },
+      permitirFecharComEsc: false,
+      linhasIniciais: [
         '=== TERMINAL ZERO // PROTOCOLO DE RECONEXÃO COGNITIVA ===',
         '> KERNEL DESCONECTADO. O mundo físico precisa de uma instrução primordial para compilar.',
-        '> SINTAXE REQUERIDA: print(\'...\') ou print("...")',
+        "> SINTAXE REQUERIDA: print('...') ou print(\"...\")",
         '> ENIGMA: Todo estudante de programação escreve essas exatas duas palavras (em inglês e com pontuação) no seu primeiro dia de aula para saudar o mundo e afastar a maldição.',
         '> Digite a instrução:',
-      ];
-
-      ritualLines.forEach((text) => {
-        const line = document.createElement('div');
-        line.className = 'log-line info';
-        line.textContent = text;
-        this.terminalOutput?.appendChild(line);
-      });
-
-      this.terminalOutput.scrollTop = this.terminalOutput.scrollHeight;
-    }
-
-    if (this.terminalInput) {
-      this.terminalInput.value = '';
-      setTimeout(() => {
-        this.terminalInput?.focus();
-      }, 50);
-    }
+      ],
+    });
   }
 
-  private openTerminal(
-    totemType: 'power' | 'bridge' | 'elevator'
-  ): void {
-    if (this.dialogueSystem && this.dialogueSystem.isActive) return;
-
-    this.isTerminalOpen = true;
+  private abrirTerminalTotem(tipoTotem: 'power' | 'bridge' | 'elevator'): void {
+    if (this.comunicador.estaAtivo) return;
     this.player.setVelocityX(0);
 
-    if (this.terminalOverlay) {
-      this.terminalOverlay.classList.remove('hidden');
+    let linhas: string[] = [];
+    let titulo = 'SISTEMA OPERACIONAL OG // TERMINAL V1.0';
+
+    if (tipoTotem === 'power') {
+      titulo = 'PAINEL DE DISTRIBUIÇÃO PRIMÁRIA // SETOR 0';
+      linhas = [
+        '=== PAINEL DE DISTRIBUIÇÃO PRIMÁRIA ===',
+        '> STATUS: energia = False',
+        '> PROTOCOLO: A iluminação do galpão e a tranca magnética exigem fluxo contínuo.',
+        "> DICA DO ESTAGIÁRIO: No universo binário, se 'False' mantém o setor nas trevas, qual palavra resta para acender as luzes?",
+        '> Digite a instrução:',
+      ];
+    } else if (tipoTotem === 'bridge') {
+      titulo = 'MECANISMO DE ELEVAÇÃO DA ESTEIRA AÉREA';
+      linhas = [
+        '=== MECANISMO DE ELEVAÇÃO DA ESTEIRA AÉREA ===',
+        '> STATUS: tamanho_ponte = 2',
+        '> RELATÓRIO DO SENSOR: O mezanino à frente está a 8 metros de distância aérea. A esteira atual não alcança nem a metade do trajeto.',
+        '> COMUNICADOR REBELDE: Subiu até aqui pra ficar olhando pro precipício? Redefina o comprimento da esteira suspensa antes de pular pro nada.',
+        '> Digite a instrução:',
+      ];
+    } else if (tipoTotem === 'elevator') {
+      titulo = 'CONSOLE DE LIBERAÇÃO DO ELEVADOR DE CARGA';
+      linhas = [
+        '=== CONSOLE DE LIBERAÇÃO DO ELEVADOR DE CARGA ===',
+        '> REGISTRADORES CORROMPIDOS:',
+        "> parte1 = 'Mega'",
+        "> parte2 = 'Fail'",
+        "> PROTOCOLO DE ACESSO: A chave de liberação foi fragmentada. O barramento exige a união das duas palavras na variável 'senha'.",
+        "> COMUNICADOR REBELDE: O estagiário anterior salvou a senha quebrada no meio pra 'poupar memória'. Junte os dois pedaços de texto antes que o elevador despenque na cabeça de alguém.",
+        '> Digite a instrução:',
+      ];
     }
 
-    if (this.terminalOutput) {
-      // Limpeza Inteligente: limpa logs anteriores para que o terminal sempre abra enxuto
-      this.terminalOutput.innerHTML = '';
-
-      if (totemType === 'power') {
-        const lines = [
-          '=== PAINEL DE DISTRIBUIÇÃO PRIMÁRIA ===',
-          '> STATUS: energia = False',
-          '> PROTOCOLO: A iluminação do galpão e a tranca magnética exigem fluxo contínuo.',
-          "> DICA DO ESTAGIÁRIO: No universo binário, se 'False' mantém o setor nas trevas, qual palavra resta para acender as luzes?",
-          '> Digite a instrução:',
-        ];
-        lines.forEach((lineText) => {
-          const info = document.createElement('div');
-          info.className = 'log-line info';
-          info.textContent = lineText;
-          this.terminalOutput?.appendChild(info);
-        });
-        this.terminalOutput.scrollTop = this.terminalOutput.scrollHeight;
-      } else if (totemType === 'bridge') {
-        const lines = [
-          '=== MECANISMO DE ELEVAÇÃO DA ESTEIRA AÉREA ===',
-          '> STATUS: tamanho_ponte = 2',
-          '> RELATÓRIO DO SENSOR: O mezanino à frente está a 8 metros de distância aérea. A esteira atual não alcança nem a metade do trajeto.',
-          '> COMUNICADOR REBELDE: Subiu até aqui pra ficar olhando pro precipício? Redefina o comprimento da esteira suspensa antes de pular pro nada.',
-          '> Digite a instrução:',
-        ];
-        lines.forEach((lineText) => {
-          const info = document.createElement('div');
-          info.className = 'log-line info';
-          info.textContent = lineText;
-          this.terminalOutput?.appendChild(info);
-        });
-        this.terminalOutput.scrollTop = this.terminalOutput.scrollHeight;
-      } else if (totemType === 'elevator') {
-        const lines = [
-          '=== CONSOLE DE LIBERAÇÃO DO ELEVADOR DE CARGA ===',
-          '> REGISTRADORES CORROMPIDOS:',
-          "> parte1 = 'Mega'",
-          "> parte2 = 'Fail'",
-          "> PROTOCOLO DE ACESSO: A chave de liberação foi fragmentada. O barramento exige a união das duas palavras na variável 'senha'.",
-          "> COMUNICADOR REBELDE: O estagiário anterior salvou a senha quebrada no meio pra 'poupar memória'. Junte os dois pedaços de texto antes que o elevador despenque na cabeça de alguém.",
-          '> Digite a instrução:',
-        ];
-        lines.forEach((lineText) => {
-          const info = document.createElement('div');
-          info.className = 'log-line info';
-          info.textContent = lineText;
-          this.terminalOutput?.appendChild(info);
-        });
-        this.terminalOutput.scrollTop = this.terminalOutput.scrollHeight;
-      }
-    }
-
-    if (this.terminalInput) {
-      this.terminalInput.value = '';
-      setTimeout(() => {
-        this.terminalInput?.focus();
-      }, 50);
-    }
-  }
-
-  private closeTerminal(): void {
-    if (this.isBootingSequence) return; // Não fecha o terminal até o kernel ser instanciado
-
-    this.isTerminalOpen = false;
-
-    if (this.terminalOverlay) {
-      this.terminalOverlay.classList.add('hidden');
-    }
-    if (this.terminalInput) {
-      this.terminalInput.value = '';
-      this.terminalInput.blur();
-    }
+    this.terminal.abrir({
+      titulo,
+      contexto: { totem: tipoTotem, cena: 'main' },
+      linhasIniciais: linhas,
+    });
   }
 }
