@@ -26,12 +26,6 @@ export class CenaFase3 extends CenaBase {
   private isArrastandoMouse: boolean = false;
   private ultimoMouseX: number = 0;
 
-  // Elementos do HUD de inspeção
-  private textoCoordenadas!: Phaser.GameObjects.Text;
-  private barraProgressoFundo!: Phaser.GameObjects.Rectangle;
-  private barraProgressoIndicador!: Phaser.GameObjects.Rectangle;
-  private barraMarcadorCamera!: Phaser.GameObjects.Rectangle;
-
   // Emitter de partículas da atmosfera
   private emissorPoeira?: Phaser.GameObjects.Particles.ParticleEmitter;
 
@@ -65,9 +59,8 @@ export class CenaFase3 extends CenaBase {
     // 4. Atmosfera de Fumaça, Fuligem e Partículas
     this.criarAtmosferaParticulas();
 
-    // 5. Configuração dos Controles de Câmera e HUD de Inspeção
+    // 5. Configuração dos Controles de Navegação da Câmera
     this.configurarControlesCamera();
-    this.criarHUDInspecao();
     this.criarEfeitoCRT(this.scale.width, this.scale.height, 0.02);
   }
 
@@ -520,115 +513,6 @@ export class CenaFase3 extends CenaBase {
   }
 
   // =========================================================================
-  // HUD DE INSPEÇÃO HARMONIZADO COM A ARTE
-  // =========================================================================
-
-  private criarHUDInspecao(): void {
-    const { width } = this.scale;
-
-    const hudContainer = this.add.container(0, 0);
-    hudContainer.setScrollFactor(0);
-    hudContainer.setDepth(1000);
-
-    // Fundo estilizado com tons âmbar/ferrugem
-    const fundoHud = this.add.rectangle(width / 2, 28, width, 56, 0x160c07, 0.9);
-    fundoHud.setStrokeStyle(1, 0xf59e0b, 0.45);
-
-    const titulo = this.add.text(
-      24,
-      12,
-      'SETOR 3 // VALE DOS SILÍCIOS MORTOS [MODO INSPEÇÃO DE CENÁRIO]',
-      {
-        fontFamily: 'Consolas, Courier New, monospace',
-        fontSize: '14px',
-        color: '#f59e0b',
-        fontStyle: 'bold',
-      }
-    );
-
-    const statusSensores = this.add.text(
-      24,
-      32,
-      'ATMOSFERA: SÉPIA/SMOG  |  RADIAÇÃO TÉRMICA: CRÍTICA  |  PARALLAX: ARTE CONCEITUAL ATIVA',
-      {
-        fontFamily: 'Consolas, Courier New, monospace',
-        fontSize: '10.5px',
-        color: '#d4b395',
-      }
-    );
-
-    this.textoCoordenadas = this.add.text(width - 24, 14, '', {
-      fontFamily: 'Consolas, Courier New, monospace',
-      fontSize: '13px',
-      color: '#fbbf24',
-      fontStyle: 'bold',
-    });
-    this.textoCoordenadas.setOrigin(1, 0);
-
-    // Barra de progresso visual
-    const larguraBarra = 240;
-    const alturaBarra = 7;
-    const barraX = width - 24 - larguraBarra / 2;
-    const barraY = 38;
-
-    this.barraProgressoFundo = this.add.rectangle(
-      barraX,
-      barraY,
-      larguraBarra,
-      alturaBarra,
-      0x2e190e,
-      0.95
-    );
-    this.barraProgressoFundo.setStrokeStyle(1, 0xf59e0b, 0.4);
-
-    this.barraProgressoIndicador = this.add.rectangle(
-      barraX - larguraBarra / 2,
-      barraY,
-      0,
-      alturaBarra,
-      0xf59e0b,
-      0.85
-    );
-    this.barraProgressoIndicador.setOrigin(0, 0.5);
-
-    this.barraMarcadorCamera = this.add.rectangle(
-      barraX - larguraBarra / 2,
-      barraY,
-      12,
-      alturaBarra + 4,
-      0xfde047,
-      1
-    );
-
-    hudContainer.add([
-      fundoHud,
-      titulo,
-      statusSensores,
-      this.textoCoordenadas,
-      this.barraProgressoFundo,
-      this.barraProgressoIndicador,
-      this.barraMarcadorCamera,
-    ]);
-
-    // Rodapé de instruções
-    const rodape = this.add.text(
-      width / 2,
-      this.scale.height - 20,
-      '[ ← / → ou A / D ] Navegar Câmera  |  [SHIFT] Turbo 3x  |  [MOUSE DRAG] Arrastar  |  [ESC] Hub Central',
-      {
-        fontFamily: 'Consolas, Courier New, monospace',
-        fontSize: '11.5px',
-        color: '#a88265',
-        backgroundColor: 'rgba(22, 12, 7, 0.9)',
-        padding: { x: 10, y: 4 },
-      }
-    );
-    rodape.setOrigin(0.5);
-    rodape.setScrollFactor(0);
-    rodape.setDepth(1000);
-  }
-
-  // =========================================================================
   // LOOP DE ATUALIZAÇÃO (UPDATE)
   // =========================================================================
 
@@ -637,7 +521,6 @@ export class CenaFase3 extends CenaBase {
 
     const deltaSegundos = delta / 1000;
     this.atualizarMovimentoCamera(deltaSegundos);
-    this.atualizarHUDInspecao();
   }
 
   private atualizarMovimentoCamera(deltaSegundos: number): void {
@@ -660,23 +543,6 @@ export class CenaFase3 extends CenaBase {
         scrollMaxX
       );
     }
-  }
-
-  private atualizarHUDInspecao(): void {
-    const scrollMaxX = LARGURA_MUNDO - this.scale.width;
-    const scrollAtual = this.cameras.main.scrollX;
-    const porcentagem = scrollMaxX > 0 ? (scrollAtual / scrollMaxX) * 100 : 0;
-
-    this.textoCoordenadas.setText(
-      `CAM X: [ ${scrollAtual.toFixed(0).padStart(4, '0')} / ${scrollMaxX} px ]  ( ${porcentagem.toFixed(1)}% )`
-    );
-
-    const larguraBarra = 240;
-    const preenchimento = (scrollAtual / scrollMaxX) * larguraBarra;
-    this.barraProgressoIndicador.width = Phaser.Math.Clamp(preenchimento, 0, larguraBarra);
-
-    const inicioX = this.barraProgressoFundo.x - larguraBarra / 2;
-    this.barraMarcadorCamera.x = inicioX + (scrollAtual / scrollMaxX) * larguraBarra;
   }
 
   private desenharCurva(
