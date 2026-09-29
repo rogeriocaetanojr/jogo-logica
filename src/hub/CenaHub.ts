@@ -303,11 +303,14 @@ export class CenaHub extends Phaser.Scene {
     };
   }
 
+  private teclaTres?: Phaser.Input.Keyboard.Key;
+  private teclaTresNumpad?: Phaser.Input.Keyboard.Key;
+
   private criarRodape(width: number, height: number): void {
     const rodape = this.add.text(
       width / 2,
       height - 25,
-      '[ ↑ / ↓ ou W / S ] Navegar  |  [ENTER] Iniciar  |  [T] Terminal do Hub',
+      '[ ↑ / ↓ ou W / S ] Navegar  |  [ENTER] Iniciar  |  [3] Inspecionar Fase 3  |  [T] Terminal Hub',
       {
         fontFamily: 'Consolas, Courier New, monospace',
         fontSize: '12px',
@@ -326,11 +329,24 @@ export class CenaHub extends Phaser.Scene {
       };
       this.teclaEnter = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER);
       this.teclaTerminal = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.T);
+      this.teclaTres = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.THREE);
+      this.teclaTresNumpad = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.NUMPAD_THREE);
     }
   }
 
   update(): void {
     if (this.terminalHub && this.terminalHub.estaAberto) {
+      return;
+    }
+
+    if (
+      (this.teclaTres && Phaser.Input.Keyboard.JustDown(this.teclaTres)) ||
+      (this.teclaTresNumpad && Phaser.Input.Keyboard.JustDown(this.teclaTresNumpad))
+    ) {
+      this.cameras.main.fade(300, 0, 0, 0);
+      this.time.delayedCall(300, () => {
+        this.scene.start('CenaFase3');
+      });
       return;
     }
 
@@ -398,10 +414,10 @@ export class CenaHub extends Phaser.Scene {
       const fundoBotao = this.painelDetalhes.botaoIniciar.getAt(0) as Phaser.GameObjects.Rectangle;
       const textoBotao = this.painelDetalhes.botaoIniciar.getAt(1) as Phaser.GameObjects.Text;
 
-      if (faseSel.desbloqueada) {
+      if (faseSel.desbloqueada || faseSel.id === 'fase3') {
         fundoBotao.setFillStyle(0x00ff66, 0.25);
         fundoBotao.setStrokeStyle(2, 0x00ff66, 0.9);
-        textoBotao.setText('INICIAR MISSÃO [ENTER]');
+        textoBotao.setText(faseSel.id === 'fase3' && !faseSel.desbloqueada ? 'INSPECIONAR FASE 3 [ENTER]' : 'INICIAR MISSÃO [ENTER]');
         textoBotao.setColor('#00ff66');
       } else {
         fundoBotao.setFillStyle(0x1f2937, 0.4);
@@ -416,7 +432,7 @@ export class CenaHub extends Phaser.Scene {
     const faseSel = this.fases[this.indiceSelecionado];
     if (!faseSel) return;
 
-    if (!faseSel.desbloqueada) {
+    if (!faseSel.desbloqueada && faseSel.id !== 'fase3') {
       this.cameras.main.shake(150, 0.005);
       return;
     }
