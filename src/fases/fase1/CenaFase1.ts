@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { CenaBase } from '../../compartilhado/CenaBase';
+import { GerenciadorEstado, type TipoPersonagem } from '../../nucleo/GerenciadorEstado';
 import type { ResultadoComando } from '../../compartilhado/tipos';
 import { interpretarComandoFase1 } from './InterpretadorFase1';
 
@@ -46,6 +47,7 @@ interface SentinelaInimiga {
 export class CenaFase1 extends CenaBase {
   // Entidades e física
   private jogador!: Phaser.Physics.Arcade.Sprite;
+  private tipoPersonagem: TipoPersonagem = 'alvares';
   private plataformasEstaticas!: Phaser.Physics.Arcade.StaticGroup;
   private nuvensSolidas!: Phaser.Physics.Arcade.StaticGroup;
   private grupoMarmoreRachado!: Phaser.Physics.Arcade.StaticGroup;
@@ -489,17 +491,20 @@ export class CenaFase1 extends CenaBase {
   }
 
   private criarJogador(): void {
+    this.tipoPersonagem = GerenciadorEstado.obterPersonagem();
+    const chave = this.tipoPersonagem === 'reis' ? 'reis' : 'alvares';
     this.jogador = this.physics.add.sprite(
       this.checkpointAtual.x,
       this.checkpointAtual.y,
-      'player'
+      chave
     );
     this.jogador.setCollideWorldBounds(true);
     this.jogador.setDepth(10);
-    this.jogador.setSize(44, 88);
-    this.jogador.setOffset(10, 8);
+    const body = this.jogador.body as Phaser.Physics.Arcade.Body;
+    body.setSize(44, 96);
+    body.setOffset(42, 26);
+    this.jogador.anims.play(`${this.tipoPersonagem}_idle`, true);
   }
-
   /**
    * BLOCO 1: Introdução ao Ar (x: 0 a 1600).
    * Plataformas de nuvem + mármore rachado intercaladas, 3 colunas de vento para ensinar o planar.
@@ -914,6 +919,7 @@ export class CenaFase1 extends CenaBase {
     // Se o terminal ou o rádio estiverem abertos, trava movimento
     if (this.terminal.estaAberto || this.comunicador.estaAtivo) {
       this.jogador.setVelocityX(0);
+      this.jogador.anims.play(`${this.tipoPersonagem}_idle`, true);
       return;
     }
 
@@ -1012,6 +1018,15 @@ export class CenaFase1 extends CenaBase {
       this.jogador.setTint(0xbae6fd);
     } else {
       this.jogador.clearTint();
+    }
+
+    // Máquina de animações
+    if (!noChao) {
+      this.jogador.anims.play(`${this.tipoPersonagem}_jump`, true);
+    } else if (esquerda || direita) {
+      this.jogador.anims.play(`${this.tipoPersonagem}_run`, true);
+    } else {
+      this.jogador.anims.play(`${this.tipoPersonagem}_idle`, true);
     }
   }
 

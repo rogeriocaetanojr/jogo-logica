@@ -1,11 +1,13 @@
 import Phaser from 'phaser';
 import { CenaBase } from '../../compartilhado/CenaBase';
 import type { ResultadoComando } from '../../compartilhado/tipos';
+import { GerenciadorEstado, type TipoPersonagem } from '../../nucleo/GerenciadorEstado';
 import { interpretarComandoTutorial } from './InterpretadorTutorial';
 
 export class CenaTutorial extends CenaBase {
   private platforms!: Phaser.Physics.Arcade.StaticGroup;
   private player!: Phaser.Physics.Arcade.Sprite;
+  private tipoPersonagem: TipoPersonagem = 'alvares';
 
   // Totem 0 (Painel de Energia - Setor 0)
   private totemPower!: Phaser.GameObjects.Image;
@@ -201,6 +203,7 @@ export class CenaTutorial extends CenaBase {
     // Travar movimentação se o terminal estiver aberto
     if (this.terminal.estaAberto) {
       this.player.setVelocityX(0);
+      this.player.anims.play(`${this.tipoPersonagem}_idle`, true);
       return;
     }
 
@@ -239,6 +242,15 @@ export class CenaTutorial extends CenaBase {
     const cutThreshold = -160;
     if (!isJumpDown && this.player.body.velocity.y < cutThreshold) {
       this.player.setVelocityY(cutThreshold);
+    }
+
+    // Máquina de estados de animação do personagem
+    if (!isGrounded) {
+      this.player.anims.play(`${this.tipoPersonagem}_jump`, true);
+    } else if (isLeftDown || isRightDown) {
+      this.player.anims.play(`${this.tipoPersonagem}_run`, true);
+    } else {
+      this.player.anims.play(`${this.tipoPersonagem}_idle`, true);
     }
   }
 
@@ -2197,85 +2209,20 @@ export class CenaTutorial extends CenaBase {
   }
 
   private criarJogador(): void {
-    // Redesenho do Jogador (64x96): Rebelde Retro-Tech com jaqueta escura, visor ciano neon e contorno
-    if (!this.textures.exists('player')) {
-      const g = this.make.graphics();
-      const w = 64;
-      const h = 96;
+    const tipo = GerenciadorEstado.obterPersonagem();
+    this.tipoPersonagem = tipo;
+    const chaveTextura = tipo === 'reis' ? 'reis' : 'alvares';
 
-      // Contorno escuro bem definido
-      g.fillStyle(0x05070a, 1);
-      g.fillRoundedRect(0, 0, w, h, 8);
-
-      // Botas industriais e pernas articuladas
-      g.fillStyle(0x1f2937, 1);
-      g.fillRect(10, 68, 18, 22); // Perna esquerda
-      g.fillRect(36, 68, 18, 22); // Perna direita
-
-      // Servos/juntas articuladas dos joelhos
-      g.fillStyle(0x374151, 1);
-      g.fillRect(10, 74, 18, 4);
-      g.fillRect(36, 74, 18, 4);
-
-      // Botas de combate pesadas
-      g.fillStyle(0x475569, 1);
-      g.fillRect(8, 82, 22, 14);
-      g.fillRect(34, 82, 22, 14);
-
-      // Solas reforçadas antiderrapantes
-      g.fillStyle(0x0f172a, 1);
-      g.fillRect(8, 92, 22, 4);
-      g.fillRect(34, 92, 22, 4);
-
-      // Ponteiras reforçadas prateadas
-      g.fillStyle(0x94a3b8, 1);
-      g.fillRect(22, 88, 8, 6);
-      g.fillRect(48, 88, 8, 6);
-
-      // Corpo: Jaqueta de hacker grafite
-      g.fillStyle(0x111827, 1);
-      g.fillRect(8, 36, 48, 36);
-
-      // Frisos cibernéticos neon na jaqueta (coluna roxa e cinto ciano)
-      g.fillStyle(0x8b5cf6, 1);
-      g.fillRect(28, 36, 8, 36);
-
-      // Cinto tático com fivela neon ciano
-      g.fillStyle(0x1e293b, 1);
-      g.fillRect(10, 64, 44, 6);
-      g.fillStyle(0x00e5ff, 0.95);
-      g.fillRect(26, 64, 12, 6);
-
-      // Detalhes neon nos braços/mangas
-      g.fillStyle(0x00e5ff, 0.85);
-      g.fillRect(10, 42, 4, 20);
-      g.fillRect(50, 42, 4, 20);
-
-      // Capuz / Cabeça cibernética
-      g.fillStyle(0x1f2937, 1);
-      g.fillRoundedRect(10, 6, 44, 34, 6);
-
-      // Visor luminoso ciano neon com brilho externo (olhando para a direita por padrão)
-      g.fillStyle(0x00e5ff, 0.3);
-      g.fillRect(26, 14, 28, 16);
-
-      g.fillStyle(0x00e5ff, 1);
-      g.fillRect(28, 16, 24, 12);
-
-      g.fillStyle(0xffffff, 0.9);
-      g.fillRect(34, 18, 16, 4);
-
-      g.generateTexture('player', w, h);
-      g.destroy();
-    }
-
-    this.player = this.physics.add.sprite(100, 500, 'player');
+    this.player = this.physics.add.sprite(100, 500, chaveTextura);
     this.player.setCollideWorldBounds(true);
 
-    // Ajuste preciso da Hitbox Arcade (64x96)
+    // Ajuste preciso da Hitbox Arcade (frame 128x128 com personagem centrado)
     const playerBody = this.player.body as Phaser.Physics.Arcade.Body;
-    playerBody.setSize(48, 96);
-    playerBody.setOffset(8, 0);
+    playerBody.setSize(44, 96);
+    playerBody.setOffset(42, 26);
+
+    // Inicia na animação idle correspondente
+    this.player.anims.play(`${this.tipoPersonagem}_idle`, true);
 
     this.physics.add.collider(this.player, this.platforms);
 

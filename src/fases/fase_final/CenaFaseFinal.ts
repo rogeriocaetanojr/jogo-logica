@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { CenaBase } from '../../compartilhado/CenaBase';
+import { GerenciadorEstado, type TipoPersonagem } from '../../nucleo/GerenciadorEstado';
 import type { ResultadoComando } from '../../compartilhado/tipos';
 import { interpretarComandoFaseFinal } from './InterpretadorFaseFinal';
 
@@ -9,6 +10,7 @@ import { interpretarComandoFaseFinal } from './InterpretadorFaseFinal';
 export class CenaFaseFinal extends CenaBase {
   private plataformas!: Phaser.Physics.Arcade.StaticGroup;
   private jogador!: Phaser.Physics.Arcade.Sprite;
+  private tipoPersonagem: TipoPersonagem = 'alvares';
   private totemNucleo!: Phaser.GameObjects.Image;
   private textoPrompt!: Phaser.GameObjects.Text;
   private nucleoMegaBrain!: Phaser.GameObjects.Arc;
@@ -132,8 +134,17 @@ export class CenaFaseFinal extends CenaBase {
   }
 
   private criarJogador(): void {
-    this.jogador = this.physics.add.sprite(120, 580, 'player');
+    this.tipoPersonagem = GerenciadorEstado.obterPersonagem();
+    const chave = this.tipoPersonagem === 'reis' ? 'reis' : 'alvares';
+    this.jogador = this.physics.add.sprite(120, 580, chave);
     this.jogador.setCollideWorldBounds(true);
+
+    const body = this.jogador.body as Phaser.Physics.Arcade.Body;
+    body.setSize(44, 96);
+    body.setOffset(42, 26);
+
+    this.jogador.anims.play(`${this.tipoPersonagem}_idle`, true);
+
     this.physics.add.collider(this.jogador, this.plataformas);
   }
 
@@ -198,6 +209,7 @@ export class CenaFaseFinal extends CenaBase {
 
     if (this.terminal.estaAberto || this.comunicador.estaAtivo) {
       this.jogador.setVelocityX(0);
+      this.jogador.anims.play(`${this.tipoPersonagem}_idle`, true);
       this.textoPrompt.setVisible(false);
       return;
     }
@@ -242,6 +254,15 @@ export class CenaFaseFinal extends CenaBase {
 
     if (pulo && noChao) {
       this.jogador.setVelocityY(-520);
+    }
+
+    // Máquina de animações
+    if (!noChao) {
+      this.jogador.anims.play(`${this.tipoPersonagem}_jump`, true);
+    } else if (esquerda || direita) {
+      this.jogador.anims.play(`${this.tipoPersonagem}_run`, true);
+    } else {
+      this.jogador.anims.play(`${this.tipoPersonagem}_idle`, true);
     }
   }
 }

@@ -1,11 +1,14 @@
 import type { DadosEstadoJogo, InfoFase } from '../compartilhado/tipos';
 
+export type TipoPersonagem = 'alvares' | 'reis';
+
 /**
  * Gerenciador singleton para persistência e controle do estado global do jogo e progresso das fases.
  */
 export class GerenciadorEstado {
   private static instancia: GerenciadorEstado;
   private readonly CHAVE_STORAGE = 'jogo_logica_progresso_v1';
+  private static readonly CHAVE_STORAGE_PERSONAGEM = 'personagem_ativo';
 
   private fasesConcluidas: Set<string> = new Set();
   private faseAtualId: string = 'fase0_tutorial';
@@ -171,6 +174,46 @@ export class GerenciadorEstado {
     } catch {
       // Ignora erro de storage indisponível
     }
+  }
+
+  /**
+   * Define o personagem ativo para as fases e persiste no localStorage
+   */
+  public definirPersonagem(tipo: TipoPersonagem): void {
+    try {
+      localStorage.setItem(GerenciadorEstado.CHAVE_STORAGE_PERSONAGEM, tipo);
+    } catch {
+      // Ignora erro em ambientes sem localStorage
+    }
+  }
+
+  /**
+   * Retorna o personagem ativo ('alvares' ou 'reis'), com padrão 'alvares'
+   */
+  public obterPersonagem(): TipoPersonagem {
+    try {
+      const salvo = localStorage.getItem(GerenciadorEstado.CHAVE_STORAGE_PERSONAGEM) as TipoPersonagem | null;
+      if (salvo === 'alvares' || salvo === 'reis') {
+        return salvo;
+      }
+    } catch {
+      // Ignora erro
+    }
+    return 'alvares';
+  }
+
+  /**
+   * Atalho estático para conveniência
+   */
+  public static definirPersonagem(tipo: TipoPersonagem): void {
+    GerenciadorEstado.obterInstancia().definirPersonagem(tipo);
+  }
+
+  /**
+   * Atalho estático para conveniência
+   */
+  public static obterPersonagem(): TipoPersonagem {
+    return GerenciadorEstado.obterInstancia().obterPersonagem();
   }
 
   public salvar(): void {

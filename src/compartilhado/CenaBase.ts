@@ -26,7 +26,12 @@ export abstract class CenaBase extends Phaser.Scene {
     // Pode ser sobrescrito pelas fases filhas
   }
 
+  preload(): void {
+    this.carregarSpritesheetsPersonagens();
+  }
+
   create(): void {
+    this.registrarAnimacoesPersonagens();
     this.comunicador = new Comunicador();
     this.terminal = new Terminal();
 
@@ -138,6 +143,64 @@ export abstract class CenaBase extends Phaser.Scene {
     this.time.delayedCall(300, () => {
       this.scene.start(chaveCena, dados as object | undefined);
     });
+  }
+
+  /**
+   * Carrega os spritesheets dos personagens oficiais (Alvares e Reis).
+   */
+  public carregarSpritesheetsPersonagens(): void {
+    if (!this.textures.exists('alvares')) {
+      this.load.spritesheet('alvares', 'assets/personagens/alvares.png', {
+        frameWidth: 128,
+        frameHeight: 128,
+      });
+    }
+    if (!this.textures.exists('reis')) {
+      this.load.spritesheet('reis', 'assets/personagens/reis.png', {
+        frameWidth: 128,
+        frameHeight: 128,
+      });
+    }
+  }
+
+  /**
+   * Registra as animações dos personagens no gerenciador global de animações do Phaser.
+   */
+  public registrarAnimacoesPersonagens(): void {
+    const personagens = ['alvares', 'reis'] as const;
+
+    for (const p of personagens) {
+      if (!this.textures.exists(p)) {
+        continue;
+      }
+
+      if (!this.anims.exists(`${p}_idle`)) {
+        this.anims.create({
+          key: `${p}_idle`,
+          frames: this.anims.generateFrameNumbers(p, { frames: [0] }),
+          frameRate: 1,
+          repeat: -1,
+        });
+      }
+
+      if (!this.anims.exists(`${p}_run`)) {
+        this.anims.create({
+          key: `${p}_run`,
+          frames: this.anims.generateFrameNumbers(p, { frames: [1] }),
+          frameRate: 8,
+          repeat: -1,
+        });
+      }
+
+      if (!this.anims.exists(`${p}_jump`)) {
+        this.anims.create({
+          key: `${p}_jump`,
+          frames: this.anims.generateFrameNumbers(p, { frames: [3] }),
+          frameRate: 1,
+          repeat: 0,
+        });
+      }
+    }
   }
 
   protected destruirCenaBase(): void {

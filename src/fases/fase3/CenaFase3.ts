@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { CenaBase } from '../../compartilhado/CenaBase';
+import { GerenciadorEstado, type TipoPersonagem } from '../../nucleo/GerenciadorEstado';
 import imgFundoFase3 from '../../assets/fase3/fundo_fase3.jpg';
 
 /**
@@ -16,10 +17,16 @@ const VELOCIDADE_CAMERA_TURBO = 1280; // pixels por segundo com SHIFT
  * com camadas em Parallax, iluminação pulsante de monitores CRT e modo de inspeção de câmera.
  */
 export class CenaFase3 extends CenaBase {
-  // Controles de inspeção de câmera
+  // Jogador oficial selecionado
+  private player!: Phaser.Physics.Arcade.Sprite;
+  private tipoPersonagem: TipoPersonagem = 'alvares';
+
+  // Controles de inspeção de câmera e jogador
   private cursores?: Phaser.Types.Input.Keyboard.CursorKeys;
   private teclaA?: Phaser.Input.Keyboard.Key;
   private teclaD?: Phaser.Input.Keyboard.Key;
+  private teclaW?: Phaser.Input.Keyboard.Key;
+  private teclaEspaco?: Phaser.Input.Keyboard.Key;
   private teclaShift?: Phaser.Input.Keyboard.Key;
 
   // Interação via mouse
@@ -33,12 +40,13 @@ export class CenaFase3 extends CenaBase {
     super('CenaFase3', 'fase3');
   }
 
-  preload(): void {
+  override preload(): void {
+    super.preload();
     // Carrega a imagem de referência fornecida pelo usuário
     this.load.image('fase3-fundo-referencia', imgFundoFase3);
   }
 
-  create(): void {
+  override create(): void {
     super.create();
 
     // 1. Configuração do Mundo e Câmera
@@ -59,9 +67,41 @@ export class CenaFase3 extends CenaBase {
     // 4. Atmosfera de Fumaça, Fuligem e Partículas
     this.criarAtmosferaParticulas();
 
-    // 5. Configuração dos Controles de Navegação da Câmera
+    // 5. Instanciação do Jogador Oficial (Alvares ou Reis)
+    this.criarJogador();
+
+    // 6. Configuração dos Controles de Navegação da Câmera e Jogador
     this.configurarControlesCamera();
     this.criarEfeitoCRT(this.scale.width, this.scale.height, 0.02);
+  }
+
+  private criarJogador(): void {
+    const tipo = GerenciadorEstado.obterPersonagem();
+    this.tipoPersonagem = tipo;
+    const chaveTextura = tipo === 'reis' ? 'reis' : 'alvares';
+
+    this.player = this.physics.add.sprite(200, 520, chaveTextura);
+    this.player.setCollideWorldBounds(true);
+    this.player.setDepth(60);
+
+    // Hitbox precisa arcade
+    const playerBody = this.player.body as Phaser.Physics.Arcade.Body;
+    playerBody.setSize(44, 96);
+    playerBody.setOffset(42, 26);
+
+    // Chão de colisão estático em toda a extensão do mundo da Fase 3
+    const plataformas = this.physics.add.staticGroup();
+    const chaoInvisivel = this.add.rectangle(LARGURA_MUNDO / 2, 670, LARGURA_MUNDO, 60, 0x000000, 0);
+    this.physics.add.existing(chaoInvisivel, true);
+    plataformas.add(chaoInvisivel);
+
+    this.physics.add.collider(this.player, plataformas);
+
+    // Câmera segue o jogador suavemente pelo vale de silício
+    this.cameras.main.startFollow(this.player, true, 0.08, 0.08);
+
+    // Animação inicial
+    this.player.anims.play(`${this.tipoPersonagem}_idle`, true);
   }
 
   // =========================================================================
@@ -469,6 +509,8 @@ export class CenaFase3 extends CenaBase {
       this.cursores = this.input.keyboard.createCursorKeys();
       this.teclaA = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A);
       this.teclaD = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D);
+      this.teclaW = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.W);
+      this.teclaEspaco = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
       this.teclaShift = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
     }
 
@@ -476,6 +518,7 @@ export class CenaFase3 extends CenaBase {
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       this.isArrastandoMouse = true;
       this.ultimoMouseX = pointer.x;
+      this.cameras.main.stopFollow();
     });
 
     this.input.on('pointerup', () => {
@@ -503,6 +546,7 @@ export class CenaFase3 extends CenaBase {
         _deltaX: number,
         deltaY: number
       ) => {
+        this.cameras.main.stopFollow();
         this.cameras.main.scrollX = Phaser.Math.Clamp(
           this.cameras.main.scrollX + (deltaY > 0 ? 160 : -160),
           0,
@@ -521,6 +565,49 @@ export class CenaFase3 extends CenaBase {
 
     const deltaSegundos = delta / 1000;
     this.atualizarMovimentoCamera(deltaSegundos);
+    this.atualizarMovimentoJogador();
+  }
+
+  private atualizarMovimentoJogador(): void {
+    if (!this.player || !this.player.body) return;
+
+    const esquerda = (this.cursores?.left.isDown ?? false) || (this.teclaA?.isDown ?? false);
+    const direita = (this.cursores?.right.isDown ?? false) || (this.teclaD?.isDown ?? false);
+    const pulo =
+      (this.cursores?.up.isDown ?? false) ||
+      (this.teclaW?.isDown ?? false) ||
+      (this.teclaEspaco?.isDown ?? false);
+
+    const noChao = this.player.body.blocked.down || this.player.body.touching.down;
+
+    if (esquerda) {
+      this.player.setVelocityX(-240);
+      this.player.setFlipX(true);
+      if (!this.isArrastandoMouse) {
+        this.cameras.main.startFollow(this.player, true, 0.08, 0.08);
+      }
+    } else if (direita) {
+      this.player.setVelocityX(240);
+      this.player.setFlipX(false);
+      if (!this.isArrastandoMouse) {
+        this.cameras.main.startFollow(this.player, true, 0.08, 0.08);
+      }
+    } else {
+      this.player.setVelocityX(0);
+    }
+
+    if (pulo && noChao) {
+      this.player.setVelocityY(-520);
+    }
+
+    // Máquina de estados de animação: andar, saltar ou parar
+    if (!noChao) {
+      this.player.anims.play(`${this.tipoPersonagem}_jump`, true);
+    } else if (esquerda || direita) {
+      this.player.anims.play(`${this.tipoPersonagem}_run`, true);
+    } else {
+      this.player.anims.play(`${this.tipoPersonagem}_idle`, true);
+    }
   }
 
   private atualizarMovimentoCamera(deltaSegundos: number): void {

@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { CenaAbertura } from './CenaAbertura';
 import { CenaHub } from '../hub/CenaHub';
+import { CenaSelecaoPersonagem } from '../hub/CenaSelecaoPersonagem';
 import { CenaTutorial } from '../fases/fase0_tutorial/CenaTutorial';
 import { CenaFase1 } from '../fases/fase1/CenaFase1';
 import { CenaFase2 } from '../fases/fase2/CenaFase2';
@@ -30,6 +31,7 @@ export const configuracaoJogo: Phaser.Types.Core.GameConfig = {
   scene: [
     CenaAbertura,
     CenaHub,
+    CenaSelecaoPersonagem,
     CenaTutorial,
     CenaFase1,
     CenaFase2,
