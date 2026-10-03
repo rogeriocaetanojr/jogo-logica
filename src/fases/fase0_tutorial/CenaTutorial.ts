@@ -9,7 +9,13 @@ export class CenaTutorial extends CenaBase {
   private player!: Phaser.Physics.Arcade.Sprite;
   private tipoPersonagem: TipoPersonagem = 'alvares';
 
-  // Totem 0 (Painel de Energia - Setor 0)
+  // Totem do Ritual de Boot (Desafio 0 - Hello World)
+  private totemBoot!: Phaser.GameObjects.Image;
+  private promptTextBoot!: Phaser.GameObjects.Text;
+  private beaconBoot!: Phaser.GameObjects.Arc;
+  private desafioAtual: number = 0;
+
+  // Totem 1 (Painel de Energia - Setor 0)
   private totemPower!: Phaser.GameObjects.Image;
   private promptTextPower!: Phaser.GameObjects.Text;
   private beaconPower!: Phaser.GameObjects.Arc;
@@ -18,7 +24,7 @@ export class CenaTutorial extends CenaBase {
   // Luz Apagada no Início e Iluminação Natural do Jogador
   private escuridaoNatural?: Phaser.GameObjects.Image;
 
-  // Totem 1: Controlador da Esteira (Desafio 2 - Variáveis Inteiras)
+  // Totem 2: Controlador da Esteira (Desafio 2 - Variáveis Inteiras)
   private totemBridge!: Phaser.GameObjects.Image;
   private promptTextBridge!: Phaser.GameObjects.Text;
   private beaconBridge!: Phaser.GameObjects.Arc;
@@ -29,7 +35,7 @@ export class CenaTutorial extends CenaBase {
   private ventExhaust?: Phaser.Physics.Arcade.Sprite;
   private lastVentTime: number = 0;
 
-  // Totem 2: Terminal do Elevador de Carga (Desafio 3 - Concatenação de Strings)
+  // Totem 3: Terminal do Elevador de Carga (Desafio 3 - Concatenação de Strings)
   private totemElevator!: Phaser.GameObjects.Image;
   private promptTextElevator!: Phaser.GameObjects.Text;
   private beaconElevator!: Phaser.GameObjects.Arc;
@@ -42,6 +48,7 @@ export class CenaTutorial extends CenaBase {
   private scrapHazardSector3?: Phaser.Physics.Arcade.Sprite;
 
   private currentInteractingTotem:
+    | 'boot'
     | 'power'
     | 'bridge'
     | 'elevator'
@@ -68,14 +75,16 @@ export class CenaTutorial extends CenaBase {
 
   // Variáveis de movimentação
   private jumpForce: number = 515;
-  private isBootingSequence: boolean = false;
+  private isBootingSequence: boolean = true;
 
   constructor() {
     super('CenaTutorial', 'fase0_tutorial');
   }
 
-  init(data?: { isBooting?: boolean }): void {
-    this.isBootingSequence = data?.isBooting ?? false;
+  init(data?: { isBooting?: boolean; desafio?: number }): void {
+    // Garante que o desafio comece estritamente em 0 (Desafio 0: Hello World)
+    this.desafioAtual = data?.desafio ?? 0;
+    this.isBootingSequence = data?.isBooting ?? true;
     this.isPowerOn = false;
     this.isBridgeExpanded = false;
     this.isElevatorLowered = false;
@@ -84,10 +93,17 @@ export class CenaTutorial extends CenaBase {
     this.isShocked = false;
     this.isFallingInScrap = false;
     this.currentInteractingTotem = null;
+
+    // Reseta qualquer leitura de progresso do tutorial no localStorage
+    GerenciadorEstado.salvarTutorialConcluido(false);
   }
 
   create(): void {
     super.create();
+    this.desafioAtual = 0;
+    this.isBootingSequence = true;
+    GerenciadorEstado.salvarTutorialConcluido(false);
+
     this.criarHUDSuperior('TUTORIAL // O DESPERTAR DO KERNEL');
 
     // 1. Limites do Mundo da CenaTutorial para 3600 pixels
@@ -161,10 +177,16 @@ export class CenaTutorial extends CenaBase {
     }
 
     // Checagem de proximidade dos totens
+    const distBoot = Math.abs(this.player.x - this.totemBoot.x);
+    const isNearBootTotem = distBoot < 80;
+    this.promptTextBoot.setVisible(
+      isNearBootTotem && !this.terminal.estaAberto && this.desafioAtual === 0
+    );
+
     const distPower = Math.abs(this.player.x - this.totemPower.x);
     const isNearPowerTotem = distPower < 80;
     this.promptTextPower.setVisible(
-      isNearPowerTotem && !this.terminal.estaAberto && !this.isPowerOn
+      isNearPowerTotem && !this.terminal.estaAberto && !this.isPowerOn && this.desafioAtual >= 1
     );
 
     const distBridgeX = Math.abs(this.player.x - this.totemBridge.x);
@@ -182,7 +204,9 @@ export class CenaTutorial extends CenaBase {
     );
 
     // Identifica com qual totem o jogador está interagindo
-    if (isNearPowerTotem && !this.isPowerOn) {
+    if (isNearBootTotem && this.desafioAtual === 0) {
+      this.currentInteractingTotem = 'boot';
+    } else if (isNearPowerTotem && !this.isPowerOn && this.desafioAtual >= 1) {
       this.currentInteractingTotem = 'power';
     } else if (isNearBridgeTotem && !this.isBridgeExpanded) {
       this.currentInteractingTotem = 'bridge';
@@ -195,7 +219,11 @@ export class CenaTutorial extends CenaBase {
     // Abrir terminal com tecla E quando próximo
     if (this.interactKey && Phaser.Input.Keyboard.JustDown(this.interactKey)) {
       if (this.currentInteractingTotem && !this.terminal.estaAberto) {
-        this.abrirTerminalTotem(this.currentInteractingTotem);
+        if (this.currentInteractingTotem === 'boot') {
+          this.abrirTerminalBoot();
+        } else {
+          this.abrirTerminalTotem(this.currentInteractingTotem);
+        }
       }
     }
 
@@ -1720,7 +1748,36 @@ export class CenaTutorial extends CenaBase {
     }
 
     // ==============================================================
-    // TOTEM 0: INTERRUPTOR / PAINEL DE ENERGIA (PONTO FOCAL EM X = 850)
+    // TOTEM 0: TERMINAL ZERO // PROTOCOLO DE BOOT (HELLO WORLD EM X = 170)
+    // ==============================================================
+    this.totemBoot = this.add.image(170, 653, 'totem-crt-vintage').setDepth(10);
+
+    // LED verde de inicialização cognitiva
+    this.beaconBoot = this.add.circle(170, 624, 2.5, 0x00ff66).setDepth(10);
+    this.tweens.add({
+      targets: this.beaconBoot,
+      alpha: { from: 0.25, to: 1 },
+      scale: { from: 0.85, to: 1.25 },
+      yoyo: true,
+      repeat: -1,
+      duration: 500,
+    });
+
+    // Prompt sutil '[E] INICIALIZAR KERNEL'
+    this.promptTextBoot = this.add
+      .text(170, 605, '[E] INICIALIZAR KERNEL', {
+        fontSize: '15px',
+        color: '#00ff66',
+        fontFamily: 'monospace',
+        stroke: '#000000',
+        strokeThickness: 3,
+      })
+      .setOrigin(0.5)
+      .setDepth(110)
+      .setVisible(false);
+
+    // ==============================================================
+    // TOTEM 1: INTERRUPTOR / PAINEL DE ENERGIA (PONTO FOCAL EM X = 850)
     // ==============================================================
     this.totemPower = this.add.image(850, 653, 'totem-crt-vintage').setDepth(10);
 
@@ -2228,23 +2285,36 @@ export class CenaTutorial extends CenaBase {
 
     if (resultado.acao === 'BOOT_SUCCESS') {
       setTimeout(() => {
+        this.desafioAtual = 1;
         this.isBootingSequence = false;
+        if (this.beaconBoot) {
+          this.tweens.killTweensOf(this.beaconBoot);
+          this.beaconBoot.setFillStyle(0x00ffcc);
+          this.beaconBoot.setScale(1);
+          this.beaconBoot.setAlpha(1);
+        }
+        if (this.promptTextBoot) {
+          this.promptTextBoot.setVisible(false);
+        }
         this.terminal.fecharForcado();
         const containerJogo = document.getElementById('game-container');
         containerJogo?.classList.remove('blur-active');
         this.configurarDialogo();
       }, 1200);
     } else if (resultado.acao === 'DISABLE_STEEL_DOOR') {
+      this.desafioAtual = 2;
       this.desativarPortaAco();
       setTimeout(() => {
         this.terminal.fechar();
       }, 1000);
     } else if (resultado.acao === 'EXPAND_BRIDGE') {
+      this.desafioAtual = 3;
       this.expandirEsteira();
       setTimeout(() => {
         this.terminal.fechar();
       }, 1000);
     } else if (resultado.acao === 'LOWER_ELEVATOR') {
+      this.desafioAtual = 4;
       this.descerElevador();
       setTimeout(() => {
         this.terminal.fechar();

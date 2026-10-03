@@ -64,7 +64,7 @@ export class CenaAbertura extends Phaser.Scene {
       this.jaTransicionou = true;
       this.cameras.main.fade(200, 0, 0, 0);
       this.time.delayedCall(200, () => {
-        this.scene.start('CenaTutorial');
+        this.scene.start('CenaTutorial', { isBooting: true, desafio: 0 });
       });
     };
 
