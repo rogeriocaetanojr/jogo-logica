@@ -56,8 +56,9 @@ export class CenaTutorial extends CenaBase {
   // Estado de Choque do Cabo Caído (Desafio 3)
   private isShocked: boolean = false;
 
-  // Controle de Conclusão da Demo
+  // Controle de Conclusão da Demo e Transição
   private isDemoEndTriggered: boolean = false;
+  private isTransicionandoHub: boolean = false;
 
   private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
   private wasdKeys?: {
@@ -144,8 +145,17 @@ export class CenaTutorial extends CenaBase {
       return;
     }
 
-    // Checagem de proximidade do Muro de Obras para encerramento da demo (<100px)
-    if (!this.isDemoEndTriggered && Math.abs(this.player.x - 3200) < 100) {
+    // Checagem de proximidade do Muro de Obras para encerramento da demo e transição ao Hub
+    const distMuro = Math.abs(this.player.x - 3200);
+    const pertoDoMuro = distMuro < 130;
+    const cruzouLinhaFinal = this.player.x >= 3220;
+
+    if ((pertoDoMuro && this.interactKey && Phaser.Input.Keyboard.JustDown(this.interactKey)) || cruzouLinhaFinal) {
+      this.concluirTutorialParaHub();
+      return;
+    }
+
+    if (!this.isDemoEndTriggered && distMuro < 100) {
       this.dispararDialogoFimDemo();
     }
 
@@ -2140,17 +2150,17 @@ export class CenaTutorial extends CenaBase {
     // Painel escuro com bordas de advertência amarela
     const signG = this.add.graphics();
     signG.fillStyle(0x0a0f17, 0.95);
-    signG.fillRoundedRect(3040, 360, 280, 120, 6);
+    signG.fillRoundedRect(3010, 350, 340, 140, 6);
     // Moldura externa zebrada / amarela
     signG.lineStyle(3, 0xfacc15, 1);
-    signG.strokeRoundedRect(3040, 360, 280, 120, 6);
+    signG.strokeRoundedRect(3010, 350, 340, 140, 6);
     signG.lineStyle(1.5, 0x00e5ff, 0.8);
-    signG.strokeRoundedRect(3044, 364, 272, 112, 4);
+    signG.strokeRoundedRect(3014, 354, 332, 132, 4);
     signG.setDepth(16);
 
     // Textos em destaque na placa
     this.add
-      .text(3180, 385, '⚠ EM OBRAS // SETOR RESTRITO ⚠', {
+      .text(3180, 372, '⚠ EM OBRAS // SETOR RESTRITO ⚠', {
         fontSize: '14px',
         color: '#facc15',
         fontFamily: 'Consolas, monospace',
@@ -2162,7 +2172,7 @@ export class CenaTutorial extends CenaBase {
       .setDepth(17);
 
     this.add
-      .text(3180, 420, 'Aguarde a construção do jogo!', {
+      .text(3180, 400, 'Aguarde a construção do jogo!', {
         fontSize: '13px',
         color: '#00e5ff',
         fontFamily: 'Consolas, monospace',
@@ -2174,10 +2184,22 @@ export class CenaTutorial extends CenaBase {
       .setDepth(17);
 
     this.add
-      .text(3180, 452, '[FIM DO SETOR DISPONÍVEL NA DEMO]', {
+      .text(3180, 426, '[FIM DO SETOR DISPONÍVEL NA DEMO]', {
         fontSize: '10px',
         color: '#94a3b8',
         fontFamily: 'monospace',
+      })
+      .setOrigin(0.5)
+      .setDepth(17);
+
+    this.add
+      .text(3180, 458, 'Pressione [E] para acessar o Terminal Central (Hub)', {
+        fontSize: '11px',
+        color: '#00ff66',
+        fontFamily: 'Consolas, monospace',
+        fontStyle: 'bold',
+        stroke: '#000000',
+        strokeThickness: 2,
       })
       .setOrigin(0.5)
       .setDepth(17);
@@ -2199,13 +2221,44 @@ export class CenaTutorial extends CenaBase {
         {
           falante: '> CANAL REBELDE // INTERCEPTAÇÃO: ESTAGIÁRIO_V0.9b',
           texto:
-            'O acesso aos setores avançados da Resistência foi liberado no Hub Central. Desconectando deste setor...',
+            'O acesso aos setores avançados da Resistência foi liberado no Hub Central. Pressione [E] para acessar o Terminal Central (Hub).',
         },
       ],
       () => {
-        this.retornarAoHub();
+        this.concluirTutorialParaHub();
       }
     );
+  }
+
+  private concluirTutorialParaHub(): void {
+    if (this.isTransicionandoHub) return;
+    this.isTransicionandoHub = true;
+
+    // Salva o progresso no GerenciadorEstado
+    GerenciadorEstado.salvarTutorialConcluido(true);
+
+    // Prevenção de loop: garante limpeza completa de overlays DOM
+    if (this.terminal) {
+      this.terminal.fecharForcado();
+    }
+    if (this.comunicador) {
+      this.comunicador.finalizarDialogo();
+    }
+
+    const terminalOverlay = document.getElementById('terminal-overlay');
+    if (terminalOverlay) {
+      terminalOverlay.classList.add('hidden');
+    }
+    const dialogOverlay = document.getElementById('dialog-overlay');
+    if (dialogOverlay) {
+      dialogOverlay.classList.add('hidden');
+    }
+
+    // Fade-out suave da câmera e transição direta para a CenaHub
+    this.cameras.main.fade(300, 0, 0, 0);
+    this.time.delayedCall(300, () => {
+      this.scene.start('CenaHub');
+    });
   }
 
   private criarJogador(): void {

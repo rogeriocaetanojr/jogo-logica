@@ -151,6 +151,25 @@ export class GerenciadorEstado {
     this.salvar();
   }
 
+  /**
+   * Salva o progresso do tutorial como concluído e persiste no armazenamento local
+   */
+  public salvarTutorialConcluido(concluido: boolean = true): void {
+    if (concluido) {
+      this.fasesConcluidas.add('fase0_tutorial');
+    } else {
+      this.fasesConcluidas.delete('fase0_tutorial');
+    }
+    this.salvar();
+  }
+
+  /**
+   * Atalho estático para salvar conclusão do tutorial
+   */
+  public static salvarTutorialConcluido(concluido: boolean = true): void {
+    GerenciadorEstado.obterInstancia().salvarTutorialConcluido(concluido);
+  }
+
   public desbloquearTodas(): void {
     for (const fase of this.catalogoFases) {
       this.fasesConcluidas.add(fase.id);
