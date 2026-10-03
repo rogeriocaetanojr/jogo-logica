@@ -31,7 +31,7 @@ export abstract class CenaBase extends Phaser.Scene {
     this.terminal = new Terminal();
 
     // Configura atalho ESC para retornar ao hub se o terminal estiver fechado
-    if (this.input.keyboard) {
+    if (this.input?.keyboard) {
       this.teclaEscCena = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
     }
 
