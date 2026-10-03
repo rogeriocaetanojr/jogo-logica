@@ -101,10 +101,8 @@ export function interpretarComandoTutorial(
   }
 
   // Normaliza removendo ponto e vírgula no final e espaços extras
-  const normalizado = bruto
-    .replace(/;+$/, '')
-    .trim()
-    .toLowerCase();
+  const semPontoEVirgula = bruto.replace(/;+$/, '').trim();
+  const normalizado = semPontoEVirgula.toLowerCase();
 
   // ==========================================
   // COMANDOS DE SISTEMA: CLEAR / CLS / LIMPAR / AJUDA
@@ -195,7 +193,16 @@ export function interpretarComandoTutorial(
   // ==========================================
   const isTotemEnergia = contexto?.totem === 'power' || contexto?.totem === 'energia';
 
-  // 1. Redundância: energia = False
+  // 1. Jogador digitou apenas True (ou true) solto
+  if (/^true$/i.test(semPontoEVirgula)) {
+    return {
+      sucesso: false,
+      mensagem:
+        "[SINTAXE INCOMPLETA] Mega Brain: 'Um valor solto no terminal não altera registradores. Declare a variável completa: energia = True'",
+    };
+  }
+
+  // 2. Redundância: energia = False ou false solto
   if (
     atribuicaoCompacta === 'energia=false' ||
     (isTotemEnergia && atribuicaoCompacta === 'false')
@@ -207,7 +214,29 @@ export function interpretarComandoTutorial(
     };
   }
 
-  // 2. Erro de Tipo: Números (ex: energia = 1) ou Strings (ex: energia = "ligada")
+  // 3. Digitou energia = true (com minúscula ou sem a inicial maiúscula estrita de Python)
+  if (
+    /^energia\s*=\s*true$/i.test(semPontoEVirgula) &&
+    !/^energia\s*=\s*True$/.test(semPontoEVirgula)
+  ) {
+    return {
+      sucesso: false,
+      mensagem:
+        "[NAME ERROR] Mega Brain: 'Em Python, booleanos começam com inicial maiúscula. Use True.'",
+    };
+  }
+
+  // 4. Sucesso: sintaxe de atribuição em Python completa energia = True (aceita variações de espaçamento)
+  if (/^energia\s*=\s*True$/.test(semPontoEVirgula)) {
+    return {
+      sucesso: true,
+      mensagem:
+        '[SUCESSO] energia = True | Corrente contínua restabelecida! Tranca magnética desativada.',
+      acao: 'DISABLE_STEEL_DOOR',
+    };
+  }
+
+  // 5. Erro de Tipo: Números (ex: energia = 1) ou Strings (ex: energia = "ligada")
   const isEnergiaNumero =
     /^energia=\d+$/.test(atribuicaoCompacta) ||
     (isTotemEnergia && /^\d+$/.test(atribuicaoCompacta));
@@ -220,20 +249,6 @@ export function interpretarComandoTutorial(
     return {
       sucesso: false,
       mensagem: obterErroNaoRepetido('d1_tipo', ERROS_MEGA_BRAIN.desafio1.tipoIncompativel),
-    };
-  }
-
-  // 3. Sucesso: energia = True ou energia = true
-  const isEnergiaSucesso =
-    atribuicaoCompacta === 'energia=true' ||
-    (isTotemEnergia && atribuicaoCompacta === 'true');
-
-  if (isEnergiaSucesso) {
-    return {
-      sucesso: true,
-      mensagem:
-        '[SUCESSO] energia = True | Corrente contínua restabelecida! Tranca magnética desativada.',
-      acao: 'DISABLE_STEEL_DOOR',
     };
   }
 
