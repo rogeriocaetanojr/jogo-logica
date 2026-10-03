@@ -35,6 +35,7 @@ export class CenaHub extends Phaser.Scene {
   };
   private teclaEnter?: Phaser.Input.Keyboard.Key;
   private teclaTerminal?: Phaser.Input.Keyboard.Key;
+  private teclaP?: Phaser.Input.Keyboard.Key;
 
   // Objeto base auxiliar para herdar os utilitários de CenaBase
   private terminalHub?: CenaBase['terminal'];
@@ -61,6 +62,7 @@ export class CenaHub extends Phaser.Scene {
 
     this.criarCenarioFundo(width, height);
     this.criarCabecalho(width);
+    this.criarBotaoSelecaoPersonagem(width);
     this.criarListaFases(width, height);
     this.criarPainelDetalhes(width, height);
     this.criarRodape(width, height);
@@ -126,6 +128,57 @@ export class CenaHub extends Phaser.Scene {
     subtitulo.setOrigin(0.5);
 
     container.add([titulo, subtitulo]);
+  }
+
+  private criarBotaoSelecaoPersonagem(width: number): void {
+    const personagemAtivo = this.base['gerenciadorEstado'].obterPersonagem();
+    const nomePersonagem = personagemAtivo === 'reis' ? 'REIS' : 'ALVARES';
+    const corPersonagem = personagemAtivo === 'reis' ? '#f87171' : '#facc15';
+
+    const container = this.add.container(width - 150, 45);
+    const fundo = this.add.rectangle(0, 0, 240, 46, 0x091522, 0.9);
+    fundo.setStrokeStyle(1.5, 0x00e5ff, 0.7);
+    fundo.setInteractive({ useHandCursor: true });
+
+    const textoAtalho = this.add.text(0, -9, '[P] SELEÇÃO DE OPERADOR', {
+      fontFamily: 'Consolas, Courier New, monospace',
+      fontSize: '12px',
+      color: '#00e5ff',
+      fontStyle: 'bold',
+    });
+    textoAtalho.setOrigin(0.5);
+
+    const textoOperador = this.add.text(0, 9, `ATIVO: ${nomePersonagem}`, {
+      fontFamily: 'Consolas, Courier New, monospace',
+      fontSize: '11px',
+      color: corPersonagem,
+      fontStyle: 'bold',
+    });
+    textoOperador.setOrigin(0.5);
+
+    container.add([fundo, textoAtalho, textoOperador]);
+    container.setDepth(20);
+
+    fundo.on('pointerover', () => {
+      fundo.setFillStyle(0x102538, 1);
+      fundo.setStrokeStyle(2, 0x00ffcc, 1);
+    });
+
+    fundo.on('pointerout', () => {
+      fundo.setFillStyle(0x091522, 0.9);
+      fundo.setStrokeStyle(1.5, 0x00e5ff, 0.7);
+    });
+
+    fundo.on('pointerdown', () => {
+      this.abrirSelecaoPersonagem();
+    });
+  }
+
+  private abrirSelecaoPersonagem(): void {
+    this.cameras.main.fade(300, 0, 0, 0);
+    this.time.delayedCall(300, () => {
+      this.scene.start('CenaSelecaoPersonagem');
+    });
   }
 
   private criarListaFases(_width: number, _height: number): void {
@@ -310,7 +363,7 @@ export class CenaHub extends Phaser.Scene {
     const rodape = this.add.text(
       width / 2,
       height - 25,
-      '[ ↑ / ↓ ou W / S ] Navegar  |  [ENTER] Iniciar  |  [3] Inspecionar Fase 3  |  [T] Terminal Hub',
+      '[ ↑ / ↓ ou W / S ] Navegar  |  [ENTER] Iniciar  |  [P] Selecionar Personagem  |  [3] Inspecionar Fase 3  |  [T] Terminal Hub',
       {
         fontFamily: 'Consolas, Courier New, monospace',
         fontSize: '12px',
@@ -331,11 +384,17 @@ export class CenaHub extends Phaser.Scene {
       this.teclaTerminal = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.T);
       this.teclaTres = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.THREE);
       this.teclaTresNumpad = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.NUMPAD_THREE);
+      this.teclaP = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.P);
     }
   }
 
   update(): void {
     if (this.terminalHub && this.terminalHub.estaAberto) {
+      return;
+    }
+
+    if (this.teclaP && Phaser.Input.Keyboard.JustDown(this.teclaP)) {
+      this.abrirSelecaoPersonagem();
       return;
     }
 
