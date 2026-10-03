@@ -28,9 +28,9 @@ export const configuracaoJogo: Phaser.Types.Core.GameConfig = {
     height: 720,
   },
   scene: [
-    CenaTutorial,
     CenaAbertura,
     CenaHub,
+    CenaTutorial,
     CenaFase1,
     CenaFase2,
     CenaFase3,
