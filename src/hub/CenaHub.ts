@@ -1,50 +1,117 @@
 import Phaser from 'phaser';
-import { CenaBase } from '../compartilhado/CenaBase';
-import type { InfoFase, ResultadoComando } from '../compartilhado/tipos';
+import { GerenciadorEstado, type TipoPersonagem } from '../nucleo/GerenciadorEstado';
+
+interface PortaHubConfig {
+  numero: number;
+  idFase: string;
+  chaveCena: string;
+  rotulo: string;
+  // Coordenadas da porta
+  xPorta: number;
+  yPorta: number;
+  // Coordenadas da placa neon
+  xPlaca: number;
+  yPlaca: number;
+  desenharPortaEstrutural?: boolean;
+}
+
+const COR_NEON_PADRAO = 0x00ff66; // Verde neon uniforme de alto contraste
+const COR_TEXTO_PADRAO = '#00ff66';
+
+const CONFIG_PORTAS: PortaHubConfig[] = [
+  {
+    numero: 0,
+    idFase: 'fase0_tutorial',
+    chaveCena: 'CenaTutorial',
+    rotulo: 'FASE TUTORIAL',
+    xPorta: 162,
+    yPorta: 235,
+    xPlaca: 162,
+    yPlaca: 165,
+  },
+  {
+    numero: 1,
+    idFase: 'fase1',
+    chaveCena: 'CenaFase1',
+    rotulo: 'FASE 1',
+    xPorta: 430,
+    yPorta: 355,
+    xPlaca: 430,
+    yPlaca: 285,
+    desenharPortaEstrutural: true,
+  },
+  {
+    numero: 2,
+    idFase: 'fase2',
+    chaveCena: 'CenaFase2',
+    rotulo: 'FASE 2',
+    xPorta: 765,
+    yPorta: 355,
+    xPlaca: 765,
+    yPlaca: 285,
+  },
+  {
+    numero: 3,
+    idFase: 'fase3',
+    chaveCena: 'CenaFase3',
+    rotulo: 'FASE 3',
+    xPorta: 1110,
+    yPorta: 175,
+    xPlaca: 1110,
+    yPlaca: 105,
+  },
+  {
+    numero: 4,
+    idFase: 'fase4',
+    chaveCena: 'CenaFase4',
+    rotulo: 'FASE 4',
+    xPorta: 162,
+    yPorta: 580,
+    xPlaca: 162,
+    yPlaca: 520,
+  },
+  {
+    numero: 5,
+    idFase: 'fase5',
+    chaveCena: 'CenaFase5',
+    rotulo: 'FASE 5',
+    xPorta: 635,
+    yPorta: 580,
+    xPlaca: 635,
+    yPlaca: 520,
+  },
+  {
+    numero: 6,
+    idFase: 'fase_final',
+    chaveCena: 'CenaFaseFinal',
+    rotulo: 'FASE FINAL',
+    xPorta: 1110,
+    yPorta: 580,
+    xPlaca: 1110,
+    yPlaca: 520,
+  },
+];
 
 /**
- * CenaHub: Hub Central e Seletor de Fases com temática hacker cyberpunk retrô.
+ * CenaHub: Hub Central padronizado com placas monocromáticas verdes de alto contraste,
+ * animação do operador caminhando até a porta escolhida e botão premium de seleção.
  */
 export class CenaHub extends Phaser.Scene {
-  private base!: CenaBase;
-  private fases: InfoFase[] = [];
-  private indiceSelecionado: number = 0;
-
-  private elementosLista: {
-    container: Phaser.GameObjects.Container;
-    fundo: Phaser.GameObjects.Rectangle;
-    textoNumero: Phaser.GameObjects.Text;
-    textoTitulo: Phaser.GameObjects.Text;
-    textoStatus: Phaser.GameObjects.Text;
-    fase: InfoFase;
-  }[] = [];
-
-  private painelDetalhes!: {
-    container: Phaser.GameObjects.Container;
-    textoTitulo: Phaser.GameObjects.Text;
-    textoTopico: Phaser.GameObjects.Text;
-    textoAutor: Phaser.GameObjects.Text;
-    textoDescricao: Phaser.GameObjects.Text;
-    botaoIniciar: Phaser.GameObjects.Container;
-  };
-
-  private cursores?: Phaser.Types.Input.Keyboard.CursorKeys;
-  private teclasWASD?: {
-    cima: Phaser.Input.Keyboard.Key;
-    baixo: Phaser.Input.Keyboard.Key;
-  };
-  private teclaEnter?: Phaser.Input.Keyboard.Key;
-  private teclaTerminal?: Phaser.Input.Keyboard.Key;
-  private teclaP?: Phaser.Input.Keyboard.Key;
-
-  // Objeto base auxiliar para herdar os utilitários de CenaBase
-  private terminalHub?: CenaBase['terminal'];
+  private gerenciadorEstado: GerenciadorEstado;
+  private isTransicaoAtiva: boolean = false;
+  private personagemAtivo: TipoPersonagem = 'alvares';
+  private spritePersonagem!: Phaser.GameObjects.Sprite;
 
   constructor() {
     super('CenaHub');
+    this.gerenciadorEstado = GerenciadorEstado.obterInstancia();
   }
 
   preload(): void {
+    if (!this.textures.exists('hub_fundo')) {
+      this.load.image('hub_fundo', 'assets/cenarios/hub_fundo.png');
+    }
+
     if (!this.textures.exists('alvares')) {
       this.load.spritesheet('alvares', 'assets/personagens/alvares.png', {
         frameWidth: 128,
@@ -61,577 +128,462 @@ export class CenaHub extends Phaser.Scene {
 
   create(): void {
     const { width, height } = this.scale;
-    this.cameras.main.setBackgroundColor('#050811');
+    this.isTransicaoAtiva = false;
+    this.personagemAtivo = GerenciadorEstado.obterPersonagem();
+
+    // 1. Limpeza defensiva de overlays do DOM
+    this.limparOverlaysDOM();
+
+    this.cameras.main.setBackgroundColor('#000000');
     this.cameras.main.fadeIn(300, 0, 0, 0);
 
-    // Instancia recursos de CenaBase sob demanda
-    this.base = new (class extends CenaBase {
-      constructor() {
-        super('CenaHubInterna', 'hub');
+    // 2. Renderização do Cenário de Fundo limpo
+    if (this.textures.exists('hub_fundo')) {
+      const fundo = this.add.image(width / 2, height / 2, 'hub_fundo');
+      fundo.setDisplaySize(width, height);
+      fundo.setDepth(0);
+    }
+
+    // 3. Brilho sutil dos monitores CRT da arte
+    this.criarBrilhoMonitores();
+
+    // 4. Criação das 7 Portas com Placas Padronizadas (uma única cor, sem tooltip)
+    this.criarPortasSetores();
+
+    // 5. Instanciação do Operador na passarela central
+    this.criarOperadorCenario();
+
+    // 6. Botão Premium Elegante no canto superior direito para Escolha do Operador
+    this.criarBotaoOperadorPremium(width);
+
+    // 7. Efeito CRT scanlines global
+    this.criarEfeitoCRT(width, height);
+
+    // 8. Atalhos do Teclado ([0] a [6] e [P])
+    this.configurarTeclasAtalho();
+  }
+
+  private limparOverlaysDOM(): void {
+    const terminalOverlay = document.getElementById('terminal-overlay');
+    if (terminalOverlay) {
+      terminalOverlay.classList.add('hidden');
+    }
+    const dialogOverlay = document.getElementById('dialog-overlay');
+    if (dialogOverlay) {
+      dialogOverlay.classList.add('hidden');
+    }
+  }
+
+  private criarBrilhoMonitores(): void {
+    const glow = this.add.graphics();
+    glow.fillStyle(0x00ff88, 0.035);
+    glow.fillCircle(550, 260, 110);
+    glow.fillCircle(870, 520, 95);
+    glow.setBlendMode(Phaser.BlendModes.ADD);
+    glow.setDepth(1);
+
+    this.tweens.add({
+      targets: glow,
+      alpha: { from: 0.5, to: 0.9 },
+      yoyo: true,
+      repeat: -1,
+      duration: 1400,
+      ease: 'Sine.easeInOut',
+    });
+  }
+
+  private criarPortasSetores(): void {
+    const listaFases = this.gerenciadorEstado.obterListaFases();
+
+    for (const cfg of CONFIG_PORTAS) {
+      const infoFase = listaFases.find((f) => f.id === cfg.idFase);
+      const isConcluida = infoFase ? this.gerenciadorEstado.estaConcluida(infoFase.id) : false;
+      const isDesbloqueada = infoFase ? infoFase.desbloqueada || isConcluida || cfg.numero === 0 : true;
+
+      // Desenha a porta 1 adicional do mezanino esquerdo para completar os 7 setores
+      if (cfg.desenharPortaEstrutural) {
+        this.desenharPortaAdicional(cfg.xPorta, cfg.yPorta, isConcluida, isDesbloqueada);
       }
-    })();
-    this.base.create();
-    this.terminalHub = (this.base as any).terminal;
 
-    this.fases = this.base['gerenciadorEstado'].obterListaFases();
+      // Container da Placa Padronizada
+      const containerPlaca = this.add.container(cfg.xPlaca, cfg.yPlaca);
+      containerPlaca.setDepth(20);
 
-    this.criarCenarioFundo(width, height);
-    this.criarCabecalho(width);
-    this.criarBotaoSelecaoPersonagem(width);
-    this.criarListaFases(width, height);
-    this.criarPainelDetalhes(width, height);
-    this.criarRodape(width, height);
-    this.configurarControles();
-    this.configurarTerminalHub();
+      // Placa com formato e estilo padronizados para todas
+      const placaLargura = 148;
+      const placaAltura = 34;
 
-    (this.base as any).criarEfeitoCRT(width, height, 0.035);
+      const placaG = this.add.graphics();
+      // Fundo escuro de alto contraste para não se confundir com o fundo
+      placaG.fillStyle(0x040810, 0.98);
+      placaG.fillRoundedRect(-placaLargura / 2, -placaAltura / 2, placaLargura, placaAltura, 6);
+      // Borda neon verde uniforme
+      placaG.lineStyle(2, COR_NEON_PADRAO, 0.95);
+      placaG.strokeRoundedRect(-placaLargura / 2, -placaAltura / 2, placaLargura, placaAltura, 6);
 
-    this.atualizarSelecaoVisual();
-  }
-
-  private criarCenarioFundo(width: number, height: number): void {
-    const g = this.add.graphics();
-
-    // Gradiente sutil escuro
-    g.fillGradientStyle(0x04060a, 0x04060a, 0x08101a, 0x08101a, 1);
-    g.fillRect(0, 0, width, height);
-
-    // Grid hacker no fundo
-    g.lineStyle(1, 0x00ff66, 0.04);
-    for (let x = 0; x < width; x += 40) {
-      g.beginPath();
-      g.moveTo(x, 0);
-      g.lineTo(x, height);
-      g.strokePath();
-    }
-    for (let y = 0; y < height; y += 40) {
-      g.beginPath();
-      g.moveTo(0, y);
-      g.lineTo(width, y);
-      g.strokePath();
-    }
-  }
-
-  private criarCabecalho(width: number): void {
-    const container = this.add.container(width / 2, 45);
-
-    const titulo = this.add.text(
-      0,
-      -10,
-      'TERMINAL ZERO // HUB CENTRAL DE COMANDO',
-      {
-        fontFamily: 'Consolas, Courier New, monospace',
-        fontSize: '26px',
-        color: '#00ff66',
+      // Texto único, nítido e padronizado
+      const textoPlaca = this.add.text(0, 0, cfg.rotulo, {
+        fontFamily: 'Consolas, "Courier New", monospace',
+        fontSize: '14px',
+        color: COR_TEXTO_PADRAO,
+        fontStyle: 'bold',
         stroke: '#000000',
-        strokeThickness: 3,
-      }
-    );
-    titulo.setOrigin(0.5);
+        strokeThickness: 2,
+        shadow: {
+          offsetX: 0,
+          offsetY: 0,
+          color: COR_TEXTO_PADRAO,
+          blur: 10,
+          stroke: true,
+          fill: true,
+        },
+      });
+      textoPlaca.setOrigin(0.5);
 
-    const subtitulo = this.add.text(
-      0,
-      20,
-      '[ REDE SUBTERRÂNEA REBELDE - SELEÇÃO DE SETORES E FASES ]',
-      {
-        fontFamily: 'Consolas, Courier New, monospace',
-        fontSize: '13px',
-        color: '#00e5ff',
-        letterSpacing: 2,
-      }
-    );
-    subtitulo.setOrigin(0.5);
+      containerPlaca.add([placaG, textoPlaca]);
 
-    container.add([titulo, subtitulo]);
+      // Hit area cobrindo a porta e a placa para o clique
+      const alturaHit = Math.max(130, (cfg.yPorta + 65) - (cfg.yPlaca - 18));
+      const centroHitY = (cfg.yPorta + cfg.yPlaca) / 2;
+
+      const hitArea = this.add.rectangle(cfg.xPorta, centroHitY, 120, alturaHit, 0x000000, 0.001);
+      hitArea.setDepth(25);
+      hitArea.setInteractive({ useHandCursor: true });
+
+      // Feedback visual ao passar o mouse (Hover sem tooltip)
+      hitArea.on('pointerover', () => {
+        placaG.clear();
+        placaG.fillStyle(0x081525, 1);
+        placaG.fillRoundedRect(-placaLargura / 2, -placaAltura / 2, placaLargura, placaAltura, 6);
+        placaG.lineStyle(2.5, 0xffffff, 1);
+        placaG.strokeRoundedRect(-placaLargura / 2, -placaAltura / 2, placaLargura, placaAltura, 6);
+      });
+
+      hitArea.on('pointerout', () => {
+        placaG.clear();
+        placaG.fillStyle(0x040810, 0.98);
+        placaG.fillRoundedRect(-placaLargura / 2, -placaAltura / 2, placaLargura, placaAltura, 6);
+        placaG.lineStyle(2, COR_NEON_PADRAO, 0.95);
+        placaG.strokeRoundedRect(-placaLargura / 2, -placaAltura / 2, placaLargura, placaAltura, 6);
+      });
+
+      // Feedback ao clicar: o boneco caminha até a porta e entra nela
+      hitArea.on('pointerdown', () => {
+        this.moverPersonagemAtePortaEEntrar(cfg);
+      });
+    }
   }
 
-  private criarBotaoSelecaoPersonagem(width: number): void {
-    const personagemAtivo = this.base['gerenciadorEstado'].obterPersonagem();
-    const nomePersonagem = personagemAtivo === 'reis' ? 'REIS' : 'ALVARES';
-    const corPersonagem = personagemAtivo === 'reis' ? '#f87171' : '#facc15';
+  private desenharPortaAdicional(x: number, y: number, isConcluida: boolean, isDesbloqueada: boolean): void {
+    const portaG = this.add.graphics();
+    portaG.setDepth(5);
 
-    const container = this.add.container(width - 150, 45);
-    const fundo = this.add.rectangle(0, 0, 240, 46, 0x091522, 0.9);
-    fundo.setStrokeStyle(1.5, 0x00e5ff, 0.7);
-    fundo.setInteractive({ useHandCursor: true });
+    // Batente metálico chanfrado industrial
+    portaG.fillStyle(0x131a24, 0.98);
+    portaG.fillRoundedRect(x - 38, y - 50, 76, 100, 6);
+    portaG.lineStyle(2, 0x2d3748, 1);
+    portaG.strokeRoundedRect(x - 38, y - 50, 76, 100, 6);
 
-    const textoAtalho = this.add.text(0, -9, '[P] SELEÇÃO DE OPERADOR', {
-      fontFamily: 'Consolas, Courier New, monospace',
-      fontSize: '12px',
-      color: '#00e5ff',
+    // Folha de aço da porta
+    portaG.fillStyle(0x1f2937, 1);
+    portaG.fillRect(x - 32, y - 44, 64, 92);
+
+    // Frisos chanfrados e zíper vertical
+    portaG.fillStyle(0x111827, 1);
+    portaG.fillRect(x - 3, y - 44, 6, 92);
+    portaG.fillStyle(0x374151, 1);
+    portaG.fillRect(x - 30, y - 25, 60, 3);
+    portaG.fillRect(x - 30, y, 60, 3);
+    portaG.fillRect(x - 30, y + 25, 60, 3);
+
+    // Luz de status superior
+    const corLuzStatus = isConcluida ? 0x10b981 : isDesbloqueada ? 0x00e5ff : 0xef4444;
+    portaG.fillStyle(corLuzStatus, 1);
+    portaG.fillRect(x - 22, y - 46, 44, 4);
+
+    // Terminal leitor biométrico lateral
+    const tx = x + 46;
+    portaG.fillStyle(0x0f172a, 1);
+    portaG.fillRoundedRect(tx - 8, y - 9, 16, 28, 3);
+    portaG.fillStyle(corLuzStatus, 0.85);
+    portaG.fillRect(tx - 5, y - 5, 10, 12);
+  }
+
+  private criarOperadorCenario(): void {
+    this.registrarAnimacoes();
+
+    const chaveSprite = this.personagemAtivo === 'reis' ? 'reis' : 'alvares';
+    // Posição inicial natural na passarela do mezanino central
+    this.spritePersonagem = this.add.sprite(610, 370, chaveSprite);
+    this.spritePersonagem.setDepth(15);
+
+    if (this.anims.exists(`${this.personagemAtivo}_idle`)) {
+      this.spritePersonagem.anims.play(`${this.personagemAtivo}_idle`, true);
+    }
+  }
+
+  private registrarAnimacoes(): void {
+    const tipos: TipoPersonagem[] = ['alvares', 'reis'];
+    for (const t of tipos) {
+      if (!this.textures.exists(t)) continue;
+
+      if (!this.anims.exists(`${t}_idle`)) {
+        this.anims.create({
+          key: `${t}_idle`,
+          frames: this.anims.generateFrameNumbers(t, { frames: [0] }),
+          frameRate: 1,
+          repeat: -1,
+        });
+      }
+
+      if (!this.anims.exists(`${t}_run`)) {
+        this.anims.create({
+          key: `${t}_run`,
+          frames: this.anims.generateFrameNumbers(t, { frames: [1] }),
+          frameRate: 8,
+          repeat: -1,
+        });
+      }
+    }
+  }
+
+  /**
+   * Move o personagem andando até a porta escolhida, executa a animação de entrada
+   * (virando de costas / frame 2) e em seguida redireciona para a cena da fase.
+   */
+  private moverPersonagemAtePortaEEntrar(cfg: PortaHubConfig): void {
+    if (this.isTransicaoAtiva) return;
+    this.isTransicaoAtiva = true;
+
+    if (!this.spritePersonagem) {
+      this.iniciarFaseDireto(cfg.chaveCena);
+      return;
+    }
+
+    const destinoX = cfg.xPorta;
+    const destinoY = cfg.yPorta + 12;
+
+    // Orienta o personagem na direção da porta (direita ou esquerda)
+    const olhandoEsquerda = destinoX < this.spritePersonagem.x;
+    this.spritePersonagem.setFlipX(olhandoEsquerda);
+
+    // Inicia a animação de corrida
+    if (this.anims.exists(`${this.personagemAtivo}_run`)) {
+      this.spritePersonagem.anims.play(`${this.personagemAtivo}_run`, true);
+    }
+
+    // Calcula duração do percurso com base na distância (velocidade uniforme)
+    const distancia = Phaser.Math.Distance.Between(
+      this.spritePersonagem.x,
+      this.spritePersonagem.y,
+      destinoX,
+      destinoY
+    );
+    const duracaoMovimento = Math.max(380, Math.min(1000, distancia * 1.6));
+
+    // Move o personagem até a porta
+    this.tweens.add({
+      targets: this.spritePersonagem,
+      x: destinoX,
+      y: destinoY,
+      duration: duracaoMovimento,
+      ease: 'Quad.easeInOut',
+      onComplete: () => {
+        // Chegou na porta: para a animação de corrida
+        this.spritePersonagem.anims.stop();
+        // Vira de costas para entrar na porta (frame 2 do spritesheet oficial)
+        this.spritePersonagem.setFrame(2);
+
+        // Flash sutil na câmera / leitor da porta
+        this.cameras.main.flash(180, 0, 255, 102);
+
+        // Animação de entrar na porta (dá um passo para dentro, encolhe e desvanece)
+        this.tweens.add({
+          targets: this.spritePersonagem,
+          y: destinoY - 10,
+          scale: 0.72,
+          alpha: 0.1,
+          duration: 280,
+          ease: 'Sine.easeIn',
+          onComplete: () => {
+            this.cameras.main.fade(280, 0, 0, 0);
+            this.time.delayedCall(280, () => {
+              this.scene.start(cfg.chaveCena);
+            });
+          },
+        });
+      },
+    });
+  }
+
+  private iniciarFaseDireto(chaveCena: string): void {
+    this.cameras.main.fade(300, 0, 0, 0);
+    this.time.delayedCall(300, () => {
+      this.scene.start(chaveCena);
+    });
+  }
+
+  /**
+   * Botão de Seleção de Operador no canto superior direito.
+   * Não possui caixa ou texto "HUB" na tela, destacando o botão.
+   */
+  private criarBotaoOperadorPremium(width: number): void {
+    const btnX = width - 135;
+    const btnY = 38;
+
+    const container = this.add.container(btnX, btnY);
+    container.setDepth(60);
+
+    const nomeOperador = this.personagemAtivo === 'reis' ? 'REIS' : 'ALVARES';
+    const corTema = this.personagemAtivo === 'reis' ? 0xf87171 : 0xfacc15;
+    const corTexto = this.personagemAtivo === 'reis' ? '#f87171' : '#facc15';
+    const letraInicial = this.personagemAtivo === 'reis' ? 'R' : 'A';
+
+    // Fundo do botão em estilo cápsula sci-fi chanfrada
+    const btnFundo = this.add.graphics();
+    const desenharFundo = (isHover: boolean) => {
+      btnFundo.clear();
+      // Fundo escuro com leve gradiente e opacidade alta
+      btnFundo.fillStyle(isHover ? 0x0f253a : 0x06111e, isHover ? 0.98 : 0.92);
+      btnFundo.fillRoundedRect(-105, -22, 210, 44, 8);
+
+      // Borda neon com brilho marcante
+      btnFundo.lineStyle(isHover ? 2.5 : 1.8, isHover ? 0x00ffcc : corTema, 0.95);
+      btnFundo.strokeRoundedRect(-105, -22, 210, 44, 8);
+
+      // Friso superior cibernético
+      btnFundo.lineStyle(1.2, 0x00ffcc, isHover ? 0.9 : 0.4);
+      btnFundo.lineBetween(-85, -18, 85, -18);
+    };
+
+    desenharFundo(false);
+
+    // Emblema circular holográfico com a inicial do operador
+    const emblemaG = this.add.graphics();
+    emblemaG.fillStyle(0x0c1b2c, 1);
+    emblemaG.fillCircle(-78, 0, 14);
+    emblemaG.lineStyle(1.6, corTema, 0.95);
+    emblemaG.strokeCircle(-78, 0, 14);
+
+    const textoEmblema = this.add.text(-78, 0, letraInicial, {
+      fontFamily: 'Consolas, monospace',
+      fontSize: '13px',
+      color: corTexto,
       fontStyle: 'bold',
     });
-    textoAtalho.setOrigin(0.5);
+    textoEmblema.setOrigin(0.5);
 
-    const textoOperador = this.add.text(0, 9, `ATIVO: ${nomePersonagem}`, {
-      fontFamily: 'Consolas, Courier New, monospace',
-      fontSize: '11px',
-      color: corPersonagem,
+    // Rótulo da Linha 1: "OPERADOR ATIVO"
+    const textoSub = this.add.text(-56, -7, 'OPERADOR ATIVO', {
+      fontFamily: 'Consolas, "Courier New", monospace',
+      fontSize: '9px',
+      color: '#94a3b8',
+      letterSpacing: 1,
+    });
+    textoSub.setOrigin(0, 0.5);
+
+    // Rótulo da Linha 2: "[P] ALVARES" ou "[P] REIS"
+    const textoPrincipal = this.add.text(-56, 7, `[P] ${nomeOperador}`, {
+      fontFamily: 'Consolas, "Courier New", monospace',
+      fontSize: '13px',
+      color: corTexto,
       fontStyle: 'bold',
+      shadow: {
+        offsetX: 0,
+        offsetY: 0,
+        color: corTexto,
+        blur: 8,
+        fill: true,
+      },
     });
-    textoOperador.setOrigin(0.5);
+    textoPrincipal.setOrigin(0, 0.5);
 
-    container.add([fundo, textoAtalho, textoOperador]);
-    container.setDepth(20);
+    // LED indicador verde pulsante de status
+    const ledG = this.add.graphics();
+    ledG.fillStyle(0x10b981, 1);
+    ledG.fillCircle(88, 0, 4);
 
-    fundo.on('pointerover', () => {
-      fundo.setFillStyle(0x102538, 1);
-      fundo.setStrokeStyle(2, 0x00ffcc, 1);
+    this.tweens.add({
+      targets: ledG,
+      alpha: { from: 0.3, to: 1 },
+      yoyo: true,
+      repeat: -1,
+      duration: 800,
+      ease: 'Sine.easeInOut',
     });
 
-    fundo.on('pointerout', () => {
-      fundo.setFillStyle(0x091522, 0.9);
-      fundo.setStrokeStyle(1.5, 0x00e5ff, 0.7);
+    // Hit area interativa do botão
+    const hitArea = this.add.rectangle(0, 0, 210, 44, 0x000000, 0.001);
+    hitArea.setInteractive({ useHandCursor: true });
+
+    hitArea.on('pointerover', () => {
+      desenharFundo(true);
+      container.setScale(1.03);
     });
 
-    fundo.on('pointerdown', () => {
+    hitArea.on('pointerout', () => {
+      desenharFundo(false);
+      container.setScale(1.0);
+    });
+
+    hitArea.on('pointerdown', () => {
       this.abrirSelecaoPersonagem();
     });
+
+    container.add([btnFundo, emblemaG, textoEmblema, textoSub, textoPrincipal, ledG, hitArea]);
+  }
+
+  private criarEfeitoCRT(width: number, height: number): void {
+    const scanlines = this.add.graphics();
+    scanlines.fillStyle(0x00100a, 0.04);
+
+    for (let y = 0; y < height; y += 4) {
+      scanlines.fillRect(0, y, width, 2);
+    }
+    scanlines.setDepth(99);
+  }
+
+  private configurarTeclasAtalho(): void {
+    if (!this.input.keyboard) return;
+
+    this.input.keyboard.on('keydown-P', () => {
+      this.abrirSelecaoPersonagem();
+    });
+
+    const mapaIndices: { [key: string]: number } = {
+      ZERO: 0,
+      NUMPAD_ZERO: 0,
+      ONE: 1,
+      NUMPAD_ONE: 1,
+      TWO: 2,
+      NUMPAD_TWO: 2,
+      THREE: 3,
+      NUMPAD_THREE: 3,
+      FOUR: 4,
+      NUMPAD_FOUR: 4,
+      FIVE: 5,
+      NUMPAD_FIVE: 5,
+      SIX: 6,
+      NUMPAD_SIX: 6,
+    };
+
+    for (const [tecla, indice] of Object.entries(mapaIndices)) {
+      this.input.keyboard.on(`keydown-${tecla}`, () => {
+        const cfg = CONFIG_PORTAS[indice];
+        if (cfg) {
+          this.moverPersonagemAtePortaEEntrar(cfg);
+        }
+      });
+    }
   }
 
   private abrirSelecaoPersonagem(): void {
+    if (this.isTransicaoAtiva) return;
+    this.isTransicaoAtiva = true;
+
     this.cameras.main.fade(300, 0, 0, 0);
     this.time.delayedCall(300, () => {
-      this.scene.start('CenaSelecaoPersonagem');
-    });
-  }
-
-  private criarListaFases(_width: number, _height: number): void {
-    const startX = 60;
-    const startY = 110;
-    const itemWidth = 620;
-    const itemHeight = 65;
-    const espacamento = 10;
-
-    this.elementosLista = [];
-
-    this.fases.forEach((fase, i) => {
-      const y = startY + i * (itemHeight + espacamento);
-      const container = this.add.container(startX, y);
-
-      const fundo = this.add.rectangle(0, 0, itemWidth, itemHeight, 0x09111c, 0.85);
-      fundo.setOrigin(0, 0);
-      fundo.setStrokeStyle(1, 0x00ff66, 0.2);
-      fundo.setInteractive({ useHandCursor: true });
-
-      const textoNumero = this.add.text(18, 14, `[#${fase.numero}]`, {
-        fontFamily: 'Consolas, Courier New, monospace',
-        fontSize: '18px',
-        color: fase.desbloqueada ? '#00e5ff' : '#4b5563',
-        fontStyle: 'bold',
-      });
-
-      const textoTitulo = this.add.text(80, 14, fase.titulo, {
-        fontFamily: 'Consolas, Courier New, monospace',
-        fontSize: '15px',
-        color: fase.desbloqueada ? '#e2e8f0' : '#6b7280',
-        fontStyle: 'bold',
-      });
-
-      const textoSubtitulo = this.add.text(80, 36, `${fase.subtitulo} // ${fase.topico}`, {
-        fontFamily: 'Consolas, Courier New, monospace',
-        fontSize: '11px',
-        color: fase.desbloqueada ? '#94a3b8' : '#475569',
-      });
-
-      let statusStr = '[BLOQUEADO]';
-      let statusCor = '#ef4444';
-      if (fase.concluida) {
-        statusStr = '[CONCLUÍDO]';
-        statusCor = '#10b981';
-      } else if (fase.desbloqueada) {
-        statusStr = '[DISPONÍVEL]';
-        statusCor = '#00ff66';
-      }
-
-      const textoStatus = this.add.text(itemWidth - 18, 22, statusStr, {
-        fontFamily: 'Consolas, Courier New, monospace',
-        fontSize: '13px',
-        color: statusCor,
-        fontStyle: 'bold',
-      });
-      textoStatus.setOrigin(1, 0);
-
-      container.add([fundo, textoNumero, textoTitulo, textoSubtitulo, textoStatus]);
-
-      fundo.on('pointerdown', () => {
-        this.indiceSelecionado = i;
-        this.atualizarSelecaoVisual();
-        this.tentarIniciarFaseSelecionada();
-      });
-
-      fundo.on('pointerover', () => {
-        this.indiceSelecionado = i;
-        this.atualizarSelecaoVisual();
-      });
-
-      this.elementosLista.push({
-        container,
-        fundo,
-        textoNumero,
-        textoTitulo,
-        textoStatus,
-        fase,
-      });
-    });
-  }
-
-  private criarPainelDetalhes(width: number, _height: number): void {
-    const painelX = 720;
-    const painelY = 110;
-    const painelW = width - painelX - 60;
-    const painelH = 515;
-
-    const container = this.add.container(painelX, painelY);
-
-    const fundo = this.add.rectangle(0, 0, painelW, painelH, 0x060c14, 0.92);
-    fundo.setOrigin(0, 0);
-    fundo.setStrokeStyle(1, 0x00ff66, 0.4);
-
-    const header = this.add.rectangle(0, 0, painelW, 36, 0x00ff66, 0.12);
-    header.setOrigin(0, 0);
-
-    const headerText = this.add.text(14, 9, 'DETALHES DO SETOR REBELDE', {
-      fontFamily: 'Consolas, Courier New, monospace',
-      fontSize: '13px',
-      color: '#00ff66',
-      fontStyle: 'bold',
-    });
-
-    const textoTitulo = this.add.text(20, 55, '', {
-      fontFamily: 'Consolas, Courier New, monospace',
-      fontSize: '18px',
-      color: '#00e5ff',
-      fontStyle: 'bold',
-      wordWrap: { width: painelW - 40 },
-    });
-
-    const textoTopico = this.add.text(20, 110, '', {
-      fontFamily: 'Consolas, Courier New, monospace',
-      fontSize: '13px',
-      color: '#38ef7d',
-    });
-
-    const textoAutor = this.add.text(20, 135, '', {
-      fontFamily: 'Consolas, Courier New, monospace',
-      fontSize: '12px',
-      color: '#94a3b8',
-    });
-
-    const linhaDivisoria = this.add.line(0, 0, 20, 165, painelW - 20, 165, 0x00ff66, 0.25);
-    linhaDivisoria.setOrigin(0, 0);
-
-    const textoDescricao = this.add.text(20, 180, '', {
-      fontFamily: 'Consolas, Courier New, monospace',
-      fontSize: '14px',
-      color: '#cbd5e1',
-      lineSpacing: 6,
-      wordWrap: { width: painelW - 40 },
-    });
-
-    // Botão Iniciar Missão
-    const botaoIniciar = this.add.container(painelW / 2, painelH - 50);
-    const fundoBotao = this.add.rectangle(0, 0, painelW - 60, 48, 0x00ff66, 0.2);
-    fundoBotao.setStrokeStyle(2, 0x00ff66, 0.8);
-    fundoBotao.setInteractive({ useHandCursor: true });
-
-    const textoBotao = this.add.text(0, 0, 'INICIAR MISSÃO [ENTER]', {
-      fontFamily: 'Consolas, Courier New, monospace',
-      fontSize: '16px',
-      color: '#00ff66',
-      fontStyle: 'bold',
-    });
-    textoBotao.setOrigin(0.5);
-
-    botaoIniciar.add([fundoBotao, textoBotao]);
-
-    fundoBotao.on('pointerdown', () => {
-      this.tentarIniciarFaseSelecionada();
-    });
-
-    container.add([
-      fundo,
-      header,
-      headerText,
-      textoTitulo,
-      textoTopico,
-      textoAutor,
-      linhaDivisoria,
-      textoDescricao,
-      botaoIniciar,
-    ]);
-
-    this.painelDetalhes = {
-      container,
-      textoTitulo,
-      textoTopico,
-      textoAutor,
-      textoDescricao,
-      botaoIniciar,
-    };
-  }
-
-  private teclaTres?: Phaser.Input.Keyboard.Key;
-  private teclaTresNumpad?: Phaser.Input.Keyboard.Key;
-
-  private criarRodape(width: number, height: number): void {
-    const rodape = this.add.text(
-      width / 2,
-      height - 25,
-      '[ ↑ / ↓ ou W / S ] Navegar  |  [ENTER] Iniciar  |  [P] Selecionar Personagem  |  [3] Inspecionar Fase 3  |  [T] Terminal Hub',
-      {
-        fontFamily: 'Consolas, Courier New, monospace',
-        fontSize: '12px',
-        color: '#64748b',
-      }
-    );
-    rodape.setOrigin(0.5);
-  }
-
-  private configurarControles(): void {
-    if (this.input.keyboard) {
-      this.cursores = this.input.keyboard.createCursorKeys();
-      this.teclasWASD = {
-        cima: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.W),
-        baixo: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.S),
-      };
-      this.teclaEnter = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER);
-      this.teclaTerminal = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.T);
-      this.teclaTres = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.THREE);
-      this.teclaTresNumpad = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.NUMPAD_THREE);
-      this.teclaP = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.P);
-    }
-  }
-
-  update(): void {
-    if (this.terminalHub && this.terminalHub.estaAberto) {
-      return;
-    }
-
-    if (this.teclaP && Phaser.Input.Keyboard.JustDown(this.teclaP)) {
-      this.abrirSelecaoPersonagem();
-      return;
-    }
-
-    if (
-      (this.teclaTres && Phaser.Input.Keyboard.JustDown(this.teclaTres)) ||
-      (this.teclaTresNumpad && Phaser.Input.Keyboard.JustDown(this.teclaTresNumpad))
-    ) {
-      this.cameras.main.fade(300, 0, 0, 0);
-      this.time.delayedCall(300, () => {
-        this.scene.start('CenaFase3');
-      });
-      return;
-    }
-
-    if (
-      (this.cursores && Phaser.Input.Keyboard.JustDown(this.cursores.up)) ||
-      (this.teclasWASD && Phaser.Input.Keyboard.JustDown(this.teclasWASD.cima))
-    ) {
-      this.indiceSelecionado =
-        (this.indiceSelecionado - 1 + this.fases.length) % this.fases.length;
-      this.atualizarSelecaoVisual();
-    } else if (
-      (this.cursores && Phaser.Input.Keyboard.JustDown(this.cursores.down)) ||
-      (this.teclasWASD && Phaser.Input.Keyboard.JustDown(this.teclasWASD.baixo))
-    ) {
-      this.indiceSelecionado = (this.indiceSelecionado + 1) % this.fases.length;
-      this.atualizarSelecaoVisual();
-    } else if (this.teclaEnter && Phaser.Input.Keyboard.JustDown(this.teclaEnter)) {
-      this.tentarIniciarFaseSelecionada();
-    } else if (this.teclaTerminal && Phaser.Input.Keyboard.JustDown(this.teclaTerminal)) {
-      this.abrirTerminalHub();
-    }
-  }
-
-  private atualizarSelecaoVisual(): void {
-    this.fases = this.base['gerenciadorEstado'].obterListaFases();
-
-    this.elementosLista.forEach((item, index) => {
-      const isSelecionado = index === this.indiceSelecionado;
-      const fase = this.fases[index];
-      item.fase = fase;
-
-      if (isSelecionado) {
-        item.fundo.setFillStyle(0x0e2433, 0.95);
-        item.fundo.setStrokeStyle(2, 0x00ffcc, 0.9);
-      } else {
-        item.fundo.setFillStyle(0x09111c, 0.85);
-        item.fundo.setStrokeStyle(1, 0x00ff66, 0.2);
-      }
-
-      let statusStr = '[BLOQUEADO]';
-      let statusCor = '#ef4444';
-      if (fase.concluida) {
-        statusStr = '[CONCLUÍDO]';
-        statusCor = '#10b981';
-      } else if (fase.desbloqueada) {
-        statusStr = '[DISPONÍVEL]';
-        statusCor = '#00ff66';
-      }
-      item.textoStatus.setText(statusStr);
-      item.textoStatus.setColor(statusCor);
-    });
-
-    const faseSel = this.fases[this.indiceSelecionado];
-    if (faseSel) {
-      this.painelDetalhes.textoTitulo.setText(faseSel.titulo);
-      this.painelDetalhes.textoTopico.setText(`TÓPICO: ${faseSel.topico}`);
-      this.painelDetalhes.textoAutor.setText(`AUTOR: ${faseSel.autor} // ${faseSel.subtitulo}`);
-      this.painelDetalhes.textoDescricao.setText(
-        `${faseSel.descricao}\n\n` +
-          (faseSel.desbloqueada
-            ? '>> Setor com conexão neural autorizada. Pressione ENTER para carregar.'
-            : '>> ACESSO NEGADO: Conclua os módulos anteriores para decodificar esta tranca.')
-      );
-
-      const fundoBotao = this.painelDetalhes.botaoIniciar.getAt(0) as Phaser.GameObjects.Rectangle;
-      const textoBotao = this.painelDetalhes.botaoIniciar.getAt(1) as Phaser.GameObjects.Text;
-
-      if (faseSel.desbloqueada || faseSel.id === 'fase3') {
-        fundoBotao.setFillStyle(0x00ff66, 0.25);
-        fundoBotao.setStrokeStyle(2, 0x00ff66, 0.9);
-        textoBotao.setText(faseSel.id === 'fase3' && !faseSel.desbloqueada ? 'INSPECIONAR FASE 3 [ENTER]' : 'INICIAR MISSÃO [ENTER]');
-        textoBotao.setColor('#00ff66');
-      } else {
-        fundoBotao.setFillStyle(0x1f2937, 0.4);
-        fundoBotao.setStrokeStyle(1, 0x4b5563, 0.6);
-        textoBotao.setText('SETOR BLOQUEADO');
-        textoBotao.setColor('#6b7280');
-      }
-    }
-  }
-
-  private tentarIniciarFaseSelecionada(): void {
-    const faseSel = this.fases[this.indiceSelecionado];
-    if (!faseSel) return;
-
-    if (!faseSel.desbloqueada && faseSel.id !== 'fase3') {
-      this.cameras.main.shake(150, 0.005);
-      return;
-    }
-
-    this.base['gerenciadorEstado'].definirFaseAtual(faseSel.id);
-    this.cameras.main.fade(300, 0, 0, 0);
-    this.time.delayedCall(300, () => {
-      this.scene.start(faseSel.chaveCena);
-    });
-  }
-
-  private configurarTerminalHub(): void {
-    if (!this.terminalHub) return;
-
-    this.terminalHub.definirInterpretador(
-      (comandoBruto: string): ResultadoComando => {
-        const cmd = comandoBruto.trim().toLowerCase();
-
-        if (cmd === 'cls' || cmd === 'clear' || cmd === 'limpar') {
-          return { sucesso: true, mensagem: '', acao: 'CLEAR_TERMINAL' };
-        }
-
-        if (cmd === 'help' || cmd === 'ajuda') {
-          return {
-            sucesso: true,
-            mensagem:
-              '[COMANDOS DO HUB REBELDE]\n' +
-              '  listar / ls             - Lista todos os setores e estados\n' +
-              '  iniciar <numero|id>     - Carrega o setor desejado (ex: iniciar 0, iniciar 1)\n' +
-              '  desbloquear_tudo        - Concede acesso a todas as fases (Modo Dev)\n' +
-              '  resetar                 - Reinicia o progresso salvo para o padrão\n' +
-              '  cls / limpar            - Limpa o terminal\n' +
-              '  sair                    - Fecha este terminal',
-          };
-        }
-
-        if (cmd === 'sair' || cmd === 'exit') {
-          this.terminalHub?.fechar();
-          return { sucesso: true, mensagem: '' };
-        }
-
-        if (cmd === 'listar' || cmd === 'ls') {
-          const listaStr = this.fases
-            .map(
-              (f) =>
-                `  [#${f.numero}] ${f.id} - ${f.titulo} -> ${
-                  f.concluida ? '[CONCLUIDO]' : f.desbloqueada ? '[DISPONIVEL]' : '[BLOQUEADO]'
-                }`
-            )
-            .join('\n');
-          return {
-            sucesso: true,
-            mensagem: `[CATÁLOGO DE SETORES]:\n${listaStr}`,
-          };
-        }
-
-        if (cmd === 'desbloquear_tudo') {
-          this.base['gerenciadorEstado'].desbloquearTodas();
-          this.atualizarSelecaoVisual();
-          return {
-            sucesso: true,
-            mensagem: '[SUCESSO] Todas as fases foram desbloqueadas!',
-          };
-        }
-
-        if (cmd === 'resetar') {
-          this.base['gerenciadorEstado'].reiniciarProgresso();
-          this.atualizarSelecaoVisual();
-          return {
-            sucesso: true,
-            mensagem: '[AVISO] Progresso resetado para a Fase 0 (Tutorial).',
-          };
-        }
-
-        if (cmd.startsWith('iniciar ') || cmd.startsWith('start ')) {
-          const arg = cmd.replace(/^(?:iniciar|start)\s+/, '').trim();
-          const faseAlvo = this.fases.find(
-            (f) =>
-              f.id.toLowerCase() === arg ||
-              f.numero.toString() === arg ||
-              f.chaveCena.toLowerCase() === arg
-          );
-
-          if (!faseAlvo) {
-            return {
-              sucesso: false,
-              mensagem: `[ERRO] Setor '${arg}' não encontrado. Use 'listar' para ver os identificadores.`,
-            };
-          }
-
-          if (!faseAlvo.desbloqueada) {
-            return {
-              sucesso: false,
-              mensagem: `[ACESSO NEGADO] O setor #${faseAlvo.numero} (${faseAlvo.id}) ainda está bloqueado.`,
-            };
-          }
-
-          setTimeout(() => {
-            this.terminalHub?.fechar();
-            this.scene.start(faseAlvo.chaveCena);
-          }, 800);
-
-          return {
-            sucesso: true,
-            mensagem: `[CARREGANDO] Saltando para #${faseAlvo.numero}: ${faseAlvo.titulo}...`,
-          };
-        }
-
-        return {
-          sucesso: false,
-          mensagem: "[SINTAXE INVÁLIDA] Digite 'ajuda' para verificar os comandos disponíveis.",
-        };
-      }
-    );
-  }
-
-  private abrirTerminalHub(): void {
-    if (!this.terminalHub) return;
-    this.terminalHub.abrir({
-      titulo: 'TERMINAL ZERO // NAVEGADOR DE SETORES',
-      linhasIniciais: [
-        '=== SISTEMA CENTRAL DE ROTEAMENTO REBELDE ===',
-        '> Digite \'ajuda\' para visualizar os comandos de salto e catálogo de fases.',
-        '> Digite \'listar\' para inspecionar os setores disponíveis.',
-      ],
+      this.scene.start('CenaSelecaoPersonagem', { proximaCena: 'CenaHub' });
     });
   }
 }

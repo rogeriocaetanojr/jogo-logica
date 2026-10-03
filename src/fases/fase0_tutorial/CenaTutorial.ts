@@ -15,14 +15,8 @@ export class CenaTutorial extends CenaBase {
   private beaconPower!: Phaser.GameObjects.Arc;
   private isPowerOn: boolean = false;
 
-  // Escuridão Global e Lanterna do Jogador
-  private darkness?: Phaser.GameObjects.RenderTexture;
-
-  // Porta de Aço Trancada (Setor 0)
-  private steelDoors!: Phaser.Physics.Arcade.StaticGroup;
-  private steelDoor?: Phaser.Physics.Arcade.Sprite;
-  private steelDoorCollider?: Phaser.Physics.Arcade.Collider;
-  private steelDoorText?: Phaser.GameObjects.Text;
+  // Luz Apagada no Início e Iluminação Natural do Jogador
+  private escuridaoNatural?: Phaser.GameObjects.Image;
 
   // Totem 1: Controlador da Esteira (Desafio 2 - Variáveis Inteiras)
   private totemBridge!: Phaser.GameObjects.Image;
@@ -82,6 +76,14 @@ export class CenaTutorial extends CenaBase {
 
   init(data?: { isBooting?: boolean }): void {
     this.isBootingSequence = data?.isBooting ?? false;
+    this.isPowerOn = false;
+    this.isBridgeExpanded = false;
+    this.isElevatorLowered = false;
+    this.isDemoEndTriggered = false;
+    this.isTransicionandoHub = false;
+    this.isShocked = false;
+    this.isFallingInScrap = false;
+    this.currentInteractingTotem = null;
   }
 
   create(): void {
@@ -101,8 +103,7 @@ export class CenaTutorial extends CenaBase {
     this.criarMuroConstrucao();
     this.criarTotens();
     this.criarJogador();
-    this.criarEscuridaoGlobal();
-    this.criarPortaAco();
+    this.criarApagaoInicial();
     this.configurarControles();
     this.configurarTerminal();
 
@@ -122,8 +123,8 @@ export class CenaTutorial extends CenaBase {
   update(): void {
     if (!this.player || !this.player.body) return;
 
-    // Atualização dinâmica contínua da lanterna acoplada ao jogador
-    this.atualizarEscuridao();
+    // Atualização contínua do facho da lanterna na escuridão
+    this.atualizarLanterna();
 
     // Se estiver no ritual de boot, trava completamente o jogador
     if (this.isBootingSequence) {
@@ -1561,168 +1562,56 @@ export class CenaTutorial extends CenaBase {
     });
   }
 
-  private criarEscuridaoGlobal(): void {
-    // 1. Criar a Textura da Luz da Lanterna (círculo radial suave de raio 120px)
-    if (!this.textures.exists('flashlight_brush')) {
-      const canvas = this.textures.createCanvas('flashlight_brush', 240, 240);
+  private criarApagaoInicial(): void {
+    if (this.escuridaoNatural) {
+      this.escuridaoNatural.destroy();
+    }
+
+    const chaveTextura = 'escuridao_luz_natural';
+    if (!this.textures.exists(chaveTextura)) {
+      const canvas = this.textures.createCanvas(chaveTextura, 2560, 1440);
       if (canvas) {
         const ctx = canvas.getContext();
-        const grad = ctx.createRadialGradient(120, 120, 0, 120, 120, 120);
-        grad.addColorStop(0, 'rgba(255, 255, 255, 1.0)');
-        grad.addColorStop(0.35, 'rgba(255, 255, 255, 0.85)');
-        grad.addColorStop(0.7, 'rgba(255, 255, 255, 0.35)');
-        grad.addColorStop(1, 'rgba(255, 255, 255, 0.0)');
+        const cx = 1280;
+        const cy = 720;
+
+        // 1. Fundo de escuridão total do galpão
+        ctx.fillStyle = 'rgba(2, 4, 10, 0.98)';
+        ctx.fillRect(0, 0, 2560, 1440);
+
+        // 2. Furo de luz natural suave (destination-out): recorta a escuridão revelando a cena natural
+        ctx.globalCompositeOperation = 'destination-out';
+        const grad = ctx.createRadialGradient(cx, cy, 35, cx, cy, 210);
+        grad.addColorStop(0, 'rgba(0, 0, 0, 1.0)');     // 100% vazado (luz totalmente natural, 0% escuridão)
+        grad.addColorStop(0.35, 'rgba(0, 0, 0, 0.92)'); // Foco nítido ao redor do corpo
+        grad.addColorStop(0.65, 'rgba(0, 0, 0, 0.55)'); // Penumbra suave
+        grad.addColorStop(0.88, 'rgba(0, 0, 0, 0.15)'); // Dissipação gradual
+        grad.addColorStop(1, 'rgba(0, 0, 0, 0.0)');      // Transição perfeita para o breu
+
         ctx.fillStyle = grad;
         ctx.beginPath();
-        ctx.arc(120, 120, 120, 0, Math.PI * 2);
+        ctx.arc(cx, cy, 210, 0, Math.PI * 2);
         ctx.fill();
+
         canvas.refresh();
       }
     }
 
-    // 2. Criar a Camada de Escuridão (RenderTexture cobrindo toda a tela com profundidade 100)
-    this.darkness = this.add.renderTexture(0, 0, this.scale.width, this.scale.height);
-    this.darkness.setOrigin(0, 0);
-    this.darkness.setScrollFactor(0);
-    this.darkness.setDepth(100);
-    this.darkness.setRenderMode('all');
-
-    // Adaptador para suportar draw com blendMode ERASE
-    const originalDraw = this.darkness.draw.bind(this.darkness);
-    (this.darkness as any).draw = (
-      entries: any,
-      x?: number,
-      y?: number,
-      alpha?: number,
-      tint?: number,
-      blendMode?: number
-    ) => {
-      if (blendMode === Phaser.BlendModes.ERASE) {
-        (this.darkness!.texture as any).erase(entries, x, y, alpha, tint);
-      } else {
-        originalDraw(entries, x, y, alpha, tint);
-      }
-      return this.darkness;
-    };
-
-    // Atualiza imediatamente o primeiro quadro de escuridão
-    this.atualizarEscuridao();
+    // Camada posicionada exatamente sobre o jogador
+    this.escuridaoNatural = this.add.image(this.player.x, this.player.y, chaveTextura);
+    this.escuridaoNatural.setOrigin(0.5, 0.5);
+    this.escuridaoNatural.setDepth(20);
   }
 
-  private atualizarEscuridao(): void {
-    // Se o puzzle da energia já foi resolvido, não desenha mais a escuridão
-    if (!this.darkness || this.isPowerOn || !this.player) return;
-
-    this.darkness.clear();
-    // Breu quase total (98% opaco)
-    this.darkness.fill(0x02040a, 0.98);
-
-    // Coordenadas do jogador relativas à câmera
-    const cam = this.cameras.main;
-    const screenX = this.player.x - cam.scrollX;
-    const screenY = this.player.y - cam.scrollY;
-
-    // Apague a escuridão apenas onde o jogador está usando a lanterna
-    (this.darkness as any).draw(
-      'flashlight_brush',
-      screenX,
-      screenY,
-      1,
-      0xffffff,
-      Phaser.BlendModes.ERASE
-    );
-
-    // Executa e descarrega imediatamente os comandos no buffer de desenho
-    this.darkness.render();
-  }
-
-  private criarPortaAco(): void {
-    if (!this.textures.exists('steel-door-locked')) {
-      const g = this.make.graphics();
-      const w = 40;
-      const h = 680;
-
-      // Base de aço escuro reforçado
-      g.fillStyle(0x13171f, 1);
-      g.fillRect(2, 0, w - 4, h);
-
-      // Vigas estruturais verticais em aço escovado
-      g.fillStyle(0x334155, 1);
-      g.fillRect(0, 0, 4, h);
-      g.fillRect(w - 4, 0, 4, h);
-      g.fillStyle(0x64748b, 0.8);
-      g.fillRect(1, 0, 2, h);
-      g.fillRect(w - 3, 0, 2, h);
-
-      // Placas horizontais de blindagem e rebites
-      for (let y = 0; y < h; y += 50) {
-        g.fillStyle(0x0f172a, 1);
-        g.fillRect(4, y, w - 8, 3);
-        g.fillStyle(0x475569, 0.9);
-        g.fillRect(4, y + 3, w - 8, 1);
-
-        // Rebites
-        g.fillStyle(0x94a3b8, 1);
-        g.fillCircle(8, y + 14, 2);
-        g.fillCircle(w - 8, y + 14, 2);
-        g.fillCircle(w / 2, y + 14, 2);
-      }
-
-      // Faixas de sinalização de alta voltagem / perigo magnético
-      const drawHazard = (startY: number) => {
-        g.fillStyle(0x18181b, 1);
-        g.fillRect(4, startY, w - 8, 48);
-        g.fillStyle(0xef4444, 1);
-        for (let sy = startY - 10; sy < startY + 48; sy += 14) {
-          g.beginPath();
-          g.moveTo(4, sy);
-          g.lineTo(w - 4, sy + 10);
-          g.lineTo(w - 4, sy + 15);
-          g.lineTo(4, sy + 5);
-          g.closePath();
-          g.fillPath();
-        }
-      };
-      drawHazard(60);
-      drawHazard(h - 140);
-
-      // Indicador de tranca magnética
-      g.fillStyle(0x450a0a, 1);
-      g.fillRect(6, 440, w - 12, 16);
-      g.fillStyle(0xff1744, 1);
-      g.fillRect(8, 442, w - 16, 12);
-
-      g.generateTexture('steel-door-locked', w, h);
-      g.destroy();
+  private atualizarLanterna(): void {
+    // Enquanto a energia estiver desligada, a escuridão suave acompanha o jogador
+    if (!this.isPowerOn && this.escuridaoNatural && this.player) {
+      this.escuridaoNatural.setPosition(this.player.x, this.player.y);
     }
-
-    this.steelDoors = this.physics.add.staticGroup();
-    // Porta posicionada em X = 1150
-    this.steelDoor = this.steelDoors.create(1150, 340, 'steel-door-locked') as Phaser.Physics.Arcade.Sprite;
-    this.steelDoor.setDepth(10);
-    this.steelDoorCollider = this.physics.add.collider(this.player, this.steelDoors);
-
-    // Painel luminoso de trava magnética em X = 1150
-    this.steelDoorText = this.add
-      .text(1150, 600, '[SEM ENERGIA]', {
-        fontSize: '11px',
-        color: '#ff1744',
-        fontFamily: 'Consolas, monospace',
-        fontStyle: 'bold',
-        backgroundColor: 'rgba(15, 5, 5, 0.95)',
-        padding: { x: 4, y: 3 },
-      })
-      .setOrigin(0.5)
-      .setDepth(10);
   }
 
   private desativarPortaAco(): void {
     this.isPowerOn = true;
-
-    if (this.steelDoorCollider) {
-      this.steelDoorCollider.destroy();
-      this.steelDoorCollider = undefined;
-    }
     this.promptTextPower.setVisible(false);
 
     // Luz de status do totem fica verde fixo
@@ -1733,53 +1622,24 @@ export class CenaTutorial extends CenaBase {
       this.beaconPower.setAlpha(1);
     }
 
-    // Desativação da escuridão com tween de fade out (alpha de 1 para 0 em 800ms)
-    if (this.darkness) {
+    // A luz acende no galpão: a escuridão desvanece suavemente
+    if (this.escuridaoNatural) {
       this.tweens.add({
-        targets: this.darkness,
+        targets: this.escuridaoNatural,
         alpha: 0,
-        duration: 800,
-        ease: 'Linear',
-        onComplete: () => {
-          if (this.darkness) {
-            this.darkness.destroy();
-            this.darkness = undefined;
-          }
-        },
-      });
-    }
-
-    // Atualiza status da porta de aço e sobe a porta suavemente para o teto
-    if (this.steelDoorText) {
-      this.steelDoorText.setText('[ENERGIA: ON]').setColor('#00ff66');
-    }
-
-    if (this.steelDoor) {
-      const targetsToLift: (Phaser.GameObjects.GameObject | undefined)[] = [
-        this.steelDoor,
-        this.steelDoorText,
-      ].filter(Boolean);
-
-      this.tweens.add({
-        targets: targetsToLift,
-        y: '-=680',
-        duration: 1000,
+        duration: 850,
         ease: 'Power2',
         onComplete: () => {
-          if (this.steelDoor) {
-            this.steelDoor.destroy();
-            this.steelDoor = undefined;
-          }
-          if (this.steelDoorText) {
-            this.steelDoorText.destroy();
-            this.steelDoorText = undefined;
-          }
-          if (this.steelDoors) {
-            this.steelDoors.clear(true, true);
+          if (this.escuridaoNatural) {
+            this.escuridaoNatural.destroy();
+            this.escuridaoNatural = undefined;
           }
         },
       });
     }
+
+    // Flash suave de reconexão de energia
+    this.cameras.main.flash(350, 0, 229, 255);
   }
 
   private tratarChoqueCabo(): void {
