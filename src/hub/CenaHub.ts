@@ -44,6 +44,21 @@ export class CenaHub extends Phaser.Scene {
     super('CenaHub');
   }
 
+  preload(): void {
+    if (!this.textures.exists('alvares')) {
+      this.load.spritesheet('alvares', 'assets/personagens/alvares.png', {
+        frameWidth: 128,
+        frameHeight: 128,
+      });
+    }
+    if (!this.textures.exists('reis')) {
+      this.load.spritesheet('reis', 'assets/personagens/reis.png', {
+        frameWidth: 128,
+        frameHeight: 128,
+      });
+    }
+  }
+
   create(): void {
     const { width, height } = this.scale;
     this.cameras.main.setBackgroundColor('#050811');

@@ -149,6 +149,8 @@ export abstract class CenaBase extends Phaser.Scene {
    * Carrega os spritesheets dos personagens oficiais (Alvares e Reis).
    */
   public carregarSpritesheetsPersonagens(): void {
+    if (!this.load || !this.textures) return;
+
     if (!this.textures.exists('alvares')) {
       this.load.spritesheet('alvares', 'assets/personagens/alvares.png', {
         frameWidth: 128,
@@ -167,6 +169,8 @@ export abstract class CenaBase extends Phaser.Scene {
    * Registra as animações dos personagens no gerenciador global de animações do Phaser.
    */
   public registrarAnimacoesPersonagens(): void {
+    if (!this.textures || !this.anims) return;
+
     const personagens = ['alvares', 'reis'] as const;
 
     for (const p of personagens) {
