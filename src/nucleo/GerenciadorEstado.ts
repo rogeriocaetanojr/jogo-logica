@@ -152,6 +152,21 @@ export class GerenciadorEstado {
   }
 
   /**
+   * Verifica se todas as fases anteriores ao Boss (fases 0 a 5) estão concluídas.
+   */
+  public todasFasesAnterioresConcluidas(): boolean {
+    const fasesNecessarias = [
+      'fase0_tutorial',
+      'fase1',
+      'fase2',
+      'fase3',
+      'fase4',
+      'fase5',
+    ];
+    return fasesNecessarias.every((id) => this.fasesConcluidas.has(id));
+  }
+
+  /**
    * Salva o progresso do tutorial como concluído e persiste no armazenamento local
    */
   public salvarTutorialConcluido(concluido: boolean = true): void {

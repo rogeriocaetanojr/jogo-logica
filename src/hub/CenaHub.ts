@@ -113,7 +113,7 @@ const CONFIG_PORTAS: PortaHubConfig[] = [
 
 /**
  * CenaHub: Hub Central com 7 portais alinhados horizontalmente no piso,
- * incluindo o portal colossal do Boss Final (Mega Brain) na extrema direita.
+ * janela de transmissão narrativa inicial e bloqueio estrito do Boss Final.
  */
 export class CenaHub extends Phaser.Scene {
   private gerenciadorEstado: GerenciadorEstado;
@@ -121,11 +121,9 @@ export class CenaHub extends Phaser.Scene {
   private personagemAtivo: TipoPersonagem = 'alvares';
   private spritePersonagem!: Phaser.GameObjects.Sprite;
 
-  // Componentes do Tooltip / Painel de Status Superior
-  private containerTooltip!: Phaser.GameObjects.Container;
-  private fundoTooltip!: Phaser.GameObjects.Graphics;
-  private textoTooltipLinha1!: Phaser.GameObjects.Text;
-  private textoTooltipLinha2!: Phaser.GameObjects.Text;
+  // Caixa de Mensagem Narrativa e Alerta de Bloqueio do Boss
+  private containerDialogoHub?: Phaser.GameObjects.Container;
+  private containerAvisoBloqueio?: Phaser.GameObjects.Container;
 
   // Lista de referências para limpeza rigorosa
   private hologramasPortais: Phaser.GameObjects.Graphics[] = [];
@@ -175,17 +173,17 @@ export class CenaHub extends Phaser.Scene {
     fundo.setDisplaySize(width, height);
     fundo.setDepth(0);
 
-    // 3. Criação das 7 Zonas Interativas e Efeitos dos Portais
+    // 3. Criação das 7 Zonas Interativas e Efeitos Visuais Sutis dos Portais
     this.criarPortaisAlinhados();
 
     // 4. Instanciação do Operador na passarela horizontal (Y alinhado ao piso metálico)
     this.criarOperadorCenario();
 
-    // 5. Tooltip / Painel de Status Superior Dinâmico
-    this.criarPainelStatusSuperior(width);
-
-    // 6. Botão de Seleção de Operador no canto superior direito
+    // 5. Botão de Seleção de Operador no canto superior direito
     this.criarBotaoOperadorPremium(width);
+
+    // 6. Janela de Mensagem Narrativa Central do Hub
+    this.criarJanelaNarrativaHub(width, height);
 
     // 7. Efeito CRT scanlines global
     this.criarEfeitoCRT(width, height);
@@ -207,18 +205,10 @@ export class CenaHub extends Phaser.Scene {
 
   /**
    * Mapeia os 7 portais alinhados da esquerda para a direita,
-   * configurando áreas interativas, pulsos holográficos e feedback no hover/clique.
+   * com hover visual limpo (apenas brilho neon sutil, sem exibir detalhes ou desafios).
    */
   private criarPortaisAlinhados(): void {
-    const listaFases = this.gerenciadorEstado.obterListaFases();
-
     for (const cfg of CONFIG_PORTAS) {
-      const infoFase = listaFases.find((f) => f.id === cfg.idFase);
-      const isConcluida = infoFase ? this.gerenciadorEstado.estaConcluida(infoFase.id) : false;
-      const isDesbloqueada = infoFase
-        ? infoFase.desbloqueada || isConcluida || cfg.numero === 0
-        : cfg.numero === 0;
-
       // 1. Gráfico de Efeito de Pulso Luminoso / Holograma do Portal
       const holograma = this.add.graphics();
       holograma.setDepth(6);
@@ -229,7 +219,7 @@ export class CenaHub extends Phaser.Scene {
         const cor = cfg.corTema;
 
         if (cfg.isBoss) {
-          // Efeito especial do Portal do Boss Final: energia pulsante vermelha e sirenes
+          // Efeito visual do Portal do Boss Final: energia vermelha e sirenes pulsantes
           holograma.fillStyle(0xff1133, 0.08 * intensidade);
           holograma.fillRoundedRect(
             cfg.xPorta - cfg.largura / 2,
@@ -302,23 +292,10 @@ export class CenaHub extends Phaser.Scene {
       hitArea.setInteractive({ useHandCursor: true });
       this.hitboxesPortais.push(hitArea);
 
-      // Status descritivo para o tooltip
-      const statusLabel = isConcluida ? 'CONCLUÍDO' : isDesbloqueada ? 'PRONTO' : 'BLOQUEADO';
-      const corStatus = isConcluida ? '#10b981' : isDesbloqueada ? '#00e5ff' : '#ef4444';
-
-      // Feedback no Hover: pulso luminoso, leve tween e tooltip superior discreto
+      // Hover limpo: apenas efeito visual sutil de brilho/pulso luminoso, sem textos detalhados
       hitArea.on('pointerover', () => {
         desenharHolograma(2.2, true);
 
-        // Atualiza a caixa de diálogo/tooltip superior discreta
-        this.atualizarPainelStatus(
-          cfg.rotuloSetor,
-          `MISSÃO: ${cfg.nomeMissao}  |  STATUS: [ ${statusLabel} ]`,
-          cfg.corHex,
-          corStatus
-        );
-
-        // Leve tween de elevação / brilho no holograma
         this.tweens.add({
           targets: holograma,
           scaleX: 1.025,
@@ -330,7 +307,6 @@ export class CenaHub extends Phaser.Scene {
 
       hitArea.on('pointerout', () => {
         desenharHolograma(1, false);
-        this.resetarPainelStatus();
 
         this.tweens.add({
           targets: holograma,
@@ -341,9 +317,9 @@ export class CenaHub extends Phaser.Scene {
         });
       });
 
-      // Feedback ao Clicar: o operador caminha até o portal e ingressa na fase
+      // Clique: valida travas do Boss ou movimenta o operador até o portal
       hitArea.on('pointerdown', () => {
-        this.moverPersonagemAtePortaEEntrar(cfg);
+        this.tentarAcessarPortal(cfg);
       });
     }
   }
@@ -391,99 +367,263 @@ export class CenaHub extends Phaser.Scene {
   }
 
   /**
-   * Painel de Status / Tooltip Superior Dinâmico (discreto, estilo terminal CRT sci-fi).
+   * Janela Narrativa do Hub Central com a identidade visual dos terminais/comunicadores.
+   * Apresenta as instruções do ambiente livre e pode ser fechada com ENTER ou clique.
    */
-  private criarPainelStatusSuperior(width: number): void {
-    const painelX = width / 2 - 40;
-    const painelY = 38;
+  private criarJanelaNarrativaHub(width: number, height: number): void {
+    const container = this.add.container(width / 2, height / 2 - 30);
+    container.setDepth(85);
+    this.containerDialogoHub = container;
 
-    this.containerTooltip = this.add.container(painelX, painelY);
-    this.containerTooltip.setDepth(55);
+    const largura = 720;
+    const altura = 290;
 
-    this.fundoTooltip = this.add.graphics();
-    this.desenharFundoTooltip(0x06111e, 0x00ff88, 1.5);
+    // Fundo escuro translúcido com borda neon ciano
+    const fundo = this.add.graphics();
+    fundo.fillStyle(0x040a14, 0.95);
+    fundo.fillRoundedRect(-largura / 2, -altura / 2, largura, altura, 10);
+    fundo.lineStyle(2, 0x00e5ff, 0.95);
+    fundo.strokeRoundedRect(-largura / 2, -altura / 2, largura, altura, 10);
 
-    this.textoTooltipLinha1 = this.add.text(0, -9, 'CENTRAL DE OPERAÇÕES // TERMINAL DO HUB', {
+    // Barra de cabeçalho
+    fundo.fillStyle(0x0b192c, 0.98);
+    fundo.fillRoundedRect(-largura / 2 + 3, -altura / 2 + 3, largura - 6, 38, 8);
+    fundo.lineStyle(1, 0x00e5ff, 0.5);
+    fundo.lineBetween(-largura / 2 + 3, -altura / 2 + 41, largura / 2 - 3, -altura / 2 + 41);
+
+    // Indicador LED verde de transmissão recebida
+    const led = this.add.graphics();
+    led.fillStyle(0x00ff88, 1);
+    led.fillCircle(-largura / 2 + 22, -altura / 2 + 22, 5);
+
+    this.tweens.add({
+      targets: led,
+      alpha: { from: 0.4, to: 1 },
+      yoyo: true,
+      repeat: -1,
+      duration: 600,
+      ease: 'Sine.easeInOut',
+    });
+
+    // Título do cabeçalho
+    const textoCabecalho = this.add.text(
+      -largura / 2 + 38,
+      -altura / 2 + 22,
+      '> TERMINAL CENTRAL // TRANSMISSÃO RECEBIDA',
+      {
+        fontFamily: 'Consolas, "Courier New", monospace',
+        fontSize: '13px',
+        color: '#00e5ff',
+        fontStyle: 'bold',
+        letterSpacing: 1,
+      }
+    );
+    textoCabecalho.setOrigin(0, 0.5);
+
+    // Corpo da mensagem narrativa
+    const corpoTexto =
+      'Bem-vindo ao Hub Central de Depuração.\n' +
+      'A partir deste setor, não há uma ordem linear rígida: você é livre para explorar os setores de 1 a 5 no ritmo que preferir.\n\n' +
+      '• PORTAL 0: Protocolo de Boot (Tutorial e calibragem dos sistemas).\n' +
+      '• PORTAL 6: Núcleo do Mega Brain (Setor Final) — ACESSO BLOQUEADO.';
+
+    const textoMensagem = this.add.text(0, -altura / 2 + 118, corpoTexto, {
+      fontFamily: 'Consolas, "Courier New", monospace',
+      fontSize: '13px',
+      color: '#e2e8f0',
+      lineSpacing: 6,
+      align: 'left',
+      wordWrap: { width: largura - 50 },
+    });
+    textoMensagem.setOrigin(0.5, 0.5);
+
+    // Botão / Aviso de fechar no rodapé
+    const btnFecharG = this.add.graphics();
+    const btnLargura = 280;
+    const btnAltura = 34;
+    const btnY = altura / 2 - 28;
+
+    const desenharBtn = (hover: boolean) => {
+      btnFecharG.clear();
+      btnFecharG.fillStyle(hover ? 0x0e2840 : 0x061524, 0.95);
+      btnFecharG.fillRoundedRect(-btnLargura / 2, btnY - btnAltura / 2, btnLargura, btnAltura, 6);
+      btnFecharG.lineStyle(hover ? 2 : 1.2, hover ? 0x00ff88 : 0x00e5ff, hover ? 1 : 0.7);
+      btnFecharG.strokeRoundedRect(-btnLargura / 2, btnY - btnAltura / 2, btnLargura, btnAltura, 6);
+    };
+    desenharBtn(false);
+
+    const textoBtn = this.add.text(0, btnY, '[ ENTER / CLIQUE PARA FECHAR ]', {
       fontFamily: 'Consolas, "Courier New", monospace',
       fontSize: '12px',
       color: '#00ff88',
       fontStyle: 'bold',
-      letterSpacing: 1,
     });
-    this.textoTooltipLinha1.setOrigin(0.5);
+    textoBtn.setOrigin(0.5);
 
-    this.textoTooltipLinha2 = this.add.text(
+    const hitAreaFechar = this.add.rectangle(0, btnY, btnLargura, btnAltura, 0x000000, 0.001);
+    hitAreaFechar.setInteractive({ useHandCursor: true });
+
+    hitAreaFechar.on('pointerover', () => {
+      desenharBtn(true);
+      textoBtn.setColor('#ffffff');
+    });
+
+    hitAreaFechar.on('pointerout', () => {
+      desenharBtn(false);
+      textoBtn.setColor('#00ff88');
+    });
+
+    const fecharDialogo = () => {
+      if (!this.containerDialogoHub) return;
+      this.tweens.add({
+        targets: this.containerDialogoHub,
+        alpha: 0,
+        scale: 0.95,
+        duration: 200,
+        ease: 'Sine.easeIn',
+        onComplete: () => {
+          this.containerDialogoHub?.destroy();
+          this.containerDialogoHub = undefined;
+        },
+      });
+    };
+
+    hitAreaFechar.on('pointerdown', fecharDialogo);
+
+    container.add([
+      fundo,
+      led,
+      textoCabecalho,
+      textoMensagem,
+      btnFecharG,
+      textoBtn,
+      hitAreaFechar,
+    ]);
+
+    // Animação de entrada suave da janela
+    container.setScale(0.95);
+    container.setAlpha(0);
+    this.tweens.add({
+      targets: container,
+      scale: 1,
+      alpha: 1,
+      duration: 240,
+      ease: 'Back.easeOut',
+    });
+
+    // Tecla Enter fecha a caixa de mensagem
+    if (this.input.keyboard) {
+      const enterKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER);
+      enterKey.once('down', fecharDialogo);
+    }
+  }
+
+  /**
+   * Valida o acesso ao portal. Se for o Portal 6 (Boss Final) e as fases 0 a 5
+   * não estiverem todas concluídas, dispara o efeito de trava e o aviso do Mega Brain.
+   */
+  private tentarAcessarPortal(cfg: PortaHubConfig, imediato: boolean = false): void {
+    if (this.isTransicaoAtiva) return;
+
+    // Se o diálogo narrativo estiver visível, fecha ao selecionar um portal
+    if (this.containerDialogoHub) {
+      this.containerDialogoHub.destroy();
+      this.containerDialogoHub = undefined;
+    }
+
+    // Validação estrita do Portal 6 (Boss Final)
+    if (cfg.numero === 6) {
+      const bossLiberado = this.gerenciadorEstado.todasFasesAnterioresConcluidas();
+      if (!bossLiberado) {
+        this.exibirAvisoBloqueioBoss();
+        return;
+      }
+    }
+
+    if (imediato) {
+      this.limparRecursosETransicionar(cfg.chaveCena);
+    } else {
+      this.moverPersonagemAtePortaEEntrar(cfg);
+    }
+  }
+
+  /**
+   * Efeito de trava e alerta de acesso negado pelo Mega Brain.
+   */
+  private exibirAvisoBloqueioBoss(): void {
+    // Efeito de tremor e flash vermelho
+    this.cameras.main.shake(250, 0.012);
+    this.cameras.main.flash(200, 255, 30, 40, true);
+
+    if (this.containerAvisoBloqueio) {
+      this.containerAvisoBloqueio.destroy();
+    }
+
+    const { width } = this.scale;
+    const container = this.add.container(width / 2, 70);
+    container.setDepth(90);
+    this.containerAvisoBloqueio = container;
+
+    const largura = 740;
+    const altura = 64;
+
+    const fundo = this.add.graphics();
+    fundo.fillStyle(0x1a060a, 0.96);
+    fundo.fillRoundedRect(-largura / 2, -altura / 2, largura, altura, 8);
+    fundo.lineStyle(2, 0xef4444, 1);
+    fundo.strokeRoundedRect(-largura / 2, -altura / 2, largura, altura, 8);
+
+    const textoAlerta = this.add.text(
       0,
-      9,
-      'PASSE O MOUSE SOBRE UM PORTAL OU USE AS TECLAS [0] A [6]',
+      0,
+      "[ACESSO NEGADO] Protocolo de contenção ativo.\nComplete todos os setores do barramento antes de desafiar o Núcleo.",
       {
         fontFamily: 'Consolas, "Courier New", monospace',
-        fontSize: '10px',
-        color: '#94a3b8',
+        fontSize: '13px',
+        color: '#ff4444',
+        fontStyle: 'bold',
+        align: 'center',
+        lineSpacing: 4,
+        shadow: {
+          offsetX: 0,
+          offsetY: 0,
+          color: '#ff2222',
+          blur: 10,
+          fill: true,
+        },
       }
     );
-    this.textoTooltipLinha2.setOrigin(0.5);
+    textoAlerta.setOrigin(0.5);
 
-    this.containerTooltip.add([
-      this.fundoTooltip,
-      this.textoTooltipLinha1,
-      this.textoTooltipLinha2,
-    ]);
-  }
+    container.add([fundo, textoAlerta]);
 
-  private desenharFundoTooltip(corFundo: number, corBorda: number, espessura: number): void {
-    const largura = 540;
-    const altura = 46;
-
-    this.fundoTooltip.clear();
-    this.fundoTooltip.fillStyle(corFundo, 0.94);
-    this.fundoTooltip.fillRoundedRect(-largura / 2, -altura / 2, largura, altura, 6);
-
-    this.fundoTooltip.lineStyle(espessura, corBorda, 0.9);
-    this.fundoTooltip.strokeRoundedRect(-largura / 2, -altura / 2, largura, altura, 6);
-
-    // Friso decorativo sutil
-    this.fundoTooltip.lineStyle(1, corBorda, 0.4);
-    this.fundoTooltip.lineBetween(-largura / 2 + 16, -altura / 2 + 3, largura / 2 - 16, -altura / 2 + 3);
-  }
-
-  private atualizarPainelStatus(
-    linha1: string,
-    linha2: string,
-    corTema: string,
-    corStatus: string
-  ): void {
-    this.textoTooltipLinha1.setText(linha1);
-    this.textoTooltipLinha1.setColor(corTema);
-
-    this.textoTooltipLinha2.setText(linha2);
-    this.textoTooltipLinha2.setColor(corStatus);
-
-    const corHexNum = parseInt(corTema.replace('#', '0x'), 16);
-    this.desenharFundoTooltip(0x0a1628, corHexNum, 2.2);
-
+    // Animação de entrada e saída automática após 3.5 segundos
+    container.setScale(0.92);
+    container.setAlpha(0);
     this.tweens.add({
-      targets: this.containerTooltip,
-      scale: 1.02,
-      duration: 120,
-      ease: 'Quad.easeOut',
+      targets: container,
+      scale: 1,
+      alpha: 1,
+      duration: 180,
+      ease: 'Back.easeOut',
     });
-  }
 
-  private resetarPainelStatus(): void {
-    this.textoTooltipLinha1.setText('CENTRAL DE OPERAÇÕES // TERMINAL DO HUB');
-    this.textoTooltipLinha1.setColor('#00ff88');
-
-    this.textoTooltipLinha2.setText('PASSE O MOUSE SOBRE UM PORTAL OU USE AS TECLAS [0] A [6]');
-    this.textoTooltipLinha2.setColor('#94a3b8');
-
-    this.desenharFundoTooltip(0x06111e, 0x00ff88, 1.5);
-
-    this.tweens.add({
-      targets: this.containerTooltip,
-      scale: 1.0,
-      duration: 140,
-      ease: 'Quad.easeOut',
+    this.time.delayedCall(3500, () => {
+      if (this.containerAvisoBloqueio === container) {
+        this.tweens.add({
+          targets: container,
+          alpha: 0,
+          scale: 0.95,
+          duration: 300,
+          ease: 'Sine.easeIn',
+          onComplete: () => {
+            container.destroy();
+            if (this.containerAvisoBloqueio === container) {
+              this.containerAvisoBloqueio = undefined;
+            }
+          },
+        });
+      }
     });
   }
 
@@ -550,6 +690,16 @@ export class CenaHub extends Phaser.Scene {
    * antes de iniciar a nova fase, eliminando qualquer risco de vazamento de memória.
    */
   private limparRecursosETransicionar(chaveCena: string, dados?: any): void {
+    if (this.containerDialogoHub) {
+      this.containerDialogoHub.destroy();
+      this.containerDialogoHub = undefined;
+    }
+
+    if (this.containerAvisoBloqueio) {
+      this.containerAvisoBloqueio.destroy();
+      this.containerAvisoBloqueio = undefined;
+    }
+
     // 1. Remove interatividade de todas as hitboxes
     for (const h of this.hitboxesPortais) {
       h.disableInteractive();
@@ -688,7 +838,7 @@ export class CenaHub extends Phaser.Scene {
 
   /**
    * Configura os atalhos de teclado:
-   * - Teclas [0] a [6] carregam imediatamente a fase correspondente.
+   * - Teclas [0] a [6] tentam carregar a fase correspondente (respeitando a trava do Portal 6).
    * - Tecla [P] abre a seleção de operador.
    */
   private configurarTeclasAtalho(): void {
@@ -719,8 +869,7 @@ export class CenaHub extends Phaser.Scene {
       this.input.keyboard.on(`keydown-${tecla}`, () => {
         const cfg = CONFIG_PORTAS[indice];
         if (cfg) {
-          // Teclas numéricas carregam imediatamente a fase correspondente
-          this.limparRecursosETransicionar(cfg.chaveCena);
+          this.tentarAcessarPortal(cfg, true);
         }
       });
     }
