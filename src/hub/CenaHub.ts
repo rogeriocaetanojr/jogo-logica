@@ -119,11 +119,25 @@ export class CenaHub extends Phaser.Scene {
   private gerenciadorEstado: GerenciadorEstado;
   private isTransicaoAtiva: boolean = false;
   private personagemAtivo: TipoPersonagem = 'alvares';
-  private spritePersonagem!: Phaser.GameObjects.Sprite;
+  private jogador!: Phaser.Physics.Arcade.Sprite;
+  private chao!: Phaser.Physics.Arcade.StaticGroup;
 
   // Caixa de Mensagem Narrativa e Alerta de Bloqueio do Boss
   private containerDialogoHub?: Phaser.GameObjects.Container;
   private containerAvisoBloqueio?: Phaser.GameObjects.Container;
+
+  // Indicador de Interação e Proximidade de Portas
+  private portaEmProximidade: PortaHubConfig | null = null;
+  private containerIndicadorPorta?: Phaser.GameObjects.Container;
+
+  // Controles de Movimentação e Interação
+  private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
+  private teclasWASD?: {
+    left: Phaser.Input.Keyboard.Key;
+    right: Phaser.Input.Keyboard.Key;
+    enter: Phaser.Input.Keyboard.Key;
+    space: Phaser.Input.Keyboard.Key;
+  };
 
   // Lista de referências para limpeza rigorosa
   private hologramasPortais: Phaser.GameObjects.Graphics[] = [];
@@ -160,6 +174,7 @@ export class CenaHub extends Phaser.Scene {
     this.personagemAtivo = GerenciadorEstado.obterPersonagem();
     this.hologramasPortais = [];
     this.hitboxesPortais = [];
+    this.portaEmProximidade = null;
 
     // 1. Limpeza defensiva de overlays do DOM
     this.limparOverlaysDOM();
@@ -173,23 +188,29 @@ export class CenaHub extends Phaser.Scene {
     fundo.setDisplaySize(width, height);
     fundo.setDepth(0);
 
-    // 3. Criação das 7 Zonas Interativas e Efeitos Visuais Sutis dos Portais
+    // 3. Plataforma de colisão do chão metálico
+    this.criarChaoFisico(width);
+
+    // 4. Criação das 7 Zonas Interativas e Efeitos Visuais Sutis dos Portais
     this.criarPortaisAlinhados();
 
-    // 4. Instanciação do Operador na passarela horizontal (Y alinhado ao piso metálico)
+    // 5. Instanciação do Operador na passarela horizontal com física Arcade
     this.criarOperadorCenario();
 
-    // 5. Botão de Seleção de Operador no canto superior direito
+    // 6. Indicador Flutuante de Proximidade das Portas
+    this.criarIndicadorProximidade();
+
+    // 7. Botão de Seleção de Operador no canto superior direito
     this.criarBotaoOperadorPremium(width);
 
-    // 6. Janela de Mensagem Narrativa Central do Hub
+    // 8. Janela de Mensagem Narrativa Central do Hub
     this.criarJanelaNarrativaHub(width, height);
 
-    // 7. Efeito CRT scanlines global
+    // 9. Efeito CRT scanlines global
     this.criarEfeitoCRT(width, height);
 
-    // 8. Suporte a Atalhos de Teclado ([0] a [6] e [P])
-    this.configurarTeclasAtalho();
+    // 10. Configuração de Controles (Setas, WASD, Enter, Espaço e atalhos [0]-[6], [P])
+    this.configurarControles();
   }
 
   private limparOverlaysDOM(): void {
@@ -324,21 +345,213 @@ export class CenaHub extends Phaser.Scene {
     }
   }
 
+  override update(): void {
+    if (this.isTransicaoAtiva || !this.jogador || !this.jogador.body) return;
+
+    // Se o diálogo narrativo inicial estiver ativo, trava a movimentação
+    if (this.containerDialogoHub) {
+      this.jogador.setVelocityX(0);
+      if (this.anims.exists(`${this.personagemAtivo}_idle`)) {
+        this.jogador.anims.play(`${this.personagemAtivo}_idle`, true);
+      }
+      return;
+    }
+
+    const isLeft = (this.cursors?.left.isDown ?? false) || (this.teclasWASD?.left.isDown ?? false);
+    const isRight = (this.cursors?.right.isDown ?? false) || (this.teclasWASD?.right.isDown ?? false);
+    const velocidade = 230;
+
+    if (isLeft && !isRight) {
+      this.jogador.setVelocityX(-velocidade);
+      this.jogador.setFlipX(true);
+      if (this.anims.exists(`${this.personagemAtivo}_run`)) {
+        this.jogador.anims.play(`${this.personagemAtivo}_run`, true);
+      }
+    } else if (isRight && !isLeft) {
+      this.jogador.setVelocityX(velocidade);
+      this.jogador.setFlipX(false);
+      if (this.anims.exists(`${this.personagemAtivo}_run`)) {
+        this.jogador.anims.play(`${this.personagemAtivo}_run`, true);
+      }
+    } else {
+      this.jogador.setVelocityX(0);
+      if (this.anims.exists(`${this.personagemAtivo}_idle`)) {
+        this.jogador.anims.play(`${this.personagemAtivo}_idle`, true);
+      }
+    }
+
+    // Atualiza detecção de proximidade com as 7 portas
+    this.atualizarProximidadePortas();
+
+    // Verificação de tecla ENTER ou ESPAÇO para entrar no setor em foco
+    const apertouEnter = this.teclasWASD?.enter && Phaser.Input.Keyboard.JustDown(this.teclasWASD.enter);
+    const apertouEspaco = this.teclasWASD?.space && Phaser.Input.Keyboard.JustDown(this.teclasWASD.space);
+    if ((apertouEnter || apertouEspaco) && this.portaEmProximidade) {
+      this.tentarAcessarPortal(this.portaEmProximidade);
+    }
+  }
+
   /**
-   * Instancia o operador na passarela metálica com base em Y=535
-   * para que seus pés descansem perfeitamente na área caminhável do piso.
+   * Plataforma estática de colisão alinhada com a grade metálica do piso do Hub (topo em Y = 592).
+   */
+  private criarChaoFisico(width: number): void {
+    this.chao = this.physics.add.staticGroup();
+    const barra = this.add.rectangle(width / 2, 604, width, 24, 0x000000, 0);
+    this.physics.add.existing(barra, true);
+    this.chao.add(barra);
+  }
+
+  /**
+   * Instancia o operador ativo com física Arcade ativada, gravidade e colisão no chão.
    */
   private criarOperadorCenario(): void {
     this.registrarAnimacoes();
 
     const chaveSprite = this.personagemAtivo === 'reis' ? 'reis' : 'alvares';
-    // Posição inicial no centro do corredor caminhável
-    this.spritePersonagem = this.add.sprite(480, 535, chaveSprite);
-    this.spritePersonagem.setDepth(18);
+    this.jogador = this.physics.add.sprite(480, 520, chaveSprite);
+    this.jogador.setDepth(20);
+    this.jogador.setCollideWorldBounds(true);
+
+    const body = this.jogador.body as Phaser.Physics.Arcade.Body;
+    body.setSize(44, 96);
+    body.setOffset(42, 26);
+
+    this.physics.add.collider(this.jogador, this.chao);
 
     if (this.anims.exists(`${this.personagemAtivo}_idle`)) {
-      this.spritePersonagem.anims.play(`${this.personagemAtivo}_idle`, true);
+      this.jogador.anims.play(`${this.personagemAtivo}_idle`, true);
     }
+  }
+
+  /**
+   * Indicador flutuante para notificar a tecla de entrada sobre o portal em foco,
+   * posicionado na parte inferior da tela na cor branca para legibilidade ideal.
+   */
+  private criarIndicadorProximidade(): void {
+    const { width, height } = this.scale;
+    this.containerIndicadorPorta = this.add.container(width / 2, height - 48);
+    this.containerIndicadorPorta.setDepth(55);
+    this.containerIndicadorPorta.setVisible(false);
+
+    const fundo = this.add.graphics();
+    fundo.name = 'fundoIndicador';
+
+    const textoPrompt = this.add.text(0, 0, '', {
+      fontFamily: 'Consolas, "Courier New", monospace',
+      fontSize: '13px',
+      color: '#ffffff',
+      fontStyle: 'bold',
+      letterSpacing: 1.5,
+    });
+    textoPrompt.setOrigin(0.5);
+    textoPrompt.name = 'textoPrompt';
+
+    this.containerIndicadorPorta.add([fundo, textoPrompt]);
+  }
+
+  /**
+   * Verifica a distância horizontal do jogador até cada portal e atualiza o estado de foco.
+   */
+  private atualizarProximidadePortas(): void {
+    if (!this.jogador) return;
+
+    let portaMaisProxima: PortaHubConfig | null = null;
+    let menorDistancia = Infinity;
+
+    for (const cfg of CONFIG_PORTAS) {
+      const dx = Math.abs(this.jogador.x - cfg.xPorta);
+      const raio = cfg.isBoss ? 120 : 64;
+      if (dx <= raio && dx < menorDistancia) {
+        menorDistancia = dx;
+        portaMaisProxima = cfg;
+      }
+    }
+
+    if (portaMaisProxima !== this.portaEmProximidade) {
+      this.portaEmProximidade = portaMaisProxima;
+      if (portaMaisProxima) {
+        this.exibirIndicadorPorta(portaMaisProxima);
+      } else {
+        this.ocultarIndicadorPorta();
+      }
+    }
+  }
+
+  /**
+   * Renderiza a etiqueta na parte inferior da tela com fundo contrastante e texto em branco.
+   */
+  private exibirIndicadorPorta(cfg: PortaHubConfig): void {
+    if (!this.containerIndicadorPorta) return;
+
+    const fundo = this.containerIndicadorPorta.getByName('fundoIndicador') as Phaser.GameObjects.Graphics;
+    const texto = this.containerIndicadorPorta.getByName('textoPrompt') as Phaser.GameObjects.Text;
+    if (!fundo || !texto) return;
+
+    const isBoss = cfg.isBoss === true;
+    const isTutorial = cfg.numero === 0;
+    const bossLiberado = !isBoss || this.gerenciadorEstado.todasFasesAnterioresConcluidas();
+
+    let strTexto = '';
+    if (isBoss && !bossLiberado) {
+      strTexto = '[ ACESSO RESTRITO // PORTAL BLOQUEADO ]';
+    } else if (isTutorial || isBoss) {
+      strTexto = `[ ENTER / ESPAÇO ] ENTRAR: ${cfg.rotuloSetor}`;
+    } else {
+      strTexto = '[ ENTER / ESPAÇO ] ENTRAR';
+    }
+
+    texto.setText(strTexto);
+    texto.setColor('#ffffff');
+
+    const padH = 24;
+    const largura = Math.max(280, texto.width + padH * 2);
+    const altura = 34;
+
+    const corBorda = !bossLiberado ? 0xef4444 : 0xffffff;
+
+    fundo.clear();
+    // Fundo escuro de alto contraste
+    fundo.fillStyle(0x050c18, 0.95);
+    fundo.fillRoundedRect(-largura / 2, -altura / 2, largura, altura, 6);
+    // Borda na cor branca (ou vermelha se o boss estiver bloqueado)
+    fundo.lineStyle(1.8, corBorda, 0.95);
+    fundo.strokeRoundedRect(-largura / 2, -altura / 2, largura, altura, 6);
+
+    // Linha de acento tecnológico sutil no topo do card
+    fundo.lineStyle(1, corBorda, 0.4);
+    fundo.lineBetween(-largura / 2 + 10, -altura / 2 + 4, largura / 2 - 10, -altura / 2 + 4);
+
+    const { width, height } = this.scale;
+    this.containerIndicadorPorta.setPosition(width / 2, height - 48);
+    this.containerIndicadorPorta.setVisible(true);
+    this.containerIndicadorPorta.setAlpha(0);
+
+    this.tweens.killTweensOf(this.containerIndicadorPorta);
+    this.tweens.add({
+      targets: this.containerIndicadorPorta,
+      alpha: 1,
+      duration: 140,
+      ease: 'Quad.easeOut',
+    });
+  }
+
+  /**
+   * Oculta o indicador de interação com transição suave.
+   */
+  private ocultarIndicadorPorta(): void {
+    if (!this.containerIndicadorPorta || !this.containerIndicadorPorta.visible) return;
+
+    this.tweens.add({
+      targets: this.containerIndicadorPorta,
+      alpha: 0,
+      duration: 100,
+      ease: 'Quad.easeIn',
+      onComplete: () => {
+        if (!this.portaEmProximidade) {
+          this.containerIndicadorPorta?.setVisible(false);
+        }
+      },
+    });
   }
 
   private registrarAnimacoes(): void {
@@ -511,10 +724,17 @@ export class CenaHub extends Phaser.Scene {
       ease: 'Back.easeOut',
     });
 
-    // Tecla Enter fecha a caixa de mensagem
+    // Teclas Enter ou Espaço fecham a caixa de mensagem narrativa
     if (this.input.keyboard) {
       const enterKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER);
-      enterKey.once('down', fecharDialogo);
+      const spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+      const fecharComTecla = () => {
+        enterKey.off('down', fecharComTecla);
+        spaceKey.off('down', fecharComTecla);
+        fecharDialogo();
+      };
+      enterKey.once('down', fecharComTecla);
+      spaceKey.once('down', fecharComTecla);
     }
   }
 
@@ -634,53 +854,72 @@ export class CenaHub extends Phaser.Scene {
     if (this.isTransicaoAtiva) return;
     this.isTransicaoAtiva = true;
 
-    if (!this.spritePersonagem) {
+    if (!this.jogador) {
       this.limparRecursosETransicionar(cfg.chaveCena);
       return;
     }
+
+    // Trava física e movimentação imediatamente
+    this.jogador.setVelocity(0, 0);
+    if (this.jogador.body) {
+      (this.jogador.body as Phaser.Physics.Arcade.Body).setAllowGravity(false);
+    }
+    this.ocultarIndicadorPorta();
 
     const destinoX = cfg.xPorta;
     const destinoY = 535;
 
     // Orienta o operador para a esquerda ou direita
-    const olhandoEsquerda = destinoX < this.spritePersonagem.x;
-    this.spritePersonagem.setFlipX(olhandoEsquerda);
+    const olhandoEsquerda = destinoX < this.jogador.x;
+    this.jogador.setFlipX(olhandoEsquerda);
 
-    // Inicia a animação de corrida
-    if (this.anims.exists(`${this.personagemAtivo}_run`)) {
-      this.spritePersonagem.anims.play(`${this.personagemAtivo}_run`, true);
+    const distancia = Math.abs(this.jogador.x - destinoX);
+
+    // Se já estiver posicionado em frente à porta (andou até ela)
+    if (distancia < 20) {
+      this.jogador.setPosition(destinoX, destinoY);
+      this.executarAnimacaoEntrada(cfg, destinoY);
+      return;
     }
 
-    const distancia = Math.abs(this.spritePersonagem.x - destinoX);
-    const duracaoMovimento = Math.max(300, Math.min(850, distancia * 1.5));
+    // Se veio de clique do mouse de longe, corre até o portal
+    if (this.anims.exists(`${this.personagemAtivo}_run`)) {
+      this.jogador.anims.play(`${this.personagemAtivo}_run`, true);
+    }
+
+    const duracaoMovimento = Math.max(250, Math.min(800, distancia * 1.5));
 
     this.tweens.add({
-      targets: this.spritePersonagem,
+      targets: this.jogador,
       x: destinoX,
       y: destinoY,
       duration: duracaoMovimento,
       ease: 'Quad.easeInOut',
       onComplete: () => {
-        this.spritePersonagem.anims.stop();
-        // Vira de costas para a porta
-        this.spritePersonagem.setFrame(2);
+        this.executarAnimacaoEntrada(cfg, destinoY);
+      },
+    });
+  }
 
-        // Flash sutil de abertura de portal
-        const corFlash = cfg.isBoss ? { r: 255, g: 30, b: 60 } : { r: 0, g: 255, b: 180 };
-        this.cameras.main.flash(180, corFlash.r, corFlash.g, corFlash.b);
+  private executarAnimacaoEntrada(cfg: PortaHubConfig, destinoY: number): void {
+    this.jogador.anims.stop();
+    // Vira de costas para a porta
+    this.jogador.setFrame(2);
 
-        // Entra no portal com encolhimento e fade
-        this.tweens.add({
-          targets: this.spritePersonagem,
-          y: destinoY - 12,
-          scale: 0.72,
-          alpha: 0.1,
-          duration: 250,
-          ease: 'Sine.easeIn',
-          onComplete: () => {
-            this.limparRecursosETransicionar(cfg.chaveCena);
-          },
-        });
+    // Flash sutil de abertura de portal
+    const corFlash = cfg.isBoss ? { r: 255, g: 30, b: 60 } : { r: 0, g: 255, b: 180 };
+    this.cameras.main.flash(180, corFlash.r, corFlash.g, corFlash.b);
+
+    // Entra no portal com encolhimento e fade
+    this.tweens.add({
+      targets: this.jogador,
+      y: destinoY - 12,
+      scale: 0.72,
+      alpha: 0.1,
+      duration: 250,
+      ease: 'Sine.easeIn',
+      onComplete: () => {
+        this.limparRecursosETransicionar(cfg.chaveCena);
       },
     });
   }
@@ -698,6 +937,11 @@ export class CenaHub extends Phaser.Scene {
     if (this.containerAvisoBloqueio) {
       this.containerAvisoBloqueio.destroy();
       this.containerAvisoBloqueio = undefined;
+    }
+
+    if (this.containerIndicadorPorta) {
+      this.containerIndicadorPorta.destroy();
+      this.containerIndicadorPorta = undefined;
     }
 
     // 1. Remove interatividade de todas as hitboxes
@@ -837,12 +1081,22 @@ export class CenaHub extends Phaser.Scene {
   }
 
   /**
-   * Configura os atalhos de teclado:
-   * - Teclas [0] a [6] tentam carregar a fase correspondente (respeitando a trava do Portal 6).
-   * - Tecla [P] abre a seleção de operador.
+   * Configura os controles completos de teclado:
+   * - Movimentação horizontal com WASD e Setas
+   * - Confirmação de entrada nas portas com ENTER e ESPAÇO
+   * - Atalhos diretos [0] a [6] para acessar os portais
+   * - Tecla [P] para seleção de operador
    */
-  private configurarTeclasAtalho(): void {
+  private configurarControles(): void {
     if (!this.input.keyboard) return;
+
+    this.cursors = this.input.keyboard.createCursorKeys();
+    this.teclasWASD = {
+      left: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A),
+      right: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D),
+      enter: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER),
+      space: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE),
+    };
 
     this.input.keyboard.on('keydown-P', () => {
       this.abrirSelecaoPersonagem();
@@ -872,6 +1126,19 @@ export class CenaHub extends Phaser.Scene {
           this.tentarAcessarPortal(cfg, true);
         }
       });
+    }
+  }
+
+  /**
+   * Atualiza o operador ativo e recarrega sua textura no Hub.
+   */
+  public atualizarOperadorAtivo(): void {
+    this.personagemAtivo = GerenciadorEstado.obterPersonagem();
+    if (this.jogador) {
+      this.jogador.setTexture(this.personagemAtivo);
+      if (this.anims.exists(`${this.personagemAtivo}_idle`)) {
+        this.jogador.anims.play(`${this.personagemAtivo}_idle`, true);
+      }
     }
   }
 
