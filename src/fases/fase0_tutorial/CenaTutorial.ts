@@ -2295,7 +2295,7 @@ export class CenaTutorial extends CenaBase {
         '=== PAINEL DE DISTRIBUIÇÃO PRIMÁRIA ===',
         '> STATUS: energia = False',
         '> PROTOCOLO: A iluminação do galpão e a tranca magnética exigem fluxo contínuo.',
-        "> DICA DO ESTAGIÁRIO: No universo binário, se 'False' mantém o setor nas trevas, qual palavra resta para acender as luzes?",
+        '> REGISTRO DO SISTEMA: Os circuitos operam sob lógica booleana estrita. O estado atual é de corte total. Altere o registrador para o polo oposto se não quiser tatear sucata no escuro.',
         '> Digite a instrução:',
       ];
     } else if (tipoTotem === 'bridge') {

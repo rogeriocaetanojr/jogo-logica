@@ -33,11 +33,16 @@ const ERROS_MEGA_BRAIN = {
     ],
   },
   desafio1: {
+    valorSolto: [
+      "[SINTAXE INVÁLIDA] Mega Brain: 'Um valor booleano jogado ao vento não move elétrons. Você pretendia atribuir isso a alguma coisa ou só queria exibir seu vocabulário?'",
+      "[SINTAXE INVÁLIDA] Mega Brain: 'Variáveis existem por um motivo. Jogar valores soltos no terminal não vai reconfigurar o registrador de energia sozinho.'",
+    ],
+    nameErrorMinusculo: [
+      "[NAME ERROR] Mega Brain: 'Em Python, lógica binária de verdade começa com respeito e letra maiúscula. O interpretador nem sabe o que é esse true minúsculo.'",
+      "[NAME ERROR] Mega Brain: 'Você acha que isso aqui é JavaScript? Aqui o booleano afirmativo tem inicial maiúscula.'",
+    ],
     generico: [
-      "[ERRO DE SINTAXE] Mega Brain: 'Instrução sem sentido. Circuitos não ligam com fé, precisam do estado lógico afirmativo atribuído à variável!'",
-      "[ERRO DE SINTAXE] Mega Brain: 'Você bateu a cabeça no teclado ou achou que isso era feitiço? Atribua o estado binário correto.'",
-      "[ERRO DE SINTAXE] Mega Brain: 'O galpão continua nas trevas porque seu comando não expressa verdade lógica nenhuma.'",
-      "[ERRO DE SINTAXE] Mega Brain: 'Desse jeito a bateria da sua lanterna acaba antes de você acertar uma atribuição lógica simples.'",
+      "[SYSTEM FAILURE] Mega Brain: 'O registrador de energia espera um estado lógico afirmativo, não um devaneio aleatório.'",
     ],
     tipoIncompativel: [
       "[TIPO INCOMPATÍVEL] Mega Brain: 'Aqui não aceitamos gambiarra de inteiro solto nem poesia em aspas. Booleano raiz em Python se escreve por extenso!'",
@@ -197,8 +202,7 @@ export function interpretarComandoTutorial(
   if (/^true$/i.test(semPontoEVirgula)) {
     return {
       sucesso: false,
-      mensagem:
-        "[SINTAXE INCOMPLETA] Mega Brain: 'Um valor solto no terminal não altera registradores. Declare a variável completa: energia = True'",
+      mensagem: obterErroNaoRepetido('d1_valor_solto', ERROS_MEGA_BRAIN.desafio1.valorSolto),
     };
   }
 
@@ -221,8 +225,7 @@ export function interpretarComandoTutorial(
   ) {
     return {
       sucesso: false,
-      mensagem:
-        "[NAME ERROR] Mega Brain: 'Em Python, booleanos começam com inicial maiúscula. Use True.'",
+      mensagem: obterErroNaoRepetido('d1_name_error', ERROS_MEGA_BRAIN.desafio1.nameErrorMinusculo),
     };
   }
 
@@ -256,7 +259,7 @@ export function interpretarComandoTutorial(
   if (isTotemEnergia || atribuicaoCompacta.startsWith('energia=')) {
     return {
       sucesso: false,
-      mensagem: obterErroNaoRepetido('d1_invalido', ERROS_MEGA_BRAIN.desafio1.generico),
+      mensagem: "[SYSTEM FAILURE] Mega Brain: 'O registrador de energia espera um estado lógico afirmativo, não um devaneio aleatório.'",
     };
   }
 
