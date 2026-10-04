@@ -9,7 +9,8 @@ interface DadosCenaSelecao {
 
 /**
  * CenaSelecaoPersonagem: Tela de seleção de operador na câmara de criogenia/clonagem.
- * Alvares na cápsula âmbar à esquerda e Reis na cápsula vermelha à direita.
+ * Alvares na cápsula âmbar à esquerda e Reis na cápsula vermelha à direita,
+ * identificados por plaquinhas metálicas estilizadas no chão em frente a cada base.
  */
 export class CenaSelecaoPersonagem extends CenaBase {
   private proximaCena?: string;
@@ -25,14 +26,15 @@ export class CenaSelecaoPersonagem extends CenaBase {
   private tweenLuzAlvares?: Phaser.Tweens.Tween;
   private tweenLuzReis?: Phaser.Tweens.Tween;
 
-  // Painel de Dados Táticos Compacto (Terço Inferior)
-  private containerPainelTatico!: Phaser.GameObjects.Container;
-  private fundoPainelTatico!: Phaser.GameObjects.Graphics;
-  private textoDadosOperador!: Phaser.GameObjects.Text;
-  private textoPromptConfirmar!: Phaser.GameObjects.Text;
-
-  // Hitbox do Botão Confirmar
-  private hitAreaConfirmar!: Phaser.GameObjects.Rectangle;
+  // Plaquinhas Metálicas no Chão (Identificação dos Personagens)
+  private containerPlacaAlvares!: Phaser.GameObjects.Container;
+  private containerPlacaReis!: Phaser.GameObjects.Container;
+  private fundoPlacaAlvares!: Phaser.GameObjects.Graphics;
+  private fundoPlacaReis!: Phaser.GameObjects.Graphics;
+  private textoPlacaAlvares!: Phaser.GameObjects.Text;
+  private textoPlacaReis!: Phaser.GameObjects.Text;
+  private tweenPulsoPlacaAlvares?: Phaser.Tweens.Tween;
+  private tweenPulsoPlacaReis?: Phaser.Tweens.Tween;
 
   // Coordenadas das Cápsulas alinhadas ao cenário de fundo (1280x720)
   private readonly POS_ALVARES = { x: 346, y: 430, w: 180, h: 320 };
@@ -90,8 +92,8 @@ export class CenaSelecaoPersonagem extends CenaBase {
     // 3. Efeitos de Luz e Sprites dos Personagens dentro das Cápsulas
     this.criarEfeitosECapsulas();
 
-    // 4. Painel de Dados Táticos Compacto (Terço Inferior)
-    this.criarPainelDadosTaticos(width, height);
+    // 4. Plaquinhas Metálicas no Chão em frente a cada base
+    this.criarPlaquetasMetalicas();
 
     // 5. Configuração de Controles (Teclado e Cliques)
     this.configurarControles();
@@ -223,7 +225,7 @@ export class CenaSelecaoPersonagem extends CenaBase {
       this.spriteReis.texture.setFilter(Phaser.Textures.FilterMode.NEAREST);
     }
 
-    // 4. Áreas Interativas sobre as Cápsulas
+    // 4. Áreas Interativas sobre as Cápsulas de Vidro
     const hitAreaAlvares = this.add.rectangle(
       this.POS_ALVARES.x,
       this.POS_ALVARES.y,
@@ -263,6 +265,102 @@ export class CenaSelecaoPersonagem extends CenaBase {
     });
   }
 
+  /**
+   * Cria as plaquinhas metálicas estilizadas no chão, em frente à base de cada cápsula.
+   */
+  private criarPlaquetasMetalicas(): void {
+    const yPlacas = 618;
+    const largura = 144;
+    const altura = 30;
+
+    // 1. Placa da Cápsula Esquerda (Alvares)
+    this.containerPlacaAlvares = this.add.container(this.POS_ALVARES.x, yPlacas);
+    this.containerPlacaAlvares.setDepth(30);
+
+    this.fundoPlacaAlvares = this.add.graphics();
+    this.textoPlacaAlvares = this.add.text(0, 0, 'ALVARES', {
+      fontFamily: 'Consolas, "Courier New", monospace',
+      fontSize: '14px',
+      color: '#ffcc00',
+      fontStyle: 'bold',
+      letterSpacing: 2,
+    });
+    this.textoPlacaAlvares.setOrigin(0.5);
+
+    const hitPlacaAlvares = this.add.rectangle(0, 0, largura, altura, 0x000000, 0.001);
+    hitPlacaAlvares.setInteractive({ useHandCursor: true });
+    hitPlacaAlvares.on('pointerdown', () => {
+      if (this.personagemFocado === 'alvares') {
+        this.confirmarEscolha('alvares');
+      } else {
+        this.aplicarFocoPersonagem('alvares', true);
+      }
+    });
+
+    this.containerPlacaAlvares.add([
+      this.fundoPlacaAlvares,
+      this.textoPlacaAlvares,
+      hitPlacaAlvares,
+    ]);
+
+    // 2. Placa da Cápsula Direita (Reis)
+    this.containerPlacaReis = this.add.container(this.POS_REIS.x, yPlacas);
+    this.containerPlacaReis.setDepth(30);
+
+    this.fundoPlacaReis = this.add.graphics();
+    this.textoPlacaReis = this.add.text(0, 0, 'REIS', {
+      fontFamily: 'Consolas, "Courier New", monospace',
+      fontSize: '14px',
+      color: '#ff3344',
+      fontStyle: 'bold',
+      letterSpacing: 2,
+    });
+    this.textoPlacaReis.setOrigin(0.5);
+
+    const hitPlacaReis = this.add.rectangle(0, 0, largura, altura, 0x000000, 0.001);
+    hitPlacaReis.setInteractive({ useHandCursor: true });
+    hitPlacaReis.on('pointerdown', () => {
+      if (this.personagemFocado === 'reis') {
+        this.confirmarEscolha('reis');
+      } else {
+        this.aplicarFocoPersonagem('reis', true);
+      }
+    });
+
+    this.containerPlacaReis.add([
+      this.fundoPlacaReis,
+      this.textoPlacaReis,
+      hitPlacaReis,
+    ]);
+  }
+
+  private desenharFundoPlaca(
+    g: Phaser.GameObjects.Graphics,
+    corTema: number,
+    ativa: boolean
+  ): void {
+    const largura = 144;
+    const altura = 30;
+
+    g.clear();
+
+    // Chapa metálica cinza escuro translúcida
+    g.fillStyle(0x0c1422, ativa ? 0.94 : 0.72);
+    g.fillRoundedRect(-largura / 2, -altura / 2, largura, altura, 4);
+
+    // Contorno neon com a cor do personagem
+    g.lineStyle(ativa ? 2 : 1, corTema, ativa ? 0.95 : 0.4);
+    g.strokeRoundedRect(-largura / 2, -altura / 2, largura, altura, 4);
+
+    // Rebites metálicos nos quatro cantos da placa
+    const corRebites = ativa ? corTema : 0x475569;
+    g.fillStyle(corRebites, ativa ? 0.8 : 0.35);
+    g.fillCircle(-largura / 2 + 5, -altura / 2 + 5, 1.5);
+    g.fillCircle(largura / 2 - 5, -altura / 2 + 5, 1.5);
+    g.fillCircle(-largura / 2 + 5, altura / 2 - 5, 1.5);
+    g.fillCircle(largura / 2 - 5, altura / 2 - 5, 1.5);
+  }
+
   private registrarAnimacoes(): void {
     const tipos: TipoPersonagem[] = ['alvares', 'reis'];
     for (const t of tipos) {
@@ -289,66 +387,7 @@ export class CenaSelecaoPersonagem extends CenaBase {
   }
 
   /**
-   * Painel de Dados Táticos Compacto posicionado no terço inferior da tela.
-   */
-  private criarPainelDadosTaticos(width: number, height: number): void {
-    const painelY = height - 60;
-    const largura = 820;
-    const altura = 64;
-
-    this.containerPainelTatico = this.add.container(width / 2, painelY);
-    this.containerPainelTatico.setDepth(50);
-
-    this.fundoPainelTatico = this.add.graphics();
-
-    this.textoDadosOperador = this.add.text(0, -11, '', {
-      fontFamily: 'Consolas, "Courier New", monospace',
-      fontSize: '13px',
-      color: '#facc15',
-      fontStyle: 'bold',
-      letterSpacing: 1,
-    });
-    this.textoDadosOperador.setOrigin(0.5);
-
-    this.textoPromptConfirmar = this.add.text(
-      0,
-      12,
-      '[ ENTER / CLIQUE DUPLO PARA CONFIRMAR ]',
-      {
-        fontFamily: 'Consolas, "Courier New", monospace',
-        fontSize: '11px',
-        color: '#00ff88',
-        fontStyle: 'bold',
-        letterSpacing: 1,
-      }
-    );
-    this.textoPromptConfirmar.setOrigin(0.5);
-
-    // Hit area interativa sobre o painel para confirmar com clique
-    this.hitAreaConfirmar = this.add.rectangle(
-      0,
-      0,
-      largura,
-      altura,
-      0x000000,
-      0.001
-    );
-    this.hitAreaConfirmar.setInteractive({ useHandCursor: true });
-
-    this.hitAreaConfirmar.on('pointerdown', () => {
-      this.confirmarEscolha(this.personagemFocado);
-    });
-
-    this.containerPainelTatico.add([
-      this.fundoPainelTatico,
-      this.textoDadosOperador,
-      this.textoPromptConfirmar,
-      this.hitAreaConfirmar,
-    ]);
-  }
-
-  /**
-   * Atualiza os efeitos visuais, feixes de luz e telemetria conforme o operador focado.
+   * Atualiza os efeitos visuais, feixes de luz e estado das plaquinhas conforme o operador focado.
    */
   private aplicarFocoPersonagem(escolha: TipoPersonagem, animar: boolean): void {
     this.personagemFocado = escolha;
@@ -368,13 +407,23 @@ export class CenaSelecaoPersonagem extends CenaBase {
       } else if (this.anims.exists('alvares_idle')) {
         this.spriteAlvares.anims.play('alvares_idle', true);
       }
-      this.desenharLuzCapsula(this.luzCapsulaAlvares, this.POS_ALVARES, 0xfacc15, true);
+      this.desenharLuzCapsula(this.luzCapsulaAlvares, this.POS_ALVARES, 0xffcc00, true);
+
+      // Plaquinha Alvares Ativa: 100% opacidade e pulso luminoso
+      this.desenharFundoPlaca(this.fundoPlacaAlvares, 0xffcc00, true);
+      this.containerPlacaAlvares.setAlpha(1.0);
+      this.iniciarPulsoPlaca('alvares');
     } else {
       this.spriteAlvares.setTint(0x555555);
       this.spriteAlvares.setAlpha(0.55);
       this.spriteAlvares.anims.stop();
       this.spriteAlvares.setFrame(0);
-      this.desenharLuzCapsula(this.luzCapsulaAlvares, this.POS_ALVARES, 0xfacc15, false);
+      this.desenharLuzCapsula(this.luzCapsulaAlvares, this.POS_ALVARES, 0xffcc00, false);
+
+      // Plaquinha Alvares Inativa: esmaecida (alpha ~0.55)
+      this.desenharFundoPlaca(this.fundoPlacaAlvares, 0xffcc00, false);
+      this.containerPlacaAlvares.setAlpha(0.55);
+      this.pararPulsoPlaca('alvares');
     }
 
     // 2. Estado de REIS (Direita - Vermelho)
@@ -391,47 +440,65 @@ export class CenaSelecaoPersonagem extends CenaBase {
       } else if (this.anims.exists('reis_idle')) {
         this.spriteReis.anims.play('reis_idle', true);
       }
-      this.desenharLuzCapsula(this.luzCapsulaReis, this.POS_REIS, 0xef4444, true);
+      this.desenharLuzCapsula(this.luzCapsulaReis, this.POS_REIS, 0xff3344, true);
+
+      // Plaquinha Reis Ativa: 100% opacidade e pulso luminoso
+      this.desenharFundoPlaca(this.fundoPlacaReis, 0xff3344, true);
+      this.containerPlacaReis.setAlpha(1.0);
+      this.iniciarPulsoPlaca('reis');
     } else {
       this.spriteReis.setTint(0x555555);
       this.spriteReis.setAlpha(0.55);
       this.spriteReis.anims.stop();
       this.spriteReis.setFrame(0);
-      this.desenharLuzCapsula(this.luzCapsulaReis, this.POS_REIS, 0xef4444, false);
+      this.desenharLuzCapsula(this.luzCapsulaReis, this.POS_REIS, 0xff3344, false);
+
+      // Plaquinha Reis Inativa: esmaecida (alpha ~0.55)
+      this.desenharFundoPlaca(this.fundoPlacaReis, 0xff3344, false);
+      this.containerPlacaReis.setAlpha(0.55);
+      this.pararPulsoPlaca('reis');
     }
+  }
 
-    // 3. Atualização do Painel de Dados Táticos
-    const corTemaHex = isAlvares ? '#facc15' : '#f87171';
-    const corBordaNum = isAlvares ? 0xfacc15 : 0xef4444;
+  private iniciarPulsoPlaca(tipo: TipoPersonagem): void {
+    if (tipo === 'alvares') {
+      if (!this.tweenPulsoPlacaAlvares) {
+        this.tweenPulsoPlacaAlvares = this.tweens.add({
+          targets: this.containerPlacaAlvares,
+          scale: { from: 1.0, to: 1.04 },
+          duration: 750,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.easeInOut',
+        });
+      }
+    } else {
+      if (!this.tweenPulsoPlacaReis) {
+        this.tweenPulsoPlacaReis = this.tweens.add({
+          targets: this.containerPlacaReis,
+          scale: { from: 1.0, to: 1.04 },
+          duration: 750,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.easeInOut',
+        });
+      }
+    }
+  }
 
-    const textoInfo = isAlvares
-      ? '[UNIDADE 01: ALVARES] // Traje de Alta Agilidade // Módulo de Baixa Latência'
-      : '[UNIDADE 02: REIS] // Sobretudo Tático Reforçado // Núcleo Analítico Blindado';
-
-    this.textoDadosOperador.setText(textoInfo);
-    this.textoDadosOperador.setColor(corTemaHex);
-
-    // Desenha o fundo do painel tático com a cor do operador
-    const largura = 820;
-    const altura = 64;
-    this.fundoPainelTatico.clear();
-    this.fundoPainelTatico.fillStyle(0x040812, 0.94);
-    this.fundoPainelTatico.fillRoundedRect(-largura / 2, -altura / 2, largura, altura, 6);
-    this.fundoPainelTatico.lineStyle(1.8, corBordaNum, 0.9);
-    this.fundoPainelTatico.strokeRoundedRect(-largura / 2, -altura / 2, largura, altura, 6);
-
-    // Friso tecnológico sutil
-    this.fundoPainelTatico.lineStyle(1, corBordaNum, 0.35);
-    this.fundoPainelTatico.lineBetween(-largura / 2 + 20, -altura / 2 + 3, largura / 2 - 20, -altura / 2 + 3);
-
-    if (animar) {
-      this.tweens.add({
-        targets: this.containerPainelTatico,
-        scale: 1.02,
-        duration: 100,
-        yoyo: true,
-        ease: 'Quad.easeInOut',
-      });
+  private pararPulsoPlaca(tipo: TipoPersonagem): void {
+    if (tipo === 'alvares') {
+      if (this.tweenPulsoPlacaAlvares) {
+        this.tweenPulsoPlacaAlvares.stop();
+        this.tweenPulsoPlacaAlvares = undefined;
+      }
+      this.containerPlacaAlvares.setScale(1.0);
+    } else {
+      if (this.tweenPulsoPlacaReis) {
+        this.tweenPulsoPlacaReis.stop();
+        this.tweenPulsoPlacaReis = undefined;
+      }
+      this.containerPlacaReis.setScale(1.0);
     }
   }
 
@@ -464,7 +531,7 @@ export class CenaSelecaoPersonagem extends CenaBase {
       g.strokeRoundedRect(pos.x - pos.w / 2 + 10, pos.y - pos.h / 2 + 15, pos.w - 20, pos.h - 30, 10);
 
       // Tween de pulso de luz contínuo na cápsula ativa
-      if (cor === 0xfacc15) {
+      if (cor === 0xffcc00) {
         if (!this.tweenLuzAlvares) {
           this.tweenLuzAlvares = this.tweens.add({
             targets: g,
@@ -493,10 +560,10 @@ export class CenaSelecaoPersonagem extends CenaBase {
       g.fillRoundedRect(pos.x - pos.w / 2 + 10, pos.y - pos.h / 2 + 15, pos.w - 20, pos.h - 30, 10);
       g.setAlpha(0.6);
 
-      if (cor === 0xfacc15 && this.tweenLuzAlvares) {
+      if (cor === 0xffcc00 && this.tweenLuzAlvares) {
         this.tweenLuzAlvares.stop();
         this.tweenLuzAlvares = undefined;
-      } else if (cor === 0xef4444 && this.tweenLuzReis) {
+      } else if (cor === 0xff3344 && this.tweenLuzReis) {
         this.tweenLuzReis.stop();
         this.tweenLuzReis = undefined;
       }
@@ -546,11 +613,13 @@ export class CenaSelecaoPersonagem extends CenaBase {
     GerenciadorEstado.definirPersonagem(escolha);
 
     // 2. Efeito de flash de luz na cápsula escolhida
-    const corFlash = escolha === 'alvares' ? { r: 250, g: 204, b: 21 } : { r: 248, g: 113, b: 113 };
+    const corFlash = escolha === 'alvares' ? { r: 255, g: 204, b: 0 } : { r: 255, g: 51, b: 68 };
     this.cameras.main.flash(220, corFlash.r, corFlash.g, corFlash.b);
 
-    // 3. Leve pulso de escala no sprite escolhido
+    // 3. Leve pulso de escala no sprite e na plaqueta escolhida
     const spriteAlvo = escolha === 'alvares' ? this.spriteAlvares : this.spriteReis;
+    const placaAlvo = escolha === 'alvares' ? this.containerPlacaAlvares : this.containerPlacaReis;
+
     this.tweens.add({
       targets: spriteAlvo,
       scale: 1.95,
@@ -559,12 +628,16 @@ export class CenaSelecaoPersonagem extends CenaBase {
       ease: 'Quad.easeInOut',
     });
 
-    // 4. Feedback no painel tático
-    this.textoPromptConfirmar.setText(`[ OPERADOR ${escolha.toUpperCase()} ATIVADO // RETORNANDO ]`);
-    this.textoPromptConfirmar.setColor('#ffffff');
+    this.tweens.add({
+      targets: placaAlvo,
+      scale: 1.08,
+      duration: 160,
+      yoyo: true,
+      ease: 'Quad.easeInOut',
+    });
 
-    // 5. Fade-out suave da câmera e retorno ao Hub
-    this.time.delayedCall(450, () => {
+    // 4. Fade-out suave da câmera e retorno ao Hub
+    this.time.delayedCall(400, () => {
       this.voltarParaHub();
     });
   }
