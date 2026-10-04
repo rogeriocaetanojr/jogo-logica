@@ -71,16 +71,16 @@ const ERROS_MEGA_BRAIN = {
   },
   desafio3: {
     ordemInvertida: [
-      "[SEQUÊNCIA INVERTIDA] Mega Brain: ''FailMega'? Strings não são conta de adição comutativa onde a ordem não importa. Respeite a sequência dos fragmentos!'",
-      "[ERRO DE ORDEM] Mega Brain: 'Você montou a chave de trás pra frente. Tente juntar na ordem cronológica que os registradores exibem.'",
-      "[CHAVE REJEITADA] Mega Brain: 'Chave invertida rejeitada pelo elevador. O primeiro fragmento vem antes do segundo, gênio.'",
-      "[ORDEM DE SINTAXE] Mega Brain: 'Quem lê da direita para a esquerda é outro tipo de compilador. Coloque parte1 antes de parte2.'",
+      "[HASH INVÁLIDO] Mega Brain: 'Ordem invertida. O barramento rejeitou a chave 'FailMega'. Quem programa assim?'",
     ],
-    sintaxeOuTipo: [
-      "[NOME NÃO ENCONTRADO] Mega Brain: 'Identificadores não encontrados. Ou você utiliza os nomes exatos das variáveis fragmentadas, ou concatena os textos literais entre aspas.'",
-      "[ERRO DE TIPO] Mega Brain: 'Misturar texto com aritmética sem sentido quebrou o interpretador. Concatene os dois fragmentos usando o operador adequado!'",
-      "[ACESSO NEGADO] Mega Brain: 'Acesso negado. O barramento exige a soma textual das duas metades fornecidas na tela.'",
-      "[ELEVADOR TRAVADO] Mega Brain: 'O guincho continua travado no teto. Junte as duas metades da chave em uma variável só.'",
+    antiCheat: [
+      "[ANTI-CHEAT DETECTADO] Mega Brain: 'Espertinho, mas o compilador quer concatenação de variáveis, não texto hardcoded. Use os registradores parte1 e parte2!'",
+    ],
+    sintaxeIncompleta: [
+      "[SINTAXE INCOMPLETA] Mega Brain: 'Concatenou bonito, mas salvou onde? O protocolo exige gravar na variável senha.'",
+    ],
+    acessoNegado: [
+      "[ACESSO NEGADO] Mega Brain: 'Barramento travado. O elevador continua sem autorização de descida.'",
     ],
   },
 };
@@ -332,54 +332,59 @@ export function interpretarComandoTutorial(
   const isTotemElevador = contexto?.totem === 'elevator' || contexto?.totem === 'elevador';
   const isAlvoElevador =
     isTotemElevador ||
-    atribuicaoCompacta.startsWith('senha=') ||
-    atribuicaoCompacta.startsWith('chave_elevador=') ||
-    atribuicaoCompacta.startsWith('chave=');
+    /^\s*senha\s*=/i.test(semPontoEVirgula) ||
+    /^\s*chave(?:_elevador)?\s*=/i.test(semPontoEVirgula) ||
+    /parte1|parte2|megafail|failmega/i.test(semPontoEVirgula);
 
   if (isAlvoElevador) {
-    const expressao = atribuicaoCompacta
-      .replace(/^(?:senha|chave_elevador|chave)=/, '')
-      .replace(/\s+/g, '');
-
-    // 1. Sucesso: concatenação correta de variáveis ou strings literais
-    const isConcatenaSucesso =
-      expressao === 'parte1+parte2' ||
-      expressao === '"mega"+"fail"' ||
-      expressao === "'mega'+'fail'" ||
-      expressao === '"mega"+\'fail\'' ||
-      expressao === "'mega'+\"fail\"" ||
-      expressao === '"megafail"' ||
-      expressao === "'megafail'";
-
-    if (isConcatenaSucesso) {
+    // 1. Sucesso estrito: a ÚNICA resposta aceita para avançar é a atribuição com a soma das duas variáveis
+    // Permite apenas variações de espaços em branco ao redor dos operadores
+    if (/^\s*senha\s*=\s*parte1\s*\+\s*parte2\s*$/.test(semPontoEVirgula)) {
       return {
         sucesso: true,
         mensagem:
-          "[ACESSO CONCEDIDO] Hash validado: 'MegaFail'. Destravando guincho hidráulico...",
+          "[ACESSO AUTORIZADO] Mega Brain: 'Chave sincronizada: MegaFail. Liberando travas hidráulicas...'",
         acao: 'LOWER_ELEVATOR',
       };
     }
 
-    // 2. Erro de Sequência Invertida: partes concatenadas na ordem oposta ("FailMega")
-    const isOrdemInvertida =
-      expressao === 'parte2+parte1' ||
-      expressao === '"fail"+"mega"' ||
-      expressao === "'fail'+'mega'" ||
-      expressao === '"fail"+\'mega\'' ||
-      expressao === "'fail'+\"mega\"" ||
-      expressao === '"failmega"' ||
-      expressao === "'failmega'";
-
-    if (isOrdemInvertida) {
+    // 2. Ordem Invertida: senha = parte2 + parte1 (ou parte2 + parte1, ou chave invertida)
+    if (
+      /^\s*(?:senha\s*=\s*)?parte2\s*\+\s*parte1\s*$/i.test(semPontoEVirgula) ||
+      /^\s*(?:senha\s*=\s*)?['"]fail['"]\s*\+\s*['"]mega['"]\s*$/i.test(semPontoEVirgula) ||
+      /^\s*(?:senha\s*=\s*)?['"]?failmega['"]?\s*$/i.test(semPontoEVirgula)
+    ) {
       return {
         sucesso: false,
         mensagem: obterErroNaoRepetido('d3_invertida', ERROS_MEGA_BRAIN.desafio3.ordemInvertida),
       };
     }
 
+    // 3. Bloqueio de Hardcode (Anti-cheat): senha = 'MegaFail', senha = "MegaFail", MegaFail, etc.
+    const isHardcoded =
+      /^\s*(?:senha\s*=\s*)?(?:['"]?megafail['"]?|['"]mega['"]\s*\+\s*['"]fail['"])\s*$/i.test(
+        semPontoEVirgula
+      );
+
+    if (isHardcoded) {
+      return {
+        sucesso: false,
+        mensagem: obterErroNaoRepetido('d3_anticheat', ERROS_MEGA_BRAIN.desafio3.antiCheat),
+      };
+    }
+
+    // 4. Respostas para Valores Soltos ou Operações Incompletas: apenas parte1 + parte2 (sem atribuir a senha)
+    if (/^\s*parte1\s*\+\s*parte2\s*$/i.test(semPontoEVirgula)) {
+      return {
+        sucesso: false,
+        mensagem: obterErroNaoRepetido('d3_incompleta', ERROS_MEGA_BRAIN.desafio3.sintaxeIncompleta),
+      };
+    }
+
+    // 5. Qualquer comando genérico ou incorreto
     return {
       sucesso: false,
-      mensagem: obterErroNaoRepetido('d3_sintaxe', ERROS_MEGA_BRAIN.desafio3.sintaxeOuTipo),
+      mensagem: obterErroNaoRepetido('d3_negado', ERROS_MEGA_BRAIN.desafio3.acessoNegado),
     };
   }
 
