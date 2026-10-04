@@ -636,9 +636,31 @@ export class CenaSelecaoPersonagem extends CenaBase {
       ease: 'Quad.easeInOut',
     });
 
-    // 4. Fade-out suave da câmera e retorno ao Hub
+    // 4. Fade-out suave da câmera e transição direta para o Tutorial
     this.time.delayedCall(400, () => {
-      this.voltarParaHub();
+      this.transicionarAposEscolha();
+    });
+  }
+
+  private transicionarAposEscolha(): void {
+    if (this.isTransicaoAtiva && this.cameras.main.fadeEffect.isRunning) return;
+    this.isTransicaoAtiva = true;
+
+    // Limpeza rigorosa de tweens e listeners
+    this.tweens.killAll();
+    if (this.input.keyboard) {
+      this.input.keyboard.removeAllListeners();
+    }
+    this.input.removeAllListeners();
+
+    this.cameras.main.fade(280, 0, 0, 0);
+    this.time.delayedCall(280, () => {
+      this.time.removeAllEvents();
+      if (this.proximaCena) {
+        this.scene.start(this.proximaCena, this.dadosProximaCena as object | undefined);
+      } else {
+        this.scene.start('CenaTutorial', { iniciarAposBoot: true });
+      }
     });
   }
 
@@ -656,11 +678,7 @@ export class CenaSelecaoPersonagem extends CenaBase {
     this.cameras.main.fade(280, 0, 0, 0);
     this.time.delayedCall(280, () => {
       this.time.removeAllEvents();
-      if (this.proximaCena) {
-        this.scene.start(this.proximaCena, this.dadosProximaCena as object | undefined);
-      } else {
-        this.scene.start('CenaHub');
-      }
+      this.scene.start(this.proximaCena || 'CenaHub');
     });
   }
 }

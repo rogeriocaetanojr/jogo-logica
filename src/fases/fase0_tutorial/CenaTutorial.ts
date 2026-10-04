@@ -69,16 +69,26 @@ export class CenaTutorial extends CenaBase {
 
   // Variáveis de movimentação
   private jumpForce: number = 515;
-  private isBootingSequence: boolean = true;
+  private isBootingSequence: boolean = false;
+  private dadosEntrada?: { isBooting?: boolean; iniciarAposBoot?: boolean; desafio?: number };
 
   constructor() {
     super('CenaTutorial', 'fase0_tutorial');
   }
 
-  init(data?: { isBooting?: boolean; desafio?: number }): void {
-    // Garante que o desafio comece estritamente em 0 (Desafio 0: Hello World)
-    this.desafioAtual = data?.desafio ?? 0;
-    this.isBootingSequence = data?.isBooting ?? true;
+  init(data?: { isBooting?: boolean; iniciarAposBoot?: boolean; desafio?: number }): void {
+    this.dadosEntrada = data;
+
+    // Se data?.isBooting for explicitamente true e não houver iniciarAposBoot, executa o ritual de Hello World
+    if (data?.isBooting && !data?.iniciarAposBoot) {
+      this.isBootingSequence = true;
+      this.desafioAtual = data?.desafio ?? 0;
+    } else {
+      // Padrão ao entrar na fase (vindo da tela de seleção ou hub): inicia direto no Desafio 1 (Painel de Energia)
+      this.isBootingSequence = false;
+      this.desafioAtual = 1;
+    }
+
     this.isPowerOn = false;
     this.isBridgeExpanded = false;
     this.isElevatorLowered = false;
@@ -92,10 +102,18 @@ export class CenaTutorial extends CenaBase {
     GerenciadorEstado.salvarTutorialConcluido(false);
   }
 
-  create(): void {
+  create(data?: { isBooting?: boolean; iniciarAposBoot?: boolean; desafio?: number }): void {
     super.create();
-    this.desafioAtual = 0;
-    this.isBootingSequence = true;
+
+    const dados = data ?? this.dadosEntrada;
+    if (dados?.isBooting && !dados?.iniciarAposBoot) {
+      this.isBootingSequence = true;
+      this.desafioAtual = dados?.desafio ?? 0;
+    } else {
+      this.isBootingSequence = false;
+      this.desafioAtual = 1;
+    }
+
     GerenciadorEstado.salvarTutorialConcluido(false);
 
     this.criarHUDSuperior('TUTORIAL // O DESPERTAR DO KERNEL');
@@ -2243,7 +2261,7 @@ export class CenaTutorial extends CenaBase {
         this.terminal.fecharForcado();
         const containerJogo = document.getElementById('game-container');
         containerJogo?.classList.remove('blur-active');
-        this.configurarDialogo();
+        this.scene.start('CenaSelecaoPersonagem');
       }, 1200);
     } else if (resultado.acao === 'DISABLE_STEEL_DOOR') {
       this.desafioAtual = 2;
