@@ -53,20 +53,15 @@ const ERROS_MEGA_BRAIN = {
   },
   desafio2: {
     abaixo: [
-      "[ERRO DE ALCANCE INSUFICIENTE] Mega Brain: 'Sua esteira continuou curta e despencou no vácuo. Vai continuar chutando número no escuro?'",
-      "[ERRO DE CÁLCULO] Mega Brain: 'Faltou braço pro pistão alcançar a margem. Olhe as leituras antes de digitar qualquer bobagem.'",
-      "[ERRO DE VÃO] Mega Brain: 'A física não negocia com preguiça mental. O vão continua maior do que o valor ridículo que você definiu.'",
-      "[ERRO DE EXTENSÃO] Mega Brain: 'Se você tentar andar nessa esteira desse tamanho, o exaustor de ar lá embaixo vai cansar de te catar.'",
+      "[CURTO ALCANCE] Mega Brain: 'Se tentar atravessar nessa distância, você vai direto pro fosso de reciclagem. Falta comprimento para alcançar o outro lado.'",
+      "[VÃO INCOMPLETO] Mega Brain: 'Curto demais. O sensor do mezanino nem detectou a ponta da esteira. Tente um valor maior.'",
     ],
     acima: [
-      "[ERRO DE SOBRECARGA] Mega Brain: 'Passou do ponto! Esse tamanho vai bater contra a parede do mezanino e quebrar os pistões. O vão mede exatamente 8 metros!'",
-      "[ERRO DE CALIBRAÇÃO] Mega Brain: 'Engenharia de precisão não tolera desperdício. O abismo mede 8 metros cravados, reduza essa medida.'",
-      "[LIMITE FÍSICO ATINGIDO] Mega Brain: 'A esteira encavalou na estrutura do outro lado por excesso de comprimento. Ajuste para a medida exata do sensor.'",
+      "[ERRO DE SOBRECARGA] Mega Brain: 'Passou do ponto! Esse comprimento vai colidir contra a parede do mezanino e destruir os pistões hidráulicos. Calibre para menos se não quiser virar sucata prensada.'",
+      "[LIMITE FÍSICO ATINGIDO] Mega Brain: 'A esteira encavalou na estrutura oposta por excesso de metal. Reduza a extensão antes que o motor queime.'",
     ],
     numeroSolto: [
-      "[VALOR SOLTO] Mega Brain: 'Jogar um número solto no console não atribui nada a lugar nenhum. Cadê a variável da esteira e o operador de atribuição?'",
-      "[ERRO DE SINTAXE] Mega Brain: 'Você acha que a máquina adivinha onde enfiar esse número? Atribua o valor à variável: nome = valor!'",
-      "[PREGUIÇA DETECTADA] Mega Brain: 'Digitar só o número é preguiça demais. Isso é Python, não calculadora de padaria. Use a variável do painel.'",
+      "[ERRO DE SINTAXE] Mega Brain: 'Você acha que a máquina adivinha onde enfiar esse número? Atribua o valor à variável: nome_variavel = valor!'",
     ],
     erroTipo: [
       "[ERRO DE TIPO] Mega Brain: 'Você mandou um texto com aspas pro motor hidráulico. Engrenagens operam com números inteiros, não com redação.'",
