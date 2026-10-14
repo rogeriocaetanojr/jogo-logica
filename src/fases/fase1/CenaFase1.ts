@@ -3,7 +3,12 @@ import { CenaBase } from '../../compartilhado/CenaBase';
 import { GerenciadorEstado, type TipoPersonagem } from '../../nucleo/GerenciadorEstado';
 import type { ResultadoComando } from '../../compartilhado/tipos';
 import { interpretarComandoFase1 } from './InterpretadorFase1';
-import type { ColunaVento, SentinelaInimiga, PlataformaRachada } from './tiposFase1';
+import type {
+  ColunaVento,
+  SentinelaInimiga,
+  PlataformaRachada,
+  PilarMovel,
+} from './tiposFase1';
 import {
   MUNDO_FASE1,
   CAMERA_FASE1,
@@ -12,17 +17,21 @@ import {
   MARMORE_RACHADO_FASE1,
   SENTINELAS_FASE1,
   CHECKPOINTS_FASE1,
-  PUZZLE_1_FASE1,
-  PUZZLE_2_FASE1,
-  PUZZLE_3_FASE1,
+  DISTANCIA_INTERACAO_TOTEM_PADRAO,
+  TOTEM_1_ALCOOLEMIA,
+  TOTEM_2_BALANCA,
+  TOTEM_3_DDA,
+  TOTEM_4_PORTAO,
+  TOTEM_5_SEQUENCIADOR,
+  TOTEM_6_ARQUITETO,
   SANTUARIO_FASE1,
   BLOCO_1_LEVEL_DESIGN,
 } from './constantesFase1';
 
 /**
- * CenaFase1: Céu Partido (Plataforma Aérea, Condicionais, Debugging e Funções Parametrizadas).
- * Estética fiel ao Stitch: céu lilás/rosa em degradê luminoso, nuvens em parallax,
- * mármore claro com frisos dourados, colunas de vento translúcidas e drones sentinela com olho vermelho.
+ * CenaFase1: Céu Partido (Onda 2 Expandida).
+ * Implementa todos os 6 desafios lógicos com humor sarcástico / ácido,
+ * sem entregar as respostas prontas no terminal, integrando física Arcade e estética luminosa Stitch.
  */
 export class CenaFase1 extends CenaBase {
   // Entidades e física
@@ -46,31 +55,53 @@ export class CenaFase1 extends CenaBase {
   };
   private textoNotificacaoCheckpoint?: Phaser.GameObjects.Text;
 
-  // Puzzle 1: Condicional dos Altares
-  private altarAAtivo: boolean = false;
-  private altarBAtivo: boolean = false;
-  private spriteAltarA!: Phaser.GameObjects.Sprite;
-  private spriteAltarB!: Phaser.GameObjects.Sprite;
-  private totemCondicional!: Phaser.GameObjects.Image;
-  private promptCondicional!: Phaser.GameObjects.Text;
-  private superColunaVento?: ColunaVento;
-  private zonaDecolagemBounds!: Phaser.Geom.Rectangle;
-  private graficoZonaDecolagem!: Phaser.GameObjects.Graphics;
+  // =========================================================================
+  // OS 6 TOTENS E ESTADOS DOS PUZZLES (ONDA 2 EXPANDIDA)
+  // =========================================================================
 
-  // Puzzle 2: Sentinela Hackeável (Debugging de operador)
-  private totemSentinela!: Phaser.GameObjects.Image;
-  private promptSentinela!: Phaser.GameObjects.Text;
-  private sentinelaHackeavel?: SentinelaInimiga;
-  private sentinelaHackeada: boolean = false;
+  // Puzzle 1: "O Teste de Alcoolemia da Sentinela" (not / and)
+  private totem1!: Phaser.GameObjects.Image;
+  private promptTotem1!: Phaser.GameObjects.Text;
+  private totem1Resolvido: boolean = false;
+  private sentinela1?: SentinelaInimiga;
+  private barreiraEscudoSentinela?: Phaser.Physics.Arcade.Sprite;
+  private graficoEscudo?: Phaser.GameObjects.Graphics;
 
-  // Puzzle 3: Função com Parâmetros (Escada de Vento)
-  private totemRajada!: Phaser.GameObjects.Image;
-  private promptRajada!: Phaser.GameObjects.Text;
-  private escadaRajadasAtiva: boolean = false;
+  // Puzzle 2: "A Balança Hipócrita de Nuvens" (if/elif/else com altitude)
+  private totem2!: Phaser.GameObjects.Image;
+  private promptTotem2!: Phaser.GameObjects.Text;
+  private totem2Resolvido: boolean = false;
+  private elevadorNuvem!: Phaser.Physics.Arcade.Sprite;
+
+  // Puzzle 3: "A Sentinela com DDA" (Debug de Limite de Patrulha / Loop)
+  private totem3!: Phaser.GameObjects.Image;
+  private promptTotem3!: Phaser.GameObjects.Text;
+  private totem3Resolvido: boolean = false;
+  private sentinelaB02?: SentinelaInimiga;
+
+  // Puzzle 4: "O Portão com Crise Existencial" (Precedência (A or B) and C)
+  private totem4!: Phaser.GameObjects.Image;
+  private promptTotem4!: Phaser.GameObjects.Text;
+  private totem4Resolvido: boolean = false;
+  private portaoMilenar!: Phaser.Physics.Arcade.Sprite;
+  private colisorPortao?: Phaser.Physics.Arcade.Collider;
+
+  // Puzzle 5: "O Sequenciador de Rajadas" (Parâmetros de Ritmo e Força)
+  private totem5!: Phaser.GameObjects.Image;
+  private promptTotem5!: Phaser.GameObjects.Text;
+  private totem5Resolvido: boolean = false;
   private colunasEscada: ColunaVento[] = [];
   private tempoCicloEscada: number = 0;
-  private alturaEscadaPixels: number = 430;
-  private atrasoEscadaSegundos: number = 1.5;
+  private intervaloEscadaSegundos: number = 1.5;
+  private forcaEscadaPixels: number = 450;
+  private escadaRajadasAtiva: boolean = false;
+
+  // Puzzle 6: "O Desafio do Arquiteto Preguiçoso" (Filtro for com if)
+  private totem6!: Phaser.GameObjects.Image;
+  private promptTotem6!: Phaser.GameObjects.Text;
+  private totem6Resolvido: boolean = false;
+  private pilaresMoveis: PilarMovel[] = [];
+  private grupoPilares!: Phaser.Physics.Arcade.StaticGroup;
 
   // Antecâmara Final / Portal do Santuário
   private portalFinal!: Phaser.GameObjects.Sprite;
@@ -121,11 +152,12 @@ export class CenaFase1 extends CenaBase {
     this.plataformasEstaticas = this.physics.add.staticGroup();
     this.nuvensSolidas = this.physics.add.staticGroup();
     this.grupoMarmoreRachado = this.physics.add.staticGroup();
+    this.grupoPilares = this.physics.add.staticGroup();
 
     // 6. Jogador (CRÍTICO: criado antes de registrar colisores para não causar erro de objeto indefinido)
     this.criarJogador();
 
-    // 7. Construção da Estrutura dos 3 Blocos
+    // 7. Construção dos 3 Blocos de Level Design com os 6 Puzzles
     this.construirBloco1_Introducao(alturaMundo);
     this.construirBloco2_PuzzlesECodigo(alturaMundo);
     this.construirBloco3_EscadaEAntecamara(alturaMundo);
@@ -133,6 +165,7 @@ export class CenaFase1 extends CenaBase {
     // 8. Colisões com o Jogador
     this.physics.add.collider(this.jogador, this.plataformasEstaticas);
     this.physics.add.collider(this.jogador, this.nuvensSolidas);
+    this.physics.add.collider(this.jogador, this.grupoPilares);
     this.physics.add.collider(
       this.jogador,
       this.grupoMarmoreRachado,
@@ -179,15 +212,13 @@ export class CenaFase1 extends CenaBase {
       {
         falante: '> CANAL REBELDE // TRANSMISSÃO CELESTIAL',
         texto:
-          'Utilize as correntes de vento verticais para planar segurando o pulo. Cuidado com o mármore rachado e os drones Sentinela!',
+          'Utilize as correntes de vento verticais para planar segurando o pulo. Cuidado com o mármore rachado e os totens de controle!',
       },
     ]);
   }
 
   /**
-   * Gera todas as texturas procedurais com alta fidelidade visual à paleta do Stitch:
-   * Céu lilás/rosa luminoso, mármore off-white com frisos dourados, nuvens fofas e drones escuros com olho vermelho.
-   * Nota: A textura órfã 'player' foi eliminada em favor dos spritesheets reais do GerenciadorEstado.
+   * Gera todas as texturas procedurais com alta fidelidade visual à paleta do Stitch.
    */
   private gerarTexturasProcedurais(): void {
     // 1. Mármore Claro com Friso Dourado (Superfície sólida)
@@ -237,7 +268,7 @@ export class CenaFase1 extends CenaBase {
       g.lineTo(135, 20);
       g.lineTo(125, 32);
       g.strokePath();
-      // Brilho tênue ambar saindo das fendas
+      // Brilho tênue âmbar saindo das fendas
       g.lineStyle(1, 0xfbbf24, 0.9);
       g.beginPath();
       g.moveTo(51, 1);
@@ -328,39 +359,7 @@ export class CenaFase1 extends CenaBase {
       g.destroy();
     }
 
-    // 7. Altar de Ativação Rúnico
-    if (!this.textures.exists('altar-runico')) {
-      const g = this.make.graphics();
-      const w = 64;
-      const h = 24;
-      g.fillStyle(0x334155, 1);
-      g.fillRoundedRect(0, 8, w, 16, 4);
-      g.fillStyle(0xf59e0b, 0.8);
-      g.fillRect(4, 10, w - 8, 4);
-      g.fillStyle(0x64748b, 1);
-      g.fillCircle(w / 2, 10, 8);
-      g.generateTexture('altar-runico', w, h);
-      g.destroy();
-    }
-
-    // 7b. Altar Ativado
-    if (!this.textures.exists('altar-runico-on')) {
-      const g = this.make.graphics();
-      const w = 64;
-      const h = 24;
-      g.fillStyle(0x1e293b, 1);
-      g.fillRoundedRect(0, 8, w, 16, 4);
-      g.fillStyle(0x10b981, 1);
-      g.fillRect(4, 10, w - 8, 4);
-      g.fillStyle(0x34d399, 1);
-      g.fillCircle(w / 2, 10, 8);
-      g.fillStyle(0xffffff, 0.9);
-      g.fillCircle(w / 2, 8, 3);
-      g.generateTexture('altar-runico-on', w, h);
-      g.destroy();
-    }
-
-    // 8. Inimigo: Sentinela-Nuvem (Drone com olho vermelho do Stitch)
+    // 7. Inimigo: Sentinela-Nuvem (Drone com olho vermelho)
     if (!this.textures.exists('sentinela-drone')) {
       const g = this.make.graphics();
       const w = 64;
@@ -382,7 +381,41 @@ export class CenaFase1 extends CenaBase {
       g.destroy();
     }
 
-    // 9. Portal do Santuário
+    // 8. Portão Milenar
+    if (!this.textures.exists('portao-milenar')) {
+      const g = this.make.graphics();
+      const w = 40;
+      const h = 200;
+      g.fillStyle(0x0f172a, 1);
+      g.fillRect(0, 0, w, h);
+      g.fillStyle(0x38bdf8, 0.4);
+      g.fillRect(4, 4, w - 8, h - 8);
+      g.fillStyle(0xf59e0b, 1);
+      g.fillRect(0, 0, w, 8);
+      g.fillRect(0, h - 8, w, 8);
+      g.lineStyle(2, 0x38bdf8, 0.9);
+      g.beginPath();
+      g.moveTo(w / 2, 20);
+      g.lineTo(w / 2, h - 20);
+      g.strokePath();
+      g.generateTexture('portao-milenar', w, h);
+      g.destroy();
+    }
+
+    // 9. Placa Rúnica de Sinalização
+    if (!this.textures.exists('placa-runica')) {
+      const g = this.make.graphics();
+      const w = 150;
+      const h = 34;
+      g.fillStyle(0x1e293b, 0.92);
+      g.fillRoundedRect(0, 0, w, h, 6);
+      g.lineStyle(2, 0xfbbf24, 0.85);
+      g.strokeRoundedRect(0, 0, w, h, 6);
+      g.generateTexture('placa-runica', w, h);
+      g.destroy();
+    }
+
+    // 10. Portal do Santuário
     if (!this.textures.exists('portal-santuario')) {
       const g = this.make.graphics();
       const w = 96;
@@ -406,7 +439,6 @@ export class CenaFase1 extends CenaBase {
    * Constrói o fundo em degradê do Céu Partido (lilás/rosa luminoso) e nuvens em Parallax.
    */
   private criarCenarioParallax(larguraMundo: number, _alturaMundo: number): void {
-    // 1. Degradê de céu contínuo suave: lilás luminoso descendo para rosa e pêssego
     const gradiente = this.add.graphics();
     gradiente.setDepth(-10);
     gradiente.fillGradientStyle(
@@ -419,7 +451,7 @@ export class CenaFase1 extends CenaBase {
     gradiente.fillRect(0, 0, 1280, 720);
     gradiente.setScrollFactor(0);
 
-    // 2. Camada 1 de Parallax: Névoa e nuvens distantes (fator 0.15)
+    // Camada 1: Névoa e nuvens distantes
     const nuvensDistantes = this.add.graphics();
     nuvensDistantes.setDepth(-8);
     nuvensDistantes.fillStyle(0xf5d0fe, 0.45);
@@ -429,7 +461,7 @@ export class CenaFase1 extends CenaBase {
     }
     nuvensDistantes.setScrollFactor(0.15, 0.1);
 
-    // 3. Camada 2 de Parallax: Ruínas celestiais e arcos de mármore ao longe (fator 0.35)
+    // Camada 2: Ruínas celestiais e arcos de mármore
     const ruinasDistantes = this.add.graphics();
     ruinasDistantes.setDepth(-6);
     ruinasDistantes.fillStyle(0xffedd5, 0.55);
@@ -441,21 +473,25 @@ export class CenaFase1 extends CenaBase {
     }
     ruinasDistantes.setScrollFactor(0.35, 0.2);
 
-    // 4. Camada 3 de Parallax: Nuvens médias bem iluminadas (fator 0.55)
+    // Camada 3: Nuvens médias bem iluminadas
     const nuvensMedias = this.add.graphics();
     nuvensMedias.setDepth(-4);
     nuvensMedias.fillStyle(0xffffff, 0.65);
     for (let x = 80; x < larguraMundo; x += 440) {
       nuvensMedias.fillCircle(x, 540, 60);
       nuvensMedias.fillCircle(x + 50, 520, 80);
-      nuvensMedias.fillCircle(x + 110, 540, 60);
     }
     nuvensMedias.setScrollFactor(0.55, 0.3);
   }
 
+  /**
+   * Inicializa a sprite física do Jogador com Hitbox ajustada e spritesheet real.
+   */
   private criarJogador(): void {
-    this.tipoPersonagem = GerenciadorEstado.obterPersonagem();
-    const chave = this.tipoPersonagem === 'reis' ? 'reis' : 'alvares';
+    const estado = GerenciadorEstado.obterInstancia();
+    this.tipoPersonagem = estado.obterPersonagem();
+    const chave = `${this.tipoPersonagem}_idle`;
+
     this.jogador = this.physics.add.sprite(
       this.checkpointAtual.x,
       this.checkpointAtual.y,
@@ -470,11 +506,11 @@ export class CenaFase1 extends CenaBase {
   }
 
   /**
-   * BLOCO 1: Introdução ao Ar (x: 0 a 1600).
+   * BLOCO 1: Introdução ao Ar (x: 0 a 1800).
    * Plataformas de nuvem + mármore rachado intercaladas, 2 colunas de vento para ensinar o planar.
    */
   private construirBloco1_Introducao(_alturaMundo: number): void {
-    // 1. Chão inicial de mármore sólido largo e seguro
+    // Chão inicial de mármore sólido
     const cfgChao = BLOCO_1_LEVEL_DESIGN.CHAO_INICIAL;
     const chaoInicial = this.plataformasEstaticas.create(cfgChao.x, cfgChao.y, 'marmore-bloco');
     chaoInicial.setScale(cfgChao.scaleX, cfgChao.scaleY).refreshBody();
@@ -484,7 +520,7 @@ export class CenaFase1 extends CenaBase {
       this.add.image(pos.x, pos.y, 'coluna-marmore').setDepth(2);
     }
 
-    // 2. Primeira Nuvem Sólida
+    // Primeira Nuvem Sólida
     const nuvem1 = this.nuvensSolidas.create(
       BLOCO_1_LEVEL_DESIGN.NUVEM_1.x,
       BLOCO_1_LEVEL_DESIGN.NUVEM_1.y,
@@ -492,17 +528,17 @@ export class CenaFase1 extends CenaBase {
     );
     nuvem1.refreshBody();
 
-    // 3. Coluna de Vento 1: Ensina a planar sobre vão de nuvem
+    // Coluna de Vento 1
     const c1 = VENTO_FASE1.COLUNA_1;
     this.criarColunaVento(c1.x, c1.y, c1.largura, c1.altura, c1.forca, c1.ativa);
 
-    // 4. Plataforma de Mármore Rachado 1 (telegraph de 0.4s)
+    // Mármore Rachado 1
     this.criarPlataformaRachada(
       BLOCO_1_LEVEL_DESIGN.MARMORE_RACHADO_1.x,
       BLOCO_1_LEVEL_DESIGN.MARMORE_RACHADO_1.y
     );
 
-    // 5. Segunda Nuvem Sólida intermediária
+    // Segunda Nuvem Sólida
     const nuvem2 = this.nuvensSolidas.create(
       BLOCO_1_LEVEL_DESIGN.NUVEM_2.x,
       BLOCO_1_LEVEL_DESIGN.NUVEM_2.y,
@@ -510,11 +546,11 @@ export class CenaFase1 extends CenaBase {
     );
     nuvem2.refreshBody();
 
-    // 6. Coluna de Vento 2: Impulso médio entre blocos rachados
+    // Coluna de Vento 2
     const c2 = VENTO_FASE1.COLUNA_2;
     this.criarColunaVento(c2.x, c2.y, c2.largura, c2.altura, c2.forca, c2.ativa);
 
-    // 7. Sequência de Mármore Rachado 2 e 3
+    // Sequência de Mármore Rachado 2 e 3
     this.criarPlataformaRachada(
       BLOCO_1_LEVEL_DESIGN.MARMORE_RACHADO_2.x,
       BLOCO_1_LEVEL_DESIGN.MARMORE_RACHADO_2.y
@@ -524,7 +560,7 @@ export class CenaFase1 extends CenaBase {
       BLOCO_1_LEVEL_DESIGN.MARMORE_RACHADO_3.y
     );
 
-    // 8. Platô de Chegada do Bloco 1 / Início do Checkpoint 1
+    // Platô de Chegada do Bloco 1 / Início do Checkpoint 1
     const platoBloco1 = this.plataformasEstaticas.create(
       BLOCO_1_LEVEL_DESIGN.PLATO_CHEGADA.x,
       BLOCO_1_LEVEL_DESIGN.PLATO_CHEGADA.y,
@@ -547,247 +583,227 @@ export class CenaFase1 extends CenaBase {
   }
 
   /**
-   * BLOCO 2: Puzzles de Código + Primeiro Inimigo (x: 1600 a 3500).
-   * - Inimigo Sentinela-Nuvem com cone de visão simples.
-   * - Puzzle 1 (Totem condicional): ativa super vento se altar A e altar B estiverem ativos E jogador na zona.
-   * - Puzzle 2 (Sentinela hackeável): debugging de operador de comparação alheio.
+   * BLOCO 2: Puzzles 1, 2 e 3 (x: 1800 a 3600).
+   * - Totem 1: Teste de Alcoolemia da Sentinela (not / and)
+   * - Totem 2: Balança Hipócrita de Nuvens (if/elif/else altitude 350)
+   * - Totem 3: Sentinela com DDA (patrulha limite 2300)
    */
   private construirBloco2_PuzzlesECodigo(_alturaMundo: number): void {
-    // 1. Ilhas de aproximação ao primeiro inimigo
-    const nuvemEntrada2 = this.nuvensSolidas.create(1940, 540, 'nuvem-solida');
-    nuvemEntrada2.refreshBody();
+    // =========================================================================
+    // PUZZLE 1: Totem 1 - "O Teste de Alcoolemia da Sentinela" (x: 1880, y: 480)
+    // =========================================================================
+    const platoTotem1 = this.plataformasEstaticas.create(1880, 540, 'marmore-bloco');
+    platoTotem1.setScale(1.2, 1.0).refreshBody();
 
-    // 2. Sentinela 1 (Inimigo de patrulha fixa/curta com cone de visão vermelho)
+    this.totem1 = this.add.image(TOTEM_1_ALCOOLEMIA.X, TOTEM_1_ALCOOLEMIA.Y, 'totem-celestial');
+
+    this.promptTotem1 = this.criarPromptTexto(
+      TOTEM_1_ALCOOLEMIA.X,
+      TOTEM_1_ALCOOLEMIA.Y - 50,
+      '[E] CONECTAR AO TESTE DE ALCOOLEMIA'
+    );
+
+    // Sentinela A-01 e Barreira de Escudo
     const s1 = SENTINELAS_FASE1.SENTINELA_1;
-    this.criarSentinela(s1.x, s1.y, s1.minX, s1.maxX, s1.velocidade);
+    this.sentinela1 = this.criarSentinela(s1.x, s1.y, s1.minX, s1.maxX, s1.velocidade);
+    this.sentinela1.escudoAtivo = true;
 
-    // Plataforma abaixo da sentinela (passagem com timing)
+    // Barreira física do escudo que bloqueia a passagem até ser desativada
+    this.barreiraEscudoSentinela = this.physics.add.sprite(2160, 430, 'marmore-bloco');
+    this.barreiraEscudoSentinela.setVisible(false);
+    this.barreiraEscudoSentinela.setScale(0.2, 3.5);
+    this.barreiraEscudoSentinela.setImmovable(true);
+    (this.barreiraEscudoSentinela.body as Phaser.Physics.Arcade.Body).setAllowGravity(false);
+    this.physics.add.collider(this.jogador, this.barreiraEscudoSentinela);
+
+    // Gráfico de energia do escudo
+    this.graficoEscudo = this.add.graphics();
+    this.graficoEscudo.setDepth(8);
+
+    // Plataforma abaixo da Sentinela A-01
     const platSobSentinela = this.plataformasEstaticas.create(2140, 590, 'marmore-bloco');
     platSobSentinela.refreshBody();
 
     // =========================================================================
-    // PUZZLE 1: Super Coluna de Vento com Altares Condicionais (x: 2250 a 2750)
+    // PUZZLE 2: Totem 2 - "A Balança Hipócrita de Nuvens" (x: 2480, y: 534)
     // =========================================================================
-
-    // Altar Alfa (Elevado na esquerda)
-    const nuvemAltarA = this.nuvensSolidas.create(
-      PUZZLE_1_FASE1.ALTAR_A_NUVEM.x,
-      PUZZLE_1_FASE1.ALTAR_A_NUVEM.y,
-      'nuvem-solida'
-    );
-    nuvemAltarA.setScale(PUZZLE_1_FASE1.ALTAR_A_NUVEM.scaleX, PUZZLE_1_FASE1.ALTAR_A_NUVEM.scaleY).refreshBody();
-    this.spriteAltarA = this.add.sprite(
-      PUZZLE_1_FASE1.ALTAR_A_SPRITE.x,
-      PUZZLE_1_FASE1.ALTAR_A_SPRITE.y,
-      'altar-runico'
-    );
-
-    // Zona de Decolagem e Totem Central
-    const platoTotem1 = this.plataformasEstaticas.create(
-      PUZZLE_1_FASE1.PLATO_TOTEM.x,
-      PUZZLE_1_FASE1.PLATO_TOTEM.y,
-      'marmore-bloco'
-    );
-    platoTotem1.setScale(PUZZLE_1_FASE1.PLATO_TOTEM.scaleX, PUZZLE_1_FASE1.PLATO_TOTEM.scaleY).refreshBody();
-
-    this.totemCondicional = this.add.image(
-      PUZZLE_1_FASE1.TOTEM.x,
-      PUZZLE_1_FASE1.TOTEM.y,
-      'totem-celestial'
-    );
-
-    this.promptCondicional = this.add.text(
-      PUZZLE_1_FASE1.PROMPT.x,
-      PUZZLE_1_FASE1.PROMPT.y,
-      '[E] CONECTAR AO PAINEL CONDICIONAL',
-      {
-        fontFamily: 'Consolas, Courier New, monospace',
-        fontSize: '12px',
-        color: '#38bdf8',
-        backgroundColor: '#090d16',
-        padding: { x: 6, y: 3 },
-      }
-    );
-    this.promptCondicional.setOrigin(0.5);
-    this.promptCondicional.setVisible(false);
-
-    // Marcação visual da Zona de Decolagem no piso
-    this.zonaDecolagemBounds = new Phaser.Geom.Rectangle(
-      PUZZLE_1_FASE1.ZONA_DECOLAGEM.x,
-      PUZZLE_1_FASE1.ZONA_DECOLAGEM.y,
-      PUZZLE_1_FASE1.ZONA_DECOLAGEM.largura,
-      PUZZLE_1_FASE1.ZONA_DECOLAGEM.altura
-    );
-    this.graficoZonaDecolagem = this.add.graphics();
-    this.desenharZonaDecolagem(false);
-
-    // Altar Beta (Elevado na direita)
-    const nuvemAltarB = this.nuvensSolidas.create(
-      PUZZLE_1_FASE1.ALTAR_B_NUVEM.x,
-      PUZZLE_1_FASE1.ALTAR_B_NUVEM.y,
-      'nuvem-solida'
-    );
-    nuvemAltarB.setScale(PUZZLE_1_FASE1.ALTAR_B_NUVEM.scaleX, PUZZLE_1_FASE1.ALTAR_B_NUVEM.scaleY).refreshBody();
-    this.spriteAltarB = this.add.sprite(
-      PUZZLE_1_FASE1.ALTAR_B_SPRITE.x,
-      PUZZLE_1_FASE1.ALTAR_B_SPRITE.y,
-      'altar-runico'
-    );
-
-    // Super Coluna de Vento (Inicia desativada; ativada após o Puzzle 1)
-    const sc = PUZZLE_1_FASE1.SUPER_COLUNA;
-    this.superColunaVento = this.criarColunaVento(sc.x, sc.y, sc.largura, sc.altura, sc.forca, sc.ativa);
-
-    // Platô elevado alcançado pela super coluna
-    const platoElevado2 = this.plataformasEstaticas.create(
-      PUZZLE_1_FASE1.PLATO_ELEVADO.x,
-      PUZZLE_1_FASE1.PLATO_ELEVADO.y,
-      'marmore-bloco'
-    );
-    platoElevado2.refreshBody();
-
-    // =========================================================================
-    // PUZZLE 2: Sentinela Hackeável (Sentinela B-02 com bug proposital no operador)
-    // =========================================================================
-
-    // Platô do Totem de Debug da Sentinela
-    const platoTotem2 = this.plataformasEstaticas.create(
-      PUZZLE_2_FASE1.PLATO_TOTEM.x,
-      PUZZLE_2_FASE1.PLATO_TOTEM.y,
-      'marmore-bloco'
-    );
+    const platoTotem2 = this.plataformasEstaticas.create(2480, 590, 'marmore-bloco');
     platoTotem2.refreshBody();
 
-    this.totemSentinela = this.add.image(
-      PUZZLE_2_FASE1.TOTEM.x,
-      PUZZLE_2_FASE1.TOTEM.y,
-      'totem-celestial'
+    this.totem2 = this.add.image(TOTEM_2_BALANCA.X, TOTEM_2_BALANCA.Y, 'totem-celestial');
+
+    this.promptTotem2 = this.criarPromptTexto(
+      TOTEM_2_BALANCA.X,
+      TOTEM_2_BALANCA.Y - 50,
+      '[E] AJUSTAR BALANÇA DE NUVENS'
     );
 
-    this.promptSentinela = this.add.text(
-      PUZZLE_2_FASE1.PROMPT.x,
-      PUZZLE_2_FASE1.PROMPT.y,
-      '[E] ANALISAR CÓDIGO DA SENTINELA B-02',
-      {
+    // Placa informativa de altitude no cenário
+    this.add.image(TOTEM_2_BALANCA.X + 65, TOTEM_2_BALANCA.Y - 45, 'placa-runica').setDepth(2);
+    this.add
+      .text(TOTEM_2_BALANCA.X + 65, TOTEM_2_BALANCA.Y - 45, 'ALTITUDE ALVO: 350', {
         fontFamily: 'Consolas, Courier New, monospace',
-        fontSize: '12px',
-        color: '#f59e0b',
-        backgroundColor: '#090d16',
-        padding: { x: 6, y: 3 },
-      }
-    );
-    this.promptSentinela.setOrigin(0.5);
-    this.promptSentinela.setVisible(false);
+        fontSize: '11px',
+        color: '#fbbf24',
+      })
+      .setOrigin(0.5)
+      .setDepth(3);
 
-    // Sentinela B-02: Inicialmente bloqueia o corredor estreito de mármore (entre 3100 e 3280)
+    // Elevador de mármore/nuvem que inicia descalibrado em y: 540 e sobe para y: 350
+    this.elevadorNuvem = this.physics.add.sprite(
+      TOTEM_2_BALANCA.ELEVADOR_X,
+      TOTEM_2_BALANCA.ELEVADOR_Y_INICIAL,
+      'nuvem-solida'
+    );
+    this.elevadorNuvem.setImmovable(true);
+    (this.elevadorNuvem.body as Phaser.Physics.Arcade.Body).setAllowGravity(false);
+    this.physics.add.collider(this.jogador, this.elevadorNuvem);
+
+    // Platô elevado de recepção após o elevador
+    const platoAposElevador = this.plataformasEstaticas.create(2820, 390, 'marmore-bloco');
+    platoAposElevador.setScale(1.2, 1.0).refreshBody();
+
+    // =========================================================================
+    // PUZZLE 3: Totem 3 - "A Sentinela com DDA" (x: 3000, y: 414)
+    // =========================================================================
+    const platoTotem3 = this.plataformasEstaticas.create(3000, 470, 'marmore-bloco');
+    platoTotem3.refreshBody();
+
+    this.totem3 = this.add.image(TOTEM_3_DDA.X, TOTEM_3_DDA.Y, 'totem-celestial');
+
+    this.promptTotem3 = this.criarPromptTexto(
+      TOTEM_3_DDA.X,
+      TOTEM_3_DDA.Y - 50,
+      '[E] CORRIGIR ALCANCE DA SENTINELA'
+    );
+
+    // Placa com o limite gravado
+    this.add.image(TOTEM_3_DDA.X + 65, TOTEM_3_DDA.Y - 45, 'placa-runica').setDepth(2);
+    this.add
+      .text(TOTEM_3_DDA.X + 65, TOTEM_3_DDA.Y - 45, 'LIMITE = 2300', {
+        fontFamily: 'Consolas, Courier New, monospace',
+        fontSize: '11px',
+        color: '#38bdf8',
+      })
+      .setOrigin(0.5)
+      .setDepth(3);
+
+    // Sentinela B-02 com loop curto bloqueando o corredor
     const sb = SENTINELAS_FASE1.SENTINELA_B02;
-    this.sentinelaHackeavel = this.criarSentinela(sb.x, sb.y, sb.minX, sb.maxX, sb.velocidade);
+    this.sentinelaB02 = this.criarSentinela(sb.x, sb.y, sb.minX, sb.maxX, sb.velocidade);
 
-    // Corredor estreito de mármore vigiado
-    const corredorMarmore = this.plataformasEstaticas.create(
-      PUZZLE_2_FASE1.CORREDOR_MARMORE.x,
-      PUZZLE_2_FASE1.CORREDOR_MARMORE.y,
-      'marmore-bloco'
-    );
-    corredorMarmore.setScale(PUZZLE_2_FASE1.CORREDOR_MARMORE.scaleX, PUZZLE_2_FASE1.CORREDOR_MARMORE.scaleY).refreshBody();
+    // Corredor estreito vigiado
+    const corredorMarmore = this.plataformasEstaticas.create(3200, 450, 'marmore-bloco');
+    corredorMarmore.setScale(1.6, 1.0).refreshBody();
 
-    // Plataforma de Mármore Rachado na saída do corredor
-    this.criarPlataformaRachada(
-      PUZZLE_2_FASE1.MARMORE_RACHADO_SAIDA.x,
-      PUZZLE_2_FASE1.MARMORE_RACHADO_SAIDA.y
-    );
+    // Mármore rachado na saída do corredor
+    this.criarPlataformaRachada(3420, 440);
 
-    // Platô de Chegada do Bloco 2 / Início do Checkpoint 2
-    const platoBloco2 = this.plataformasEstaticas.create(
-      PUZZLE_2_FASE1.PLATO_BLOCO_2.x,
-      PUZZLE_2_FASE1.PLATO_BLOCO_2.y,
-      'marmore-bloco'
-    );
-    platoBloco2.setScale(PUZZLE_2_FASE1.PLATO_BLOCO_2.scaleX, PUZZLE_2_FASE1.PLATO_BLOCO_2.scaleY).refreshBody();
+    // Platô de Chegada do Bloco 2 / Checkpoint 2
+    const platoBloco2 = this.plataformasEstaticas.create(3600, 470, 'marmore-bloco');
+    platoBloco2.setScale(1.4, 1.2).refreshBody();
 
-    const marcoCP2 = this.add.image(
-      PUZZLE_2_FASE1.OBELISCO_CP2.x,
-      PUZZLE_2_FASE1.OBELISCO_CP2.y,
-      'coluna-marmore'
-    );
-    marcoCP2.setScale(PUZZLE_2_FASE1.OBELISCO_CP2.scaleX, PUZZLE_2_FASE1.OBELISCO_CP2.scaleY);
+    const marcoCP2 = this.add.image(3560, 390, 'coluna-marmore');
+    marcoCP2.setScale(0.8, 0.6);
   }
 
   /**
-   * BLOCO 3: Combinação Final (Vento + Rachadura + Inimigo + Função com Parâmetros)
-   * Termina na antecâmara de mármore intacto e dourado antes da próxima área.
+   * BLOCO 3: Puzzles 4, 5 e 6 + Santuário Final (x: 3600 a 5400).
+   * - Totem 4: Portão com Crise Existencial (precedência)
+   * - Totem 5: Sequenciador de Rajadas (função parametrizada e física)
+   * - Totem 6: Desafio do Arquiteto Preguiçoso (for com filtro)
+   * - Santuário Celestial com Portal
    */
   private construirBloco3_EscadaEAntecamara(alturaMundo: number): void {
-    // 1. Plataforma de apoio com mármore rachado inicial
-    this.criarPlataformaRachada(
-      PUZZLE_3_FASE1.MARMORE_RACHADO_INICIAL.x,
-      PUZZLE_3_FASE1.MARMORE_RACHADO_INICIAL.y
+    // =========================================================================
+    // PUZZLE 4: Totem 4 - "O Portão com Crise Existencial" (x: 3620, y: 450)
+    // =========================================================================
+    this.totem4 = this.add.image(TOTEM_4_PORTAO.X, TOTEM_4_PORTAO.Y, 'totem-celestial');
+
+    this.promptTotem4 = this.criarPromptTexto(
+      TOTEM_4_PORTAO.X,
+      TOTEM_4_PORTAO.Y - 50,
+      '[E] CONECTAR AO PORTÃO MILENAR'
     );
 
-    // 2. Sentinela aérea que vigia a entrada da fenda de vento
-    const s3 = SENTINELAS_FASE1.SENTINELA_3;
-    this.criarSentinela(s3.x, s3.y, s3.minX, s3.maxX, s3.velocidade);
-
-    // 3. Nuvem sólida intermediária com o Totem da Escada de Vento
-    const nuvemTotem3 = this.nuvensSolidas.create(
-      PUZZLE_3_FASE1.NUVEM_TOTEM.x,
-      PUZZLE_3_FASE1.NUVEM_TOTEM.y,
-      'nuvem-solida'
+    // Portão Milenar sólido bloqueando a passagem para o terceiro bloco
+    this.portaoMilenar = this.physics.add.sprite(
+      TOTEM_4_PORTAO.X_PORTAO,
+      TOTEM_4_PORTAO.Y_PORTAO,
+      'portao-milenar'
     );
-    nuvemTotem3.refreshBody();
-
-    this.totemRajada = this.add.image(
-      PUZZLE_3_FASE1.TOTEM.x,
-      PUZZLE_3_FASE1.TOTEM.y,
-      'totem-celestial'
-    );
-
-    this.promptRajada = this.add.text(
-      PUZZLE_3_FASE1.PROMPT.x,
-      PUZZLE_3_FASE1.PROMPT.y,
-      '[E] PROGRAMAR ESCADA DE RAJADAS',
-      {
-        fontFamily: 'Consolas, Courier New, monospace',
-        fontSize: '12px',
-        color: '#ec4899',
-        backgroundColor: '#090d16',
-        padding: { x: 6, y: 3 },
-      }
-    );
-    this.promptRajada.setOrigin(0.5);
-    this.promptRajada.setVisible(false);
+    this.portaoMilenar.setImmovable(true);
+    (this.portaoMilenar.body as Phaser.Physics.Arcade.Body).setAllowGravity(false);
+    this.colisorPortao = this.physics.add.collider(this.jogador, this.portaoMilenar);
 
     // =========================================================================
-    // PUZZLE 3: Escada de 3 Rajadas Cronometradas (Função com parâmetros)
+    // PUZZLE 5: Totem 5 - "O Sequenciador de Rajadas" (x: 4100, y: 434)
     // =========================================================================
-    const e1 = PUZZLE_3_FASE1.COLUNA_ESCADA_1;
-    const e2 = PUZZLE_3_FASE1.COLUNA_ESCADA_2;
-    const e3 = PUZZLE_3_FASE1.COLUNA_ESCADA_3;
+    // Nuvem de apoio do Totem 5
+    const nuvemTotem5 = this.nuvensSolidas.create(4100, 490, 'nuvem-solida');
+    nuvemTotem5.refreshBody();
+
+    this.totem5 = this.add.image(TOTEM_5_SEQUENCIADOR.X, TOTEM_5_SEQUENCIADOR.Y, 'totem-celestial');
+
+    this.promptTotem5 = this.criarPromptTexto(
+      TOTEM_5_SEQUENCIADOR.X,
+      TOTEM_5_SEQUENCIADOR.Y - 50,
+      '[E] SINCRONIZAR ESCADA DE RAJADAS'
+    );
+
+    // As 3 Colunas de Vento em Escada (iniciam inativas aguardando calibração)
+    const e1 = TOTEM_5_SEQUENCIADOR.COLUNA_ESCADA_1;
+    const e2 = TOTEM_5_SEQUENCIADOR.COLUNA_ESCADA_2;
+    const e3 = TOTEM_5_SEQUENCIADOR.COLUNA_ESCADA_3;
     const col1 = this.criarColunaVento(e1.x, e1.y, e1.largura, e1.altura, e1.forca, e1.ativa);
     const col2 = this.criarColunaVento(e2.x, e2.y, e2.largura, e2.altura, e2.forca, e2.ativa);
     const col3 = this.criarColunaVento(e3.x, e3.y, e3.largura, e3.altura, e3.forca, e3.ativa);
     this.colunasEscada = [col1, col2, col3];
 
-    // Plataformas de mármore rachado suspensas entre as colunas
-    this.criarPlataformaRachada(
-      PUZZLE_3_FASE1.MARMORE_RACHADO_1.x,
-      PUZZLE_3_FASE1.MARMORE_RACHADO_1.y
-    );
-    this.criarPlataformaRachada(
-      PUZZLE_3_FASE1.MARMORE_RACHADO_2.x,
-      PUZZLE_3_FASE1.MARMORE_RACHADO_2.y
-    );
+    // Plataformas de mármore rachado intercaladas na escada
+    this.criarPlataformaRachada(4350, 420);
+    this.criarPlataformaRachada(4530, 360);
 
-    // Nuvem de chegada pós-escada
-    const nuvemPosEscada = this.nuvensSolidas.create(
-      PUZZLE_3_FASE1.NUVEM_POS_ESCADA.x,
-      PUZZLE_3_FASE1.NUVEM_POS_ESCADA.y,
-      'nuvem-solida'
-    );
-    nuvemPosEscada.refreshBody();
+    // Platô de saída pós-escada de vento
+    const platoAposEscada = this.plataformasEstaticas.create(4760, 340, 'marmore-bloco');
+    platoAposEscada.setScale(1.2, 1.0).refreshBody();
 
     // =========================================================================
-    // ANTECÂMARA FINAL: O SANTUÁRIO CELESTIAL (x: 4950 a 5400)
+    // PUZZLE 6: Totem 6 - "O Desafio do Arquiteto Preguiçoso" (x: 4860, y: 270)
+    // =========================================================================
+    const platoTotem6 = this.plataformasEstaticas.create(4860, 330, 'marmore-bloco');
+    platoTotem6.setScale(0.8, 1.0).refreshBody();
+
+    this.totem6 = this.add.image(TOTEM_6_ARQUITETO.X, TOTEM_6_ARQUITETO.Y, 'totem-celestial');
+
+    this.promptTotem6 = this.criarPromptTexto(
+      TOTEM_6_ARQUITETO.X,
+      TOTEM_6_ARQUITETO.Y - 50,
+      '[E] INSPECIONAR PILARES DA ANTECÂMARA'
+    );
+
+    // Os 4 Pilares móveis da antecâmara
+    this.pilaresMoveis = [];
+    for (const cfg of TOTEM_6_ARQUITETO.PILARES_CONFIG) {
+      const texture = cfg.rachado ? 'marmore-rachado' : 'marmore-bloco';
+      const sprite = this.grupoPilares.create(cfg.x, cfg.y, texture) as Phaser.Physics.Arcade.Sprite;
+      sprite.setScale(0.35, 1.0).refreshBody();
+
+      if (cfg.rachado) {
+        sprite.setTint(0xfca5a5); // Tonalidade avermelhada avisando rachadura estrutural
+      }
+
+      this.pilaresMoveis.push({
+        id: cfg.id,
+        sprite,
+        rachado: cfg.rachado,
+        recolhido: false,
+        yOriginal: cfg.y,
+      });
+    }
+
+    // =========================================================================
+    // ANTECÂMARA FINAL: O SANTUÁRIO CELESTIAL (x: 5200 a 5400)
     // =========================================================================
     const chaoSantuario = this.plataformasEstaticas.create(
       SANTUARIO_FASE1.CHAO.x,
@@ -796,18 +812,18 @@ export class CenaFase1 extends CenaBase {
     );
     chaoSantuario.setScale(SANTUARIO_FASE1.CHAO.scaleX, SANTUARIO_FASE1.CHAO.scaleY).refreshBody();
 
-    // Fileira de Colunas Douradas Intactas e Solenes
+    // Colunas Douradas Intactas
     for (const xCol of SANTUARIO_FASE1.COLUNAS_DOURADAS_X) {
       this.add.image(xCol, alturaMundo - SANTUARIO_FASE1.COLUNAS_DOURADAS_Y_OFFSET, 'coluna-dourada').setDepth(2);
     }
 
-    // Estandartes de luz celestial no santuário
+    // Feixes de luz celestial
     const luzSantuario = this.add.graphics();
     luzSantuario.fillStyle(0xfef08a, 0.18);
     luzSantuario.fillTriangle(5020, 0, 4940, 660, 5100, 660);
     luzSantuario.fillTriangle(5280, 0, 5180, 660, 5380, 660);
 
-    // Portal de Conclusão / Transição
+    // Portal Final
     this.portalFinal = this.add.sprite(
       SANTUARIO_FASE1.PORTAL.x,
       alturaMundo - SANTUARIO_FASE1.PORTAL.yOffset,
@@ -824,6 +840,23 @@ export class CenaFase1 extends CenaBase {
       duration: 1200,
       ease: 'Sine.easeInOut',
     });
+  }
+
+  /**
+   * Helper para criação de textos de prompt de interação com totens.
+   */
+  private criarPromptTexto(x: number, y: number, texto: string): Phaser.GameObjects.Text {
+    const t = this.add.text(x, y, texto, {
+      fontFamily: 'Consolas, Courier New, monospace',
+      fontSize: '11px',
+      color: '#38bdf8',
+      backgroundColor: '#090d16',
+      padding: { x: 6, y: 3 },
+    });
+    t.setOrigin(0.5);
+    t.setVisible(false);
+    t.setDepth(90);
+    return t;
   }
 
   /**
@@ -850,39 +883,8 @@ export class CenaFase1 extends CenaBase {
   }
 
   /**
-   * Trata o efeito de quebra progressiva (0.4s telegraph) e regeneração da plataforma rachada.
+   * Instancia uma entidade de coluna de vento com física e partículas ascendentes.
    */
-  private tratarColisaoMarmoreRachado(sprite: Phaser.Physics.Arcade.Sprite): void {
-    const corpo = this.jogador.body as Phaser.Physics.Arcade.Body | null;
-    if (!corpo || (!corpo.blocked.down && !corpo.touching.down)) return;
-
-    const platObj = this.plataformasRachadas.find(p => p.sprite === sprite);
-    if (!platObj || platObj.rachando || platObj.quebrada) return;
-
-    platObj.rachando = true;
-    platObj.tempoRachando = this.time.now;
-    sprite.setTint(JOGADOR_FASE1.TINT_RACHANDO); // Telegraph avermelhado claro
-
-    this.time.delayedCall(MARMORE_RACHADO_FASE1.TEMPO_TELEGRAPH_MS, () => {
-      platObj.quebrada = true;
-      platObj.rachando = false;
-      sprite.disableBody(true, true); // Some colisão e sprite
-
-      // Regeneração amigável após 3 segundos
-      this.time.delayedCall(MARMORE_RACHADO_FASE1.TEMPO_RESPAWN_MS, () => {
-        platObj.quebrada = false;
-        sprite.enableBody(true, platObj.xOriginal, platObj.yOriginal, true, true);
-        sprite.clearTint();
-        sprite.setAlpha(0);
-        this.tweens.add({
-          targets: sprite,
-          alpha: 1,
-          duration: MARMORE_RACHADO_FASE1.DURACAO_FADE_IN_MS,
-        });
-      });
-    });
-  }
-
   private criarColunaVento(
     x: number,
     y: number,
@@ -895,15 +897,14 @@ export class CenaFase1 extends CenaBase {
     grafico.setDepth(VENTO_FASE1.PROFUNDIDADE_GRAFICO);
 
     const particulas: { x: number; y: number; velY: number; alfa: number }[] = [];
-    for (let i = 0; i < VENTO_FASE1.PARTICULAS_QUANTIDADE; i++) {
+    const qtd = VENTO_FASE1.PARTICULAS_QUANTIDADE;
+
+    for (let i = 0; i < qtd; i++) {
       particulas.push({
-        x: Phaser.Math.Between(
-          x - largura / 2 + VENTO_FASE1.PADDING_PARTICULAS_X,
-          x + largura / 2 - VENTO_FASE1.PADDING_PARTICULAS_X
-        ),
-        y: Phaser.Math.Between(y - altura / 2, y + altura / 2),
-        velY: Phaser.Math.Between(VENTO_FASE1.PARTICULAS_VEL_Y_MIN, VENTO_FASE1.PARTICULAS_VEL_Y_MAX),
-        alfa: Phaser.Math.FloatBetween(VENTO_FASE1.PARTICULAS_ALFA_MIN, VENTO_FASE1.PARTICULAS_ALFA_MAX),
+        x: x - largura / 2 + VENTO_FASE1.PADDING_PARTICULAS_X + Math.random() * (largura - VENTO_FASE1.PADDING_PARTICULAS_X * 2),
+        y: y - altura / 2 + Math.random() * altura,
+        velY: VENTO_FASE1.PARTICULAS_VEL_Y_MIN + Math.random() * (VENTO_FASE1.PARTICULAS_VEL_Y_MAX - VENTO_FASE1.PARTICULAS_VEL_Y_MIN),
+        alfa: VENTO_FASE1.PARTICULAS_ALFA_MIN + Math.random() * (VENTO_FASE1.PARTICULAS_ALFA_MAX - VENTO_FASE1.PARTICULAS_ALFA_MIN),
       });
     }
 
@@ -922,6 +923,9 @@ export class CenaFase1 extends CenaBase {
     return coluna;
   }
 
+  /**
+   * Instancia um drone sentinela inimigo.
+   */
   private criarSentinela(
     x: number,
     y: number,
@@ -930,9 +934,9 @@ export class CenaFase1 extends CenaBase {
     velocidade: number
   ): SentinelaInimiga {
     const sprite = this.physics.add.sprite(x, y, 'sentinela-drone');
-    (sprite.body as Phaser.Physics.Arcade.Body).setImmovable(true);
-    (sprite.body as Phaser.Physics.Arcade.Body).allowGravity = false;
     sprite.setDepth(SENTINELAS_FASE1.PROFUNDIDADE_SPRITE);
+    (sprite.body as Phaser.Physics.Arcade.Body).setAllowGravity(false);
+    sprite.setVelocityX(velocidade);
 
     const coneGrafico = this.add.graphics();
     coneGrafico.setDepth(SENTINELAS_FASE1.PROFUNDIDADE_CONE);
@@ -970,37 +974,27 @@ export class CenaFase1 extends CenaBase {
     }
   }
 
+  /**
+   * Conecta o terminal ao interpretador da Fase 1 e vincula todas as ações aos puzzles.
+   */
   private configurarTerminal(): void {
     this.terminal.definirInterpretador(interpretarComandoFase1);
 
     this.terminal.definirAoSubmeter((resultado: ResultadoComando) => {
-      if (resultado.acao === 'ATIVAR_VENTO_CONDICIONAL') {
-        this.executarAtivacaoVentoCondicional();
-      } else if (resultado.acao === 'HACKEAR_SENTINELA') {
-        this.executarHackSentinela();
+      if (resultado.acao === 'DESATIVAR_ESCUDO_SENTINELA') {
+        this.executarDesativarEscudoSentinela();
+      } else if (resultado.acao === 'ESTABILIZAR_ELEVADOR') {
+        this.executarEstabilizarElevador();
+      } else if (resultado.acao === 'EXPANDIR_PATRULHA_SENTINELA') {
+        this.executarExpandirPatrulhaSentinela();
+      } else if (resultado.acao === 'ABRIR_PORTAO_EXISTENCIAL') {
+        this.executarAbrirPortaoExistencial();
       } else if (resultado.acao === 'ATIVAR_ESCADA_RAJADAS') {
         this.executarAtivacaoEscadaRajadas(resultado.valor);
+      } else if (resultado.acao === 'RECOLHER_PILARES_RACHADOS') {
+        this.executarRecolherPilaresRachados();
       }
     });
-  }
-
-  private desenharZonaDecolagem(ativa: boolean): void {
-    this.graficoZonaDecolagem.clear();
-    const cor = ativa ? 0x10b981 : 0x0284c7;
-    this.graficoZonaDecolagem.fillStyle(cor, 0.3);
-    this.graficoZonaDecolagem.fillRect(
-      this.zonaDecolagemBounds.x,
-      this.zonaDecolagemBounds.y,
-      this.zonaDecolagemBounds.width,
-      this.zonaDecolagemBounds.height
-    );
-    this.graficoZonaDecolagem.lineStyle(2, cor, 0.9);
-    this.graficoZonaDecolagem.strokeRect(
-      this.zonaDecolagemBounds.x,
-      this.zonaDecolagemBounds.y,
-      this.zonaDecolagemBounds.width,
-      this.zonaDecolagemBounds.height
-    );
   }
 
   override update(tempo: number, delta: number): void {
@@ -1010,7 +1004,7 @@ export class CenaFase1 extends CenaBase {
 
     const corpo = this.jogador.body as Phaser.Physics.Arcade.Body;
 
-    // 1. Congelamento Seguro no Terminal e Diálogos (Correção do Problema 8)
+    // 1. Congelamento Seguro no Terminal e Diálogos
     const emMenuOuDialogo = Boolean(this.terminal?.estaAberto || this.comunicador?.estaAtivo);
     if (emMenuOuDialogo) {
       this.jogador.setVelocity(0, 0);
@@ -1019,7 +1013,6 @@ export class CenaFase1 extends CenaBase {
       return;
     }
 
-    // Restaura a gravidade caso tenha sido desativada pelo terminal/diálogo (e a fase não tenha sido concluída)
     if (!this.faseConcluida && !corpo.allowGravity) {
       corpo.setAllowGravity(true);
     }
@@ -1036,21 +1029,24 @@ export class CenaFase1 extends CenaBase {
     // 5. Renderização e física das Colunas de Vento
     this.tratarColunasVento(delta);
 
-    // 6. Patrulha e detecção das Sentinelas-Nuvem
+    // 6. Ciclo e física da Escada de Rajadas (Puzzle 5)
+    this.tratarCicloEscadaRajadas(delta);
+
+    // 7. Renderização do Escudo da Sentinela A-01 (Puzzle 1)
+    this.tratarEscudoSentinela1(tempo);
+
+    // 8. Patrulha e detecção das Sentinelas
     this.tratarSentinelas(tempo);
 
-    // 7. Verificação dos Altares do Puzzle 1
-    this.tratarAltaresEPuzzle1();
-
-    // 8. Interação com os Totens
+    // 9. Interação com os 6 Totens
     this.tratarInteracaoTotens();
 
-    // 9. Chegada ao Santuário Final
+    // 10. Chegada ao Santuário Final
     this.verificarFinalizacaoFase();
   }
 
   /**
-   * Mecânica de Plataforma: Pulo com Coyote Time / Jump Buffer + "planar no ar e correntes de vento".
+   * Mecânica de Plataforma: Pulo com Coyote Time / Jump Buffer + planar no ar e correntes de vento.
    */
   private tratarMovimentoEPlanar(tempo: number): void {
     const corpo = this.jogador.body as Phaser.Physics.Arcade.Body | null;
@@ -1073,12 +1069,10 @@ export class CenaFase1 extends CenaBase {
 
     const noChao = corpo.blocked.down || corpo.touching.down;
 
-    // Atualiza temporizador de contato com o chão para Coyote Time
     if (noChao) {
       this.tempoUltimaVezNoChao = tempo;
     }
 
-    // Registra buffer de pulo quando a tecla for pressionada
     if (puloApertadoAgora) {
       this.tempoUltimoPressionarPulo = tempo;
     }
@@ -1114,7 +1108,6 @@ export class CenaFase1 extends CenaBase {
       this.jogador.setFlipX(false);
     }
 
-    // Força contínua de arraste para a esquerda dentro do fluxo de vento
     if (dentroDeColunaAtiva) {
       velX -= VENTO_FASE1.FORCA_VENTO_LATERAL;
     }
@@ -1127,7 +1120,6 @@ export class CenaFase1 extends CenaBase {
 
     if (bufferPuloAtivo && podePularCoyote) {
       this.jogador.setVelocityY(JOGADOR_FASE1.VELOCIDADE_PULO);
-      // Consome o buffer e o coyote time
       this.tempoUltimoPressionarPulo = -9999;
       this.tempoUltimaVezNoChao = -9999;
     }
@@ -1137,61 +1129,137 @@ export class CenaFase1 extends CenaBase {
 
     if (dentroDeColunaAtiva) {
       if (puloSegurado) {
-        // Segurando pulo no vento: jato vertical ascensional eleva o jogador
         this.jogador.setVelocityY(-forcaVentoAtual);
         modoPlaneioAtivo = true;
       } else {
-        // Sem segurar pulo no vento: não catapulta! Apenas leve sustentação/amortecimento se estiver caindo
         if (corpo.velocity.y > 0) {
           this.jogador.setVelocityY(
             Math.max(0, corpo.velocity.y - VENTO_FASE1.SUSTENTACAO_PASSIVA_DELTA)
           );
         }
       }
-    } else if (!noChao && puloSegurado) {
-      // Fora do vento mas no ar segurando pulo: Mecânica de Planar suave com velocidade de descida controlada
-      if (corpo.velocity.y > JOGADOR_FASE1.VELOCIDADE_MAX_PLANAR) {
-        this.jogador.setVelocityY(JOGADOR_FASE1.VELOCIDADE_MAX_PLANAR);
+    } else {
+      // Planar Livre no ar fora de jatos
+      if (!noChao && puloSegurado && corpo.velocity.y > 0) {
+        this.jogador.setVelocityY(
+          Math.min(corpo.velocity.y, JOGADOR_FASE1.VELOCIDADE_MAX_PLANAR)
+        );
+        modoPlaneioAtivo = true;
       }
-      modoPlaneioAtivo = true;
     }
 
-    // Feedback visual do modo de planeio ou sustentação
-    if (modoPlaneioAtivo || dentroDeColunaAtiva) {
+    // Tint visual e animação do personagem
+    if (modoPlaneioAtivo) {
       this.jogador.setTint(JOGADOR_FASE1.TINT_VENTO);
     } else {
       this.jogador.clearTint();
     }
 
-    // Máquina de animações
-    if (!noChao) {
-      this.jogador.anims.play(`${this.tipoPersonagem}_jump`, true);
-    } else if (esquerda || direita) {
-      this.jogador.anims.play(`${this.tipoPersonagem}_run`, true);
+    if (noChao) {
+      if (velX !== 0) {
+        this.jogador.anims.play(`${this.tipoPersonagem}_run`, true);
+      } else {
+        this.jogador.anims.play(`${this.tipoPersonagem}_idle`, true);
+      }
     } else {
-      this.jogador.anims.play(`${this.tipoPersonagem}_idle`, true);
+      this.jogador.anims.play(`${this.tipoPersonagem}_jump`, true);
     }
   }
 
+  /**
+   * Ciclo dinâmico das 3 colunas de vento da escada (Puzzle 5).
+   */
+  private tratarCicloEscadaRajadas(delta: number): void {
+    if (!this.escadaRajadasAtiva || this.colunasEscada.length === 0) return;
+
+    this.tempoCicloEscada += delta;
+    const periodoMs = this.intervaloEscadaSegundos * 1000;
+    const tempoTotalCiclo = periodoMs * 3;
+    const tempoNoCiclo = this.tempoCicloEscada % tempoTotalCiclo;
+    const colunaAtivaIndex = Math.floor(tempoNoCiclo / periodoMs);
+
+    for (let i = 0; i < this.colunasEscada.length; i++) {
+      this.colunasEscada[i].ativa = i === colunaAtivaIndex;
+    }
+  }
+
+  /**
+   * Renderização gráfica pulsante do escudo da Sentinela A-01 (Puzzle 1).
+   */
+  private tratarEscudoSentinela1(tempo: number): void {
+    if (!this.graficoEscudo) return;
+
+    if (this.totem1Resolvido) {
+      this.graficoEscudo.clear();
+      return;
+    }
+
+    this.graficoEscudo.clear();
+    const alfaOscilante = 0.5 + Math.sin(tempo * 0.006) * 0.25;
+
+    // Barreira vertical reluzente
+    this.graficoEscudo.fillStyle(0x0284c7, alfaOscilante * 0.35);
+    this.graficoEscudo.fillRect(2150, 330, 20, 200);
+
+    this.graficoEscudo.lineStyle(2, 0x38bdf8, alfaOscilante);
+    this.graficoEscudo.strokeRect(2150, 330, 20, 200);
+
+    // Linhas de energia eólica
+    this.graficoEscudo.lineStyle(1.5, 0xa5f3fc, 0.8);
+    const deslocamentoY = (tempo * 0.1) % 40;
+    for (let y = 340 + deslocamentoY; y < 520; y += 40) {
+      this.graficoEscudo.lineBetween(2152, y, 2168, y);
+    }
+  }
+
+  /**
+   * Gerenciamento de quebra e respawn das plataformas de mármore rachado.
+   */
   private tratarPlataformasRachadas(tempo: number): void {
     for (const plat of this.plataformasRachadas) {
       if (plat.rachando && !plat.quebrada) {
-        const tremor = Math.sin(tempo * MARMORE_RACHADO_FASE1.TREMOR_VELOCIDADE) * MARMORE_RACHADO_FASE1.TREMOR_AMPLITUDE;
-        plat.sprite.setX(plat.xOriginal + tremor);
+        plat.sprite.x =
+          plat.xOriginal +
+          Math.sin(tempo * MARMORE_RACHADO_FASE1.TREMOR_VELOCIDADE) *
+            MARMORE_RACHADO_FASE1.TREMOR_AMPLITUDE;
+
+        if (tempo - plat.tempoRachando > MARMORE_RACHADO_FASE1.TEMPO_TELEGRAPH_MS) {
+          plat.quebrada = true;
+          plat.rachando = false;
+          plat.sprite.x = plat.xOriginal;
+          plat.sprite.setVisible(false);
+          plat.sprite.disableBody(true, true);
+
+          this.time.delayedCall(MARMORE_RACHADO_FASE1.TEMPO_RESPAWN_MS, () => {
+            plat.quebrada = false;
+            plat.sprite.setVisible(true);
+            plat.sprite.enableBody(false, plat.xOriginal, plat.yOriginal, true, true);
+            plat.sprite.setAlpha(0);
+            this.tweens.add({
+              targets: plat.sprite,
+              alpha: 1,
+              duration: MARMORE_RACHADO_FASE1.DURACAO_FADE_IN_MS,
+            });
+          });
+        }
       }
     }
   }
 
-  private tratarColunasVento(delta: number): void {
-    if (this.escadaRajadasAtiva && this.colunasEscada.length === 3) {
-      this.tempoCicloEscada += delta;
-      const periodo = Math.max(200, this.atrasoEscadaSegundos * 1000);
-      const faseAtual = Math.floor((this.tempoCicloEscada % (periodo * 3)) / periodo);
-
-      this.colunasEscada[0].ativa = faseAtual === 0;
-      this.colunasEscada[1].ativa = faseAtual === 1;
-      this.colunasEscada[2].ativa = faseAtual === 2;
+  private tratarColisaoMarmoreRachado(sprite: Phaser.Physics.Arcade.Sprite): void {
+    const plat = this.plataformasRachadas.find((p) => p.sprite === sprite);
+    if (plat && !plat.rachando && !plat.quebrada) {
+      plat.rachando = true;
+      plat.tempoRachando = this.time.now;
+      plat.sprite.setTint(JOGADOR_FASE1.TINT_RACHANDO);
     }
+  }
+
+  /**
+   * Renderização e física de partículas ascendentes em todas as colunas de vento ativas.
+   */
+  private tratarColunasVento(delta: number): void {
+    const dt = delta / 1000;
 
     for (const col of this.colunasVento) {
       col.grafico.clear();
@@ -1199,59 +1267,62 @@ export class CenaFase1 extends CenaBase {
 
       const metadeL = col.largura / 2;
       const metadeA = col.altura / 2;
+      const topoY = col.y - metadeA;
+      const baseColY = col.y + metadeA;
 
-      // Coluna translúcida ciano/branca
       col.grafico.fillStyle(VENTO_FASE1.COR_FUNDO_COLUNA, VENTO_FASE1.ALFA_FUNDO_COLUNA);
-      col.grafico.fillRect(col.x - metadeL, col.y - metadeA, col.largura, col.altura);
+      col.grafico.fillRect(col.x - metadeL, topoY, col.largura, col.altura);
 
       col.grafico.lineStyle(
         VENTO_FASE1.ESPESSURA_BORDA_COLUNA,
         VENTO_FASE1.COR_BORDA_COLUNA,
         VENTO_FASE1.ALFA_BORDA_COLUNA
       );
-      col.grafico.strokeRect(col.x - metadeL, col.y - metadeA, col.largura, col.altura);
+      col.grafico.lineBetween(col.x - metadeL, topoY, col.x - metadeL, baseColY);
+      col.grafico.lineBetween(col.x + metadeL, topoY, col.x + metadeL, baseColY);
 
-      // Partículas ascendentes
-      col.grafico.fillStyle(0xffffff, 0.9);
+      col.grafico.fillStyle(0xffffff, 0.7);
       for (const p of col.particulas) {
-        p.y -= (p.velY * delta) / 1000;
-        if (p.y < col.y - metadeA) {
-          p.y = col.y + metadeA;
-          p.x = Phaser.Math.Between(
-            col.x - metadeL + VENTO_FASE1.PADDING_PARTICULAS_X,
-            col.x + metadeL - VENTO_FASE1.PADDING_PARTICULAS_X
-          );
+        p.y -= p.velY * dt;
+        if (p.y < topoY) {
+          p.y = baseColY;
+          p.x =
+            col.x -
+            metadeL +
+            VENTO_FASE1.PADDING_PARTICULAS_X +
+            Math.random() * (col.largura - VENTO_FASE1.PADDING_PARTICULAS_X * 2);
         }
-        col.grafico.fillRect(p.x, p.y, VENTO_FASE1.LARGURA_PARTICULA, VENTO_FASE1.ALTURA_PARTICULA);
+        col.grafico.fillRect(
+          p.x,
+          p.y,
+          VENTO_FASE1.LARGURA_PARTICULA,
+          VENTO_FASE1.ALTURA_PARTICULA
+        );
       }
     }
   }
 
+  /**
+   * Patrulha e detecção óptica das Sentinelas com cone de visão triangular.
+   */
   private tratarSentinelas(tempo: number): void {
     for (const s of this.sentinelas) {
       s.coneGrafico.clear();
 
       if (!s.hackeada) {
-        s.sprite.x += s.direcao * s.velocidade * (1 / 60);
-
         if (s.sprite.x >= s.maxX) {
-          s.sprite.x = s.maxX;
+          s.sprite.setVelocityX(-s.velocidade);
           s.direcao = -1;
-          s.sprite.setFlipX(true);
         } else if (s.sprite.x <= s.minX) {
-          s.sprite.x = s.minX;
-          s.direcao = 1;
-          s.sprite.setFlipX(false);
-        }
-      } else {
-        if (s.sprite.x < SENTINELAS_FASE1.HACKEADA_LIMITE_X) {
-          s.sprite.x += SENTINELAS_FASE1.HACKEADA_VELOCIDADE * (1 / 60);
-          s.sprite.setFlipX(false);
+          s.sprite.setVelocityX(s.velocidade);
           s.direcao = 1;
         }
       }
 
-      s.sprite.y = s.yInicial + Math.sin(tempo * SENTINELAS_FASE1.OSCILACAO_Y_VEL) * SENTINELAS_FASE1.OSCILACAO_Y_AMP;
+      s.sprite.y =
+        s.yInicial +
+        Math.sin(tempo * SENTINELAS_FASE1.OSCILACAO_Y_VEL) *
+          SENTINELAS_FASE1.OSCILACAO_Y_AMP;
 
       const anguloBase = s.direcao === 1 ? 0 : 180;
       const pontaX = s.sprite.x + s.direcao * SENTINELAS_FASE1.OFFSET_PONTA_CONE_X;
@@ -1266,14 +1337,16 @@ export class CenaFase1 extends CenaBase {
       const p2x = pontaX + Math.cos(rad2) * dist;
       const p2y = pontaY + Math.sin(rad2) * dist;
 
-      const corCone = s.hackeada ? SENTINELAS_FASE1.COR_CONE_HACKEADA : SENTINELAS_FASE1.COR_CONE_ALERTA;
+      const corCone = s.hackeada
+        ? SENTINELAS_FASE1.COR_CONE_HACKEADA
+        : SENTINELAS_FASE1.COR_CONE_ALERTA;
       s.coneGrafico.fillStyle(corCone, SENTINELAS_FASE1.ALFA_CONE_FUNDO);
       s.coneGrafico.fillTriangle(pontaX, pontaY, p1x, p1y, p2x, p2y);
 
       s.coneGrafico.lineStyle(1.5, corCone, SENTINELAS_FASE1.ALFA_CONE_BORDA);
       s.coneGrafico.strokeTriangle(pontaX, pontaY, p1x, p1y, p2x, p2y);
 
-      // Verificação de detecção somente se estiver dentro da distância máxima
+      // Detecção do jogador no cone de alerta
       if (!s.hackeada && !this.faseConcluida) {
         const distAoDrone = Phaser.Math.Distance.Between(
           this.jogador.x,
@@ -1337,219 +1410,254 @@ export class CenaFase1 extends CenaBase {
     return !(temNeg && temPos);
   }
 
-  private tratarAltaresEPuzzle1(): void {
-    const distA = Phaser.Math.Distance.Between(
-      this.jogador.x,
-      this.jogador.y,
-      this.spriteAltarA.x,
-      this.spriteAltarA.y
-    );
-    if (distA < PUZZLE_1_FASE1.DISTANCIA_ATIVACAO_ALTAR && !this.altarAAtivo) {
-      this.altarAAtivo = true;
-      this.spriteAltarA.setTexture('altar-runico-on');
-      this.mostrarNotificacaoCurta('ALTAR ALFA ATIVADO [altar_a = True]');
-    }
-
-    const distB = Phaser.Math.Distance.Between(
-      this.jogador.x,
-      this.jogador.y,
-      this.spriteAltarB.x,
-      this.spriteAltarB.y
-    );
-    if (distB < PUZZLE_1_FASE1.DISTANCIA_ATIVACAO_ALTAR && !this.altarBAtivo) {
-      this.altarBAtivo = true;
-      this.spriteAltarB.setTexture('altar-runico-on');
-      this.mostrarNotificacaoCurta('ALTAR BETA ATIVADO [altar_b = True]');
-    }
-
-    const naZona =
-      this.jogador.x >= this.zonaDecolagemBounds.x &&
-      this.jogador.x <= this.zonaDecolagemBounds.x + this.zonaDecolagemBounds.width &&
-      this.jogador.y >= this.zonaDecolagemBounds.y - PUZZLE_1_FASE1.ZONA_TOLERANCIA_Y &&
-      this.jogador.y <= this.zonaDecolagemBounds.y + PUZZLE_1_FASE1.ZONA_TOLERANCIA_Y;
-
-    this.desenharZonaDecolagem(naZona);
-  }
-
+  /**
+   * Monitoramento de proximidade e acionamento dos 6 Totens de controle.
+   */
   private tratarInteracaoTotens(): void {
-    // Totem 1: Condicionais (x: 2480)
-    const distT1 = Phaser.Math.Distance.Between(
-      this.jogador.x,
-      this.jogador.y,
-      this.totemCondicional.x,
-      this.totemCondicional.y
-    );
-    const pertoT1 = distT1 < PUZZLE_1_FASE1.DISTANCIA_INTERACAO_TOTEM && !this.superColunaVento?.ativa;
-    this.promptCondicional.setVisible(pertoT1);
+    const interagirApertado =
+      this.teclaInteragir && Phaser.Input.Keyboard.JustDown(this.teclaInteragir);
 
-    if (pertoT1 && this.teclaInteragir && Phaser.Input.Keyboard.JustDown(this.teclaInteragir)) {
-      this.abrirTerminalTotem1();
+    // Totem 1: "O Teste de Alcoolemia da Sentinela" (x: 1880)
+    const distT1 = Phaser.Math.Distance.Between(this.jogador.x, this.jogador.y, this.totem1.x, this.totem1.y);
+    const pertoT1 = distT1 < DISTANCIA_INTERACAO_TOTEM_PADRAO && !this.totem1Resolvido;
+    this.promptTotem1.setVisible(pertoT1);
+    if (pertoT1 && interagirApertado) {
+      this.abrirTerminalTotem({
+        ID: TOTEM_1_ALCOOLEMIA.ID,
+        TITULO: TOTEM_1_ALCOOLEMIA.TITULO,
+        DIALOGO_INICIAL: TOTEM_1_ALCOOLEMIA.DIALOGO_INICIAL,
+        VARIAVEIS_DISPONIVEIS: TOTEM_1_ALCOOLEMIA.VARIAVEIS_DISPONIVEIS,
+        FUNCOES_DISPONIVEIS: TOTEM_1_ALCOOLEMIA.FUNCOES_DISPONIVEIS,
+      });
       return;
     }
 
-    // Totem 2: Sentinela Debug (x: 2960)
-    const distT2 = Phaser.Math.Distance.Between(
-      this.jogador.x,
-      this.jogador.y,
-      this.totemSentinela.x,
-      this.totemSentinela.y
-    );
-    const pertoT2 = distT2 < PUZZLE_2_FASE1.DISTANCIA_INTERACAO_TOTEM && !this.sentinelaHackeada;
-    this.promptSentinela.setVisible(pertoT2);
-
-    if (pertoT2 && this.teclaInteragir && Phaser.Input.Keyboard.JustDown(this.teclaInteragir)) {
-      this.abrirTerminalTotem2();
+    // Totem 2: "A Balança Hipócrita de Nuvens" (x: 2480)
+    const distT2 = Phaser.Math.Distance.Between(this.jogador.x, this.jogador.y, this.totem2.x, this.totem2.y);
+    const pertoT2 = distT2 < DISTANCIA_INTERACAO_TOTEM_PADRAO && !this.totem2Resolvido;
+    this.promptTotem2.setVisible(pertoT2);
+    if (pertoT2 && interagirApertado) {
+      this.abrirTerminalTotem({
+        ID: TOTEM_2_BALANCA.ID,
+        TITULO: TOTEM_2_BALANCA.TITULO,
+        DIALOGO_INICIAL: TOTEM_2_BALANCA.DIALOGO_INICIAL,
+        VARIAVEIS_DISPONIVEIS: TOTEM_2_BALANCA.VARIAVEIS_DISPONIVEIS,
+        FUNCOES_DISPONIVEIS: TOTEM_2_BALANCA.FUNCOES_DISPONIVEIS,
+      });
       return;
     }
 
-    // Totem 3: Escada de Rajadas (x: 4100) - permite recalibração contínua
-    const distT3 = Phaser.Math.Distance.Between(
-      this.jogador.x,
-      this.jogador.y,
-      this.totemRajada.x,
-      this.totemRajada.y
-    );
-    const pertoT3 = distT3 < PUZZLE_3_FASE1.DISTANCIA_INTERACAO_TOTEM;
-    this.promptRajada.setVisible(pertoT3);
-    if (pertoT3) {
-      this.promptRajada.setText(
-        this.escadaRajadasAtiva
+    // Totem 3: "A Sentinela com DDA" (x: 3000)
+    const distT3 = Phaser.Math.Distance.Between(this.jogador.x, this.jogador.y, this.totem3.x, this.totem3.y);
+    const pertoT3 = distT3 < DISTANCIA_INTERACAO_TOTEM_PADRAO && !this.totem3Resolvido;
+    this.promptTotem3.setVisible(pertoT3);
+    if (pertoT3 && interagirApertado) {
+      this.abrirTerminalTotem({
+        ID: TOTEM_3_DDA.ID,
+        TITULO: TOTEM_3_DDA.TITULO,
+        DIALOGO_INICIAL: TOTEM_3_DDA.DIALOGO_INICIAL,
+        VARIAVEIS_DISPONIVEIS: TOTEM_3_DDA.VARIAVEIS_DISPONIVEIS,
+        FUNCOES_DISPONIVEIS: TOTEM_3_DDA.FUNCOES_DISPONIVEIS,
+      });
+      return;
+    }
+
+    // Totem 4: "O Portão com Crise Existencial" (x: 3620)
+    const distT4 = Phaser.Math.Distance.Between(this.jogador.x, this.jogador.y, this.totem4.x, this.totem4.y);
+    const pertoT4 = distT4 < DISTANCIA_INTERACAO_TOTEM_PADRAO && !this.totem4Resolvido;
+    this.promptTotem4.setVisible(pertoT4);
+    if (pertoT4 && interagirApertado) {
+      this.abrirTerminalTotem({
+        ID: TOTEM_4_PORTAO.ID,
+        TITULO: TOTEM_4_PORTAO.TITULO,
+        DIALOGO_INICIAL: TOTEM_4_PORTAO.DIALOGO_INICIAL,
+        VARIAVEIS_DISPONIVEIS: TOTEM_4_PORTAO.VARIAVEIS_DISPONIVEIS,
+        FUNCOES_DISPONIVEIS: TOTEM_4_PORTAO.FUNCOES_DISPONIVEIS,
+      });
+      return;
+    }
+
+    // Totem 5: "O Sequenciador de Rajadas" (x: 4100) - permite reconfiguração contínua
+    const distT5 = Phaser.Math.Distance.Between(this.jogador.x, this.jogador.y, this.totem5.x, this.totem5.y);
+    const pertoT5 = distT5 < DISTANCIA_INTERACAO_TOTEM_PADRAO;
+    this.promptTotem5.setVisible(pertoT5);
+    if (pertoT5) {
+      this.promptTotem5.setText(
+        this.totem5Resolvido
           ? '[E] RECALIBRAR ESCADA DE RAJADAS'
-          : '[E] PROGRAMAR ESCADA DE RAJADAS'
+          : '[E] SINCRONIZAR ESCADA DE RAJADAS'
       );
     }
+    if (pertoT5 && interagirApertado) {
+      this.abrirTerminalTotem({
+        ID: TOTEM_5_SEQUENCIADOR.ID,
+        TITULO: TOTEM_5_SEQUENCIADOR.TITULO,
+        DIALOGO_INICIAL: TOTEM_5_SEQUENCIADOR.DIALOGO_INICIAL,
+        VARIAVEIS_DISPONIVEIS: TOTEM_5_SEQUENCIADOR.VARIAVEIS_DISPONIVEIS,
+        FUNCOES_DISPONIVEIS: TOTEM_5_SEQUENCIADOR.FUNCOES_DISPONIVEIS,
+      });
+      return;
+    }
 
-    if (pertoT3 && this.teclaInteragir && Phaser.Input.Keyboard.JustDown(this.teclaInteragir)) {
-      this.abrirTerminalTotem3();
+    // Totem 6: "O Desafio do Arquiteto Preguiçoso" (x: 4860)
+    const distT6 = Phaser.Math.Distance.Between(this.jogador.x, this.jogador.y, this.totem6.x, this.totem6.y);
+    const pertoT6 = distT6 < DISTANCIA_INTERACAO_TOTEM_PADRAO && !this.totem6Resolvido;
+    this.promptTotem6.setVisible(pertoT6);
+    if (pertoT6 && interagirApertado) {
+      this.abrirTerminalTotem({
+        ID: TOTEM_6_ARQUITETO.ID,
+        TITULO: TOTEM_6_ARQUITETO.TITULO,
+        DIALOGO_INICIAL: TOTEM_6_ARQUITETO.DIALOGO_INICIAL,
+        VARIAVEIS_DISPONIVEIS: TOTEM_6_ARQUITETO.VARIAVEIS_DISPONIVEIS,
+        FUNCOES_DISPONIVEIS: TOTEM_6_ARQUITETO.FUNCOES_DISPONIVEIS,
+      });
       return;
     }
   }
 
-  private abrirTerminalTotem1(): void {
-    this.jogador.setVelocityX(0);
-
-    const naZona =
-      this.jogador.x >= this.zonaDecolagemBounds.x &&
-      this.jogador.x <= this.zonaDecolagemBounds.x + this.zonaDecolagemBounds.width;
+  /**
+   * Abre o terminal formatado para o puzzle correspondente sem entregar código pronto.
+   * Apresenta o diálogo de humor sarcástico, lista variáveis/sensores e funções, e aguarda entrada do jogador.
+   */
+  private abrirTerminalTotem(config: {
+    ID: string;
+    TITULO: string;
+    DIALOGO_INICIAL: string;
+    VARIAVEIS_DISPONIVEIS: readonly string[];
+    FUNCOES_DISPONIVEIS: readonly string[];
+  }): void {
+    this.jogador.setVelocity(0, 0);
 
     this.terminal.definirContexto({
-      totemAtivo: 'totem_condicional',
-      altarA: this.altarAAtivo,
-      altarB: this.altarBAtivo,
-      naZona,
+      totemAtivo: config.ID,
     });
 
+    const linhasIniciais: string[] = [
+      `=== ${config.TITULO} ===`,
+      '',
+      `"${config.DIALOGO_INICIAL}"`,
+      '',
+      '-------------------------------------------------------',
+      'SENSORES / VARIÁVEIS DISPONÍVEIS:',
+      ...config.VARIAVEIS_DISPONIVEIS.map((v) => `  > ${v}`),
+      '',
+      'FUNÇÕES DISPONÍVEIS:',
+      ...config.FUNCOES_DISPONIVEIS.map((f) => `  > ${f}`),
+      '-------------------------------------------------------',
+      '> Digite sua lógica em Python:',
+    ];
+
     this.terminal.abrir({
-      titulo: 'PAINEL EÓLICO CENTRAL // PUZZLE 1: CONDICIONAL',
-      linhasIniciais: [
-        '=== CONTROLE DE PRESSÃO ATMOSFÉRICA ===',
-        `> TELEMETRIA ATUAL:`,
-        `>   altar_a = ${this.altarAAtivo ? 'True' : 'False'}`,
-        `>   altar_b = ${this.altarBAtivo ? 'True' : 'False'}`,
-        `>   na_zona = ${naZona ? 'True' : 'False'}`,
-        '> DIRETRIZ: Acione a super corrente apenas quando ambos os altares estiverem ligados E você estiver na zona demarcada.',
-        "> INSTRUÇÃO: if altar_a and altar_b and na_zona: ativar_vento()",
-        '> Digite o código condicional:',
-      ],
+      titulo: config.TITULO,
+      linhasIniciais,
     });
   }
 
-  private abrirTerminalTotem2(): void {
-    this.jogador.setVelocityX(0);
+  // =========================================================================
+  // EXECUÇÃO DAS AÇÕES DOS 6 PUZZLES
+  // =========================================================================
 
-    this.terminal.definirContexto({
-      totemAtivo: 'totem_sentinela',
-    });
-
-    this.terminal.abrir({
-      titulo: 'TERMINAL DE MANUTENÇÃO // SENTINELA B-02 (DEBUG)',
-      linhasIniciais: [
-        '=== SCRIPT DE VIGILÂNCIA DA SENTINELA ===',
-        '# CÓDIGO COM BUG LOCALIZADO:',
-        'while True:',
-        '    # Bug: operador faz a sentinela virar muito cedo e vigiar o corredor!',
-        '    if sentinela.x < limite_direita:',
-        '        sentinela.virar_esquerda()',
-        '    else:',
-        '        sentinela.avancar()',
-        '-------------------------------------------------------',
-        '> OBJETIVO: Corrija o operador relacional para que a sentinela ultrapasse o corredor.',
-        '> Digite a linha corrigida (ex: if sentinela.x >= limite_direita: sentinela.virar_esquerda()):',
-      ],
-    });
-  }
-
-  private abrirTerminalTotem3(): void {
-    this.jogador.setVelocityX(0);
-
-    this.terminal.definirContexto({
-      totemAtivo: 'totem_rajada',
-    });
-
-    this.terminal.abrir({
-      titulo: 'GERADOR DE FLUXO EM ESCADA // PUZZLE 3: FUNÇÃO COM PARÂMETROS',
-      linhasIniciais: [
-        '=== ESPECIFICAÇÃO DA ESCADA DE VENTO ===',
-        `> CALIBRAÇÃO ATUAL: altura=${this.alturaEscadaPixels}px | atraso=${this.atrasoEscadaSegundos}s`,
-        '> FUNÇÃO DISPONÍVEL: programar_rajada(altura, atraso)',
-        '> PARÂMETROS OBRIGATÓRIOS:',
-        '>   - altura (pixels): elevação vertical gerada pelas rajadas (ex: 450)',
-        '>   - atraso (segundos): intervalo rítmico entre as 3 colunas (ideal: 1.5)',
-        '-------------------------------------------------------',
-        '> A física do jogo responderá EXATAMENTE aos valores submetidos.',
-        '> Digite a chamada da função:',
-      ],
-    });
-  }
-
-  private executarAtivacaoVentoCondicional(): void {
-    if (this.superColunaVento) {
-      this.superColunaVento.ativa = true;
+  private executarDesativarEscudoSentinela(): void {
+    this.totem1Resolvido = true;
+    if (this.sentinela1) {
+      this.sentinela1.escudoAtivo = false;
     }
+
+    if (this.barreiraEscudoSentinela) {
+      this.barreiraEscudoSentinela.destroy();
+    }
+
+    if (this.graficoEscudo) {
+      this.tweens.add({
+        targets: this.graficoEscudo,
+        alpha: 0,
+        duration: 500,
+        onComplete: () => {
+          this.graficoEscudo?.clear();
+        },
+      });
+    }
+
+    this.time.delayedCall(800, () => {
+      this.terminal.fechar();
+      this.cameras.main.flash(200, 255, 255, 255);
+      this.mostrarNotificacaoCurta('ESCUDO DESATIVADO // CORREDOR LIVRE!');
+    });
+  }
+
+  private executarEstabilizarElevador(): void {
+    this.totem2Resolvido = true;
+
+    this.tweens.add({
+      targets: this.elevadorNuvem,
+      y: TOTEM_2_BALANCA.ALTITUDE_ALVO,
+      duration: 1600,
+      ease: 'Sine.easeInOut',
+      onUpdate: () => {
+        (this.elevadorNuvem.body as Phaser.Physics.Arcade.Body).updateFromGameObject();
+      },
+    });
+
+    this.time.delayedCall(800, () => {
+      this.terminal.fechar();
+      this.cameras.main.shake(250, 0.004);
+      this.mostrarNotificacaoCurta('ELEVADOR ALINHADO NA ALTITUDE 350!');
+    });
+  }
+
+  private executarExpandirPatrulhaSentinela(): void {
+    this.totem3Resolvido = true;
+
+    if (this.sentinelaB02) {
+      this.sentinelaB02.minX = TOTEM_3_DDA.LIMITE_PLACA;
+      this.sentinelaB02.maxX = 3300;
+      this.sentinelaB02.direcao = -1;
+      this.sentinelaB02.sprite.setVelocityX(-this.sentinelaB02.velocidade);
+    }
+
+    this.time.delayedCall(800, () => {
+      this.terminal.fechar();
+      this.mostrarNotificacaoCurta('SENTINELA B-02 // ALCANCE EXPANDIDO ATÉ 2300!');
+    });
+  }
+
+  private executarAbrirPortaoExistencial(): void {
+    this.totem4Resolvido = true;
+
+    if (this.colisorPortao) {
+      this.colisorPortao.destroy();
+    }
+
+    this.tweens.add({
+      targets: this.portaoMilenar,
+      y: TOTEM_4_PORTAO.Y_PORTAO + 160,
+      alpha: 0.15,
+      duration: 1400,
+      ease: 'Quad.easeInOut',
+    });
 
     this.time.delayedCall(800, () => {
       this.terminal.fechar();
       this.cameras.main.shake(300, 0.005);
-      this.mostrarNotificacaoCurta('SUPER CORRENTE DE VENTO ATIVADA!');
-    });
-  }
-
-  private executarHackSentinela(): void {
-    this.sentinelaHackeada = true;
-    if (this.sentinelaHackeavel) {
-      this.sentinelaHackeavel.hackeada = true;
-    }
-
-    this.time.delayedCall(800, () => {
-      this.terminal.fechar();
-      this.mostrarNotificacaoCurta('SENTINELA REDIRECIONADA // CAMINHO LIVRE!');
+      this.mostrarNotificacaoCurta('PORTÃO MILENAR ABERTO // BLOCO 3 LIBERADO!');
     });
   }
 
   private executarAtivacaoEscadaRajadas(valor?: unknown): void {
-    let altura = 430;
-    let atraso = 1.5;
+    this.totem5Resolvido = true;
 
     if (typeof valor === 'object' && valor !== null) {
-      const v = valor as { altura?: number; atraso?: number };
-      if (typeof v.altura === 'number' && !isNaN(v.altura)) altura = v.altura;
-      if (typeof v.atraso === 'number' && !isNaN(v.atraso)) atraso = v.atraso;
-    } else if (typeof valor === 'string') {
-      try {
-        const v = JSON.parse(valor);
-        if (v.altura) altura = Number(v.altura);
-        if (v.atraso) atraso = Number(v.atraso);
-      } catch {}
-    } else if (typeof valor === 'number' && !isNaN(valor)) {
-      altura = valor;
+      const v = valor as { ordem?: string; intervalo?: number; forca?: number };
+      if (typeof v.intervalo === 'number' && !isNaN(v.intervalo)) {
+        this.intervaloEscadaSegundos = v.intervalo;
+      }
+      if (typeof v.forca === 'number' && !isNaN(v.forca)) {
+        this.forcaEscadaPixels = v.forca;
+      }
     }
 
-    this.alturaEscadaPixels = altura;
-    this.atrasoEscadaSegundos = atraso;
-
-    // Conecta diretamente a força vertical das colunas à altura programada
     for (const col of this.colunasEscada) {
-      col.forca = altura;
+      col.forca = this.forcaEscadaPixels;
     }
 
     this.escadaRajadasAtiva = true;
@@ -1557,11 +1665,34 @@ export class CenaFase1 extends CenaBase {
 
     this.time.delayedCall(800, () => {
       this.terminal.fechar();
-      const msg =
-        altura < 400
-          ? `ESCADA CALIBRADA (${altura}px, ${atraso}s) - AVISO: VENTO MUITO FRACO!`
-          : `ESCADA DE RAJADAS ATIVADA // ALTURA: ${altura}px | INTERVALO: ${atraso}s`;
-      this.mostrarNotificacaoCurta(msg);
+      this.mostrarNotificacaoCurta(
+        `ESCADA DE RAJADAS ATIVADA // INTERVALO: ${this.intervaloEscadaSegundos}s | FORÇA: ${this.forcaEscadaPixels}px`
+      );
+    });
+  }
+
+  private executarRecolherPilaresRachados(): void {
+    this.totem6Resolvido = true;
+
+    for (const pilar of this.pilaresMoveis) {
+      if (pilar.rachado) {
+        pilar.recolhido = true;
+        (pilar.sprite.body as Phaser.Physics.Arcade.StaticBody).checkCollision.none = true;
+
+        this.tweens.add({
+          targets: pilar.sprite,
+          y: pilar.yOriginal + 320,
+          alpha: 0,
+          duration: 1200,
+          ease: 'Cubic.easeIn',
+        });
+      }
+    }
+
+    this.time.delayedCall(800, () => {
+      this.terminal.fechar();
+      this.cameras.main.shake(350, 0.005);
+      this.mostrarNotificacaoCurta('PILARES RACHADOS RECOLHIDOS // ENTRADA DO SANTUÁRIO SEGURA!');
     });
   }
 
@@ -1583,7 +1714,7 @@ export class CenaFase1 extends CenaBase {
         x: CHECKPOINTS_FASE1.PONTO_CP2.x,
         y: CHECKPOINTS_FASE1.PONTO_CP2.y,
       };
-      this.exibirAnimacaoCheckpoint('CHECKPOINT 2 REGISTRADO // FENDA FINAL');
+      this.exibirAnimacaoCheckpoint('CHECKPOINT 2 REGISTRADO // ANTECÂMARA');
     }
 
     // Queda no abismo
@@ -1601,7 +1732,6 @@ export class CenaFase1 extends CenaBase {
       this.jogador.setVelocity(0, 0);
     }
 
-    // Reseta timers de pulo
     this.tempoUltimaVezNoChao = -9999;
     this.tempoUltimoPressionarPulo = -9999;
 
@@ -1672,12 +1802,12 @@ export class CenaFase1 extends CenaBase {
               {
                 falante: '> CANAL REBELDE // TRANSMISSÃO CELESTIAL',
                 texto:
-                  'Excelente trabalho, Hacker! Você dominou o planar aerodinâmico, depurou a sentinela e sincronizou as funções parametrizadas.',
+                  'Magnífico, Hacker! Você superou os seis totens do Céu Partido, decifrou as armadilhas lógicas e alcançou o Santuário.',
               },
               {
                 falante: '> CANAL REBELDE // TRANSMISSÃO CELESTIAL',
                 texto:
-                  'O Setor 1: Céu Partido foi liberado com maestria. Pressione ENTER para retornar vitorioso ao Hub!',
+                  'O setor 1 foi totalmente liberado. Pressione ENTER para retornar vitorioso ao Hub!',
               },
             ],
             () => {

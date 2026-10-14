@@ -52,6 +52,19 @@ export interface SentinelaInimiga {
   aberturaCone: number;
   emAlerta: boolean;
   hackeada: boolean;
+  escudoAtivo?: boolean;
+  graficoEscudo?: Phaser.GameObjects.Graphics;
+}
+
+/**
+ * Pilar móvel da antecâmara final (Desafio 6 do Arquiteto Preguiçoso).
+ */
+export interface PilarMovel {
+  id: number;
+  sprite: Phaser.Physics.Arcade.Sprite;
+  rachado: boolean;
+  recolhido: boolean;
+  yOriginal: number;
 }
 
 /**
@@ -83,4 +96,26 @@ export interface ConfigSentinela {
   minX: number;
   maxX: number;
   velocidade: number;
+}
+
+/**
+ * Parâmetros de sincronização das rajadas de vento (Desafio 5).
+ */
+export interface ParametrosEscadaVento {
+  ordem: string;
+  intervalo: number;
+  forca: number;
+}
+
+/**
+ * Dados de estado e referência de um Totem interativo da Fase 1.
+ */
+export interface TotemConfigInteracao {
+  id: string;
+  x: number;
+  y: number;
+  tituloTerminal: string;
+  dialogoAbertura: string;
+  variaveisDisponiveis: string[];
+  funcoesDisponiveis: string[];
 }
