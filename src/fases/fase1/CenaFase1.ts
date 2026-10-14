@@ -1593,10 +1593,19 @@ export class CenaFase1 extends CenaBase {
   }
 
   private respawnNoCheckpoint(motivo: string): void {
-    this.jogador.setVelocity(0, 0);
-    this.cameras.main.flash(200, 255, 255, 255);
+    const corpo = this.jogador.body as Phaser.Physics.Arcade.Body | null;
+    if (corpo) {
+      corpo.reset(this.checkpointAtual.x, this.checkpointAtual.y);
+    } else {
+      this.jogador.setPosition(this.checkpointAtual.x, this.checkpointAtual.y);
+      this.jogador.setVelocity(0, 0);
+    }
 
-    this.jogador.setPosition(this.checkpointAtual.x, this.checkpointAtual.y);
+    // Reseta timers de pulo
+    this.tempoUltimaVezNoChao = -9999;
+    this.tempoUltimoPressionarPulo = -9999;
+
+    this.cameras.main.flash(200, 255, 255, 255);
     this.mostrarNotificacaoCurta(motivo);
   }
 

@@ -121,9 +121,9 @@ export const SENTINELAS_FASE1 = {
 export const CHECKPOINTS_FASE1 = {
   INICIAL: { x: 120, y: 560 },
   GATILHO_CP1_X: 1650,
-  PONTO_CP1: { x: 1740, y: 440 },
+  PONTO_CP1: { x: 1740, y: 400 }, // Spawna com segurança acima do platô (topo y≈478)
   GATILHO_CP2_X: 3520,
-  PONTO_CP2: { x: 3600, y: 450 },
+  PONTO_CP2: { x: 3600, y: 410 }, // Spawna com segurança acima do platô (topo y≈488)
   LIMITE_QUEDA_Y: 690,
 } as const;
 
