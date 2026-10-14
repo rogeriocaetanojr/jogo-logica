@@ -132,29 +132,29 @@ export const SENTINELAS_FASE1 = {
 } as const;
 
 export const CHECKPOINTS_FASE1 = {
-  INICIAL: { x: 120, y: 560 },
+  INICIAL: { x: 120, y: 520 }, // Chão inicial em y=640 (topo ≈ 618.4), pés do jogador em 520 + 58 = 578 (40.4px acima)
   CP1: {
     ID: 'cp1_central',
-    GATILHO_X: 1650,
-    PONTO: { x: 1740, y: 400 },
+    GATILHO_X: 1680,
+    PONTO: { x: 1740, y: 390 }, // Platô Bloco 1 em y=500 (topo ≈ 478.4), pés em 390 + 58 = 448 (30.4px acima)
     NOME: 'CHECKPOINT 1 // SETOR CENTRAL',
   },
   CP2: {
     ID: 'cp2_elevador',
     GATILHO_X: 2750,
-    PONTO: { x: 2820, y: 320 },
+    PONTO: { x: 2820, y: 280 }, // Platô do Elevador em y=390 (topo = 372.0), pés em 280 + 58 = 338 (34px acima)
     NOME: 'CHECKPOINT 2 // PLATÔ DO ELEVADOR',
   },
   CP3: {
     ID: 'cp3_portao',
-    GATILHO_X: 3520,
-    PONTO: { x: 3600, y: 400 },
+    GATILHO_X: 3550,
+    PONTO: { x: 3600, y: 355 }, // Platô do Portão em y=470 (topo ≈ 448.4), pés em 355 + 58 = 413 (35.4px acima)
     NOME: 'CHECKPOINT 3 // PORTÃO MILENAR',
   },
   CP4: {
     ID: 'cp4_ante_camara',
-    GATILHO_X: 4700,
-    PONTO: { x: 4760, y: 270 },
+    GATILHO_X: 4720,
+    PONTO: { x: 4760, y: 230 }, // Platô da Antecâmara em y=340 (topo = 322.0), pés em 230 + 58 = 288 (34px acima)
     NOME: 'CHECKPOINT 4 // ENTRADA DA ANTECÂMARA',
   },
   LIMITE_QUEDA_Y: 690,

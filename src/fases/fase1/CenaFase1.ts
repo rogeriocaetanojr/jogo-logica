@@ -125,6 +125,9 @@ export class CenaFase1 extends CenaBase {
   private tempoUltimaVezNoChao: number = -9999;
   private tempoUltimoPressionarPulo: number = -9999;
 
+  // Flag de congelamento seguro do mundo durante terminal ou diálogos
+  private jogoCongeladoPorMenu: boolean = false;
+
   constructor() {
     super('CenaFase1', 'fase1');
   }
@@ -1038,14 +1041,31 @@ export class CenaFase1 extends CenaBase {
     // 1. Congelamento Seguro no Terminal e Diálogos
     const emMenuOuDialogo = Boolean(this.terminal?.estaAberto || this.comunicador?.estaAtivo);
     if (emMenuOuDialogo) {
+      if (!this.jogoCongeladoPorMenu) {
+        this.jogoCongeladoPorMenu = true;
+        this.congelarJogo();
+      }
       this.jogador.setVelocity(0, 0);
       corpo.setAllowGravity(false);
       this.jogador.anims.play(`${this.tipoPersonagem}_idle`, true);
+
+      // Garante que sentinelas fiquem paradas
+      for (const s of this.sentinelas) {
+        s.congelar();
+      }
+
+      // Evita que plataformas que estavam rachando quebrem durante a digitação
+      for (const plat of this.plataformasRachadas) {
+        if (plat.rachando) {
+          plat.tempoRachando += delta;
+        }
+      }
       return;
     }
 
-    if (!this.faseConcluida && !corpo.allowGravity) {
-      corpo.setAllowGravity(true);
+    if (this.jogoCongeladoPorMenu) {
+      this.jogoCongeladoPorMenu = false;
+      this.descongelarJogo();
     }
 
     // 2. Atualização e verificação de Checkpoints e Queda (Onda 3)
@@ -1460,7 +1480,8 @@ export class CenaFase1 extends CenaBase {
     VARIAVEIS_DISPONIVEIS: readonly string[];
     FUNCOES_DISPONIVEIS: readonly string[];
   }): void {
-    this.jogador.setVelocity(0, 0);
+    this.congelarJogo();
+    this.jogoCongeladoPorMenu = true;
 
     this.terminal.definirContexto({
       totemAtivo: config.ID,
@@ -1646,52 +1667,51 @@ export class CenaFase1 extends CenaBase {
 
   private verificarLimitesECheckpoints(): void {
     const x = this.jogador.x;
+    const y = this.jogador.y;
 
-    // Checkpoint 1: Pós Bloco 1 (Tutorial) / Antes Totem 1 (x ≈ 1650)
-    if (
-      x >= CHECKPOINTS_FASE1.CP1.GATILHO_X &&
-      this.snapshotAtual.idCheckpoint === 'cp0_inicial'
-    ) {
-      this.salvarSnapshotCheckpoint(
-        CHECKPOINTS_FASE1.CP1.ID,
-        CHECKPOINTS_FASE1.CP1.PONTO,
-        CHECKPOINTS_FASE1.CP1.NOME
-      );
-    }
-    // Checkpoint 2: Platô Pós-Elevador de Nuvens (x ≈ 2750)
-    else if (
-      x >= CHECKPOINTS_FASE1.CP2.GATILHO_X &&
-      (this.snapshotAtual.idCheckpoint === 'cp0_inicial' ||
-        this.snapshotAtual.idCheckpoint === CHECKPOINTS_FASE1.CP1.ID)
-    ) {
-      this.salvarSnapshotCheckpoint(
-        CHECKPOINTS_FASE1.CP2.ID,
-        CHECKPOINTS_FASE1.CP2.PONTO,
-        CHECKPOINTS_FASE1.CP2.NOME
-      );
-    }
-    // Checkpoint 3: Platô Pós-Sentinela B-02 / Entrada Bloco 3 (x ≈ 3520)
-    else if (
-      x >= CHECKPOINTS_FASE1.CP3.GATILHO_X &&
-      this.snapshotAtual.idCheckpoint !== CHECKPOINTS_FASE1.CP3.ID &&
-      this.snapshotAtual.idCheckpoint !== CHECKPOINTS_FASE1.CP4.ID
-    ) {
-      this.salvarSnapshotCheckpoint(
-        CHECKPOINTS_FASE1.CP3.ID,
-        CHECKPOINTS_FASE1.CP3.PONTO,
-        CHECKPOINTS_FASE1.CP3.NOME
-      );
-    }
-    // Checkpoint 4: Pós-Escada de Rajadas / Antecâmara (x ≈ 4700)
-    else if (
-      x >= CHECKPOINTS_FASE1.CP4.GATILHO_X &&
-      this.snapshotAtual.idCheckpoint !== CHECKPOINTS_FASE1.CP4.ID
-    ) {
-      this.salvarSnapshotCheckpoint(
-        CHECKPOINTS_FASE1.CP4.ID,
-        CHECKPOINTS_FASE1.CP4.PONTO,
-        CHECKPOINTS_FASE1.CP4.NOME
-      );
+    // Apenas salva checkpoints se o jogador estiver em altura segura (não despencando no abismo)
+    if (y < CHECKPOINTS_FASE1.LIMITE_QUEDA_Y - 120) {
+      const nivelCheckpointAtual: Record<string, number> = {
+        cp0_inicial: 0,
+        [CHECKPOINTS_FASE1.CP1.ID]: 1,
+        [CHECKPOINTS_FASE1.CP2.ID]: 2,
+        [CHECKPOINTS_FASE1.CP3.ID]: 3,
+        [CHECKPOINTS_FASE1.CP4.ID]: 4,
+      };
+      const nivelAtual = nivelCheckpointAtual[this.snapshotAtual.idCheckpoint] ?? 0;
+
+      // Checkpoint 1: Pós Bloco 1 (Tutorial) / Antes Totem 1 (x ≈ 1680)
+      if (nivelAtual < 1 && x >= CHECKPOINTS_FASE1.CP1.GATILHO_X && y < 520) {
+        this.salvarSnapshotCheckpoint(
+          CHECKPOINTS_FASE1.CP1.ID,
+          CHECKPOINTS_FASE1.CP1.PONTO,
+          CHECKPOINTS_FASE1.CP1.NOME
+        );
+      }
+      // Checkpoint 2: Platô Pós-Elevador de Nuvens (x ≈ 2750)
+      else if (nivelAtual < 2 && x >= CHECKPOINTS_FASE1.CP2.GATILHO_X && y < 420) {
+        this.salvarSnapshotCheckpoint(
+          CHECKPOINTS_FASE1.CP2.ID,
+          CHECKPOINTS_FASE1.CP2.PONTO,
+          CHECKPOINTS_FASE1.CP2.NOME
+        );
+      }
+      // Checkpoint 3: Platô Pós-Sentinela B-02 / Portão Milenar (x ≈ 3550)
+      else if (nivelAtual < 3 && x >= CHECKPOINTS_FASE1.CP3.GATILHO_X && y < 490) {
+        this.salvarSnapshotCheckpoint(
+          CHECKPOINTS_FASE1.CP3.ID,
+          CHECKPOINTS_FASE1.CP3.PONTO,
+          CHECKPOINTS_FASE1.CP3.NOME
+        );
+      }
+      // Checkpoint 4: Pós-Escada de Rajadas / Antecâmara (x ≈ 4720)
+      else if (nivelAtual < 4 && x >= CHECKPOINTS_FASE1.CP4.GATILHO_X && y < 370) {
+        this.salvarSnapshotCheckpoint(
+          CHECKPOINTS_FASE1.CP4.ID,
+          CHECKPOINTS_FASE1.CP4.PONTO,
+          CHECKPOINTS_FASE1.CP4.NOME
+        );
+      }
     }
 
     // Queda no abismo
@@ -1729,16 +1749,30 @@ export class CenaFase1 extends CenaBase {
    * - Puzzles concluídos permanecem abertos/resolvidos.
    */
   private restaurarSnapshot(motivo: string): void {
+    const ponto = this.snapshotAtual.pontoSpawn;
     const corpo = this.jogador.body as Phaser.Physics.Arcade.Body | null;
+
     if (corpo) {
-      corpo.reset(this.snapshotAtual.pontoSpawn.x, this.snapshotAtual.pontoSpawn.y);
+      corpo.reset(ponto.x, ponto.y);
+      corpo.setVelocity(0, 0);
+      corpo.setAcceleration(0, 0);
+      corpo.setAllowGravity(true);
+      corpo.blocked.none = true;
+      corpo.touching.none = true;
     } else {
-      this.jogador.setPosition(this.snapshotAtual.pontoSpawn.x, this.snapshotAtual.pontoSpawn.y);
+      this.jogador.setPosition(ponto.x, ponto.y);
       this.jogador.setVelocity(0, 0);
     }
 
+    this.jogador.clearTint();
+    this.jogador.setFlipX(false);
+    this.jogador.anims.play(`${this.tipoPersonagem}_idle`, true);
+
     this.tempoUltimaVezNoChao = -9999;
     this.tempoUltimoPressionarPulo = -9999;
+
+    // Centraliza câmera instantaneamente no ponto de spawn seguro
+    this.cameras.main.centerOn(ponto.x, ponto.y);
 
     // 1. Reset instantâneo de todas as plataformas de mármore rachado
     for (const plat of this.plataformasRachadas) {
@@ -1765,8 +1799,101 @@ export class CenaFase1 extends CenaBase {
     this.totem5Resolvido = this.snapshotAtual.totem5Resolvido;
     this.totem6Resolvido = this.snapshotAtual.totem6Resolvido;
 
+    if (this.totem1Resolvido) {
+      if (this.barreiraEscudoSentinela) {
+        this.barreiraEscudoSentinela.destroy();
+      }
+      if (this.graficoEscudo) {
+        this.graficoEscudo.clear();
+      }
+      if (this.sentinela1) {
+        this.sentinela1.hackear();
+      }
+    }
+
+    if (this.elevadorNuvem && this.elevadorNuvem.body) {
+      const elevadorY = this.totem2Resolvido
+        ? TOTEM_2_BALANCA.ALTITUDE_ALVO
+        : TOTEM_2_BALANCA.ELEVADOR_Y_INICIAL;
+      this.elevadorNuvem.y = elevadorY;
+      (this.elevadorNuvem.body as Phaser.Physics.Arcade.Body).reset(
+        TOTEM_2_BALANCA.ELEVADOR_X,
+        elevadorY
+      );
+    }
+
+    if (this.totem3Resolvido && this.sentinelaB02) {
+      this.sentinelaB02.minX = TOTEM_3_DDA.LIMITE_PLACA;
+      this.sentinelaB02.maxX = 3300;
+    }
+
+    if (this.totem4Resolvido) {
+      if (this.portaoMilenar) {
+        this.portaoMilenar.y = TOTEM_4_PORTAO.Y_PORTAO + 160;
+        this.portaoMilenar.setAlpha(0.15);
+      }
+      if (this.colisorPortao) {
+        this.colisorPortao.destroy();
+      }
+    }
+
+    if (this.totem6Resolvido) {
+      for (const pilar of this.pilaresMoveis) {
+        if (pilar.rachado) {
+          pilar.recolhido = true;
+          (pilar.sprite.body as Phaser.Physics.Arcade.StaticBody).checkCollision.none = true;
+          pilar.sprite.y = pilar.yOriginal + 320;
+          pilar.sprite.setAlpha(0);
+        }
+      }
+    }
+
+    if (this.jogoCongeladoPorMenu) {
+      this.jogoCongeladoPorMenu = false;
+      this.descongelarJogo();
+    }
+
     this.cameras.main.flash(200, 255, 255, 255);
     this.mostrarNotificacaoCurta(motivo);
+  }
+
+  /**
+   * Congela o jogo completamente durante a abertura do terminal ou caixa de diálogo.
+   * - Para física do Arcade e o jogador
+   * - Para imediatamente todas as sentinelas ativas
+   * - Pausa tweens da cena
+   */
+  private congelarJogo(): void {
+    const corpo = this.jogador?.body as Phaser.Physics.Arcade.Body | null;
+    if (corpo) {
+      this.jogador.setVelocity(0, 0);
+      corpo.setAllowGravity(false);
+      this.jogador.anims.play(`${this.tipoPersonagem}_idle`, true);
+    }
+
+    for (const s of this.sentinelas) {
+      s.congelar();
+    }
+
+    this.physics.world.pause();
+    this.tweens.pauseAll();
+  }
+
+  /**
+   * Descongela o mundo e retoma a movimentação de sentinelas e física do jogador.
+   */
+  private descongelarJogo(): void {
+    const corpo = this.jogador?.body as Phaser.Physics.Arcade.Body | null;
+    if (corpo && !this.faseConcluida) {
+      corpo.setAllowGravity(true);
+    }
+
+    this.physics.world.resume();
+    this.tweens.resumeAll();
+
+    for (const s of this.sentinelas) {
+      s.descongelar();
+    }
   }
 
   private exibirAnimacaoCheckpoint(texto: string): void {

@@ -119,6 +119,7 @@ export class SentinelaFase1 {
     // 3. Patrulha horizontal independente de FPS
     if (this.direcao === 1) {
       if (this.sprite.x >= this.maxX) {
+        this.sprite.x = this.maxX;
         this.direcao = -1;
         this.sprite.setVelocityX(-this.velocidade);
         this.sprite.setFlipX(true);
@@ -128,6 +129,7 @@ export class SentinelaFase1 {
       }
     } else {
       if (this.sprite.x <= this.minX) {
+        this.sprite.x = this.minX;
         this.direcao = 1;
         this.sprite.setVelocityX(this.velocidade);
         this.sprite.setFlipX(false);
@@ -135,6 +137,17 @@ export class SentinelaFase1 {
         this.sprite.setVelocityX(-this.velocidade);
         this.sprite.setFlipX(true);
       }
+    }
+
+    // Salvaguarda adicional contra overshoot de quadros
+    if (this.sprite.x > this.maxX) {
+      this.sprite.x = this.maxX;
+      this.direcao = -1;
+      this.sprite.setVelocityX(-this.velocidade);
+    } else if (this.sprite.x < this.minX) {
+      this.sprite.x = this.minX;
+      this.direcao = 1;
+      this.sprite.setVelocityX(this.velocidade);
     }
 
     // 4. Renderização do cone de visão e detecção óptica
@@ -402,6 +415,28 @@ export class SentinelaFase1 {
     this.timerEstadoMs = 0;
     this.coneGrafico.clear();
     this.graficoPulso.clear();
+  }
+
+  /**
+   * Pausa imediatamente a movimentação da sentinela durante abertura de terminais ou diálogos.
+   */
+  public congelar(): void {
+    if (this.hackeada || this.estado === 'desativada') return;
+    const corpo = this.sprite.body as Phaser.Physics.Arcade.Body | null;
+    if (corpo) {
+      this.sprite.setVelocity(0, 0);
+    }
+  }
+
+  /**
+   * Retoma a movimentação de patrulha após fechamento do terminal ou diálogo.
+   */
+  public descongelar(): void {
+    if (this.hackeada || this.estado === 'desativada') return;
+    const corpo = this.sprite.body as Phaser.Physics.Arcade.Body | null;
+    if (corpo && this.estado === 'scanner') {
+      this.sprite.setVelocityX(this.direcao * this.velocidade);
+    }
   }
 
   public destruir(): void {
