@@ -69,6 +69,8 @@ export class CenaFase1 extends CenaBase {
   private escadaRajadasAtiva: boolean = false;
   private colunasEscada: ColunaVento[] = [];
   private tempoCicloEscada: number = 0;
+  private alturaEscadaPixels: number = 430;
+  private atrasoEscadaSegundos: number = 1.5;
 
   // Antecâmara Final / Portal do Santuário
   private portalFinal!: Phaser.GameObjects.Sprite;
@@ -977,7 +979,7 @@ export class CenaFase1 extends CenaBase {
       } else if (resultado.acao === 'HACKEAR_SENTINELA') {
         this.executarHackSentinela();
       } else if (resultado.acao === 'ATIVAR_ESCADA_RAJADAS') {
-        this.executarAtivacaoEscadaRajadas();
+        this.executarAtivacaoEscadaRajadas(resultado.valor);
       }
     });
   }
@@ -1183,7 +1185,7 @@ export class CenaFase1 extends CenaBase {
   private tratarColunasVento(delta: number): void {
     if (this.escadaRajadasAtiva && this.colunasEscada.length === 3) {
       this.tempoCicloEscada += delta;
-      const periodo = PUZZLE_3_FASE1.PERIODO_CICLO_MS;
+      const periodo = Math.max(200, this.atrasoEscadaSegundos * 1000);
       const faseAtual = Math.floor((this.tempoCicloEscada % (periodo * 3)) / periodo);
 
       this.colunasEscada[0].ativa = faseAtual === 0;
@@ -1400,15 +1402,22 @@ export class CenaFase1 extends CenaBase {
       return;
     }
 
-    // Totem 3: Escada de Rajadas (x: 4100)
+    // Totem 3: Escada de Rajadas (x: 4100) - permite recalibração contínua
     const distT3 = Phaser.Math.Distance.Between(
       this.jogador.x,
       this.jogador.y,
       this.totemRajada.x,
       this.totemRajada.y
     );
-    const pertoT3 = distT3 < PUZZLE_3_FASE1.DISTANCIA_INTERACAO_TOTEM && !this.escadaRajadasAtiva;
+    const pertoT3 = distT3 < PUZZLE_3_FASE1.DISTANCIA_INTERACAO_TOTEM;
     this.promptRajada.setVisible(pertoT3);
+    if (pertoT3) {
+      this.promptRajada.setText(
+        this.escadaRajadasAtiva
+          ? '[E] RECALIBRAR ESCADA DE RAJADAS'
+          : '[E] PROGRAMAR ESCADA DE RAJADAS'
+      );
+    }
 
     if (pertoT3 && this.teclaInteragir && Phaser.Input.Keyboard.JustDown(this.teclaInteragir)) {
       this.abrirTerminalTotem3();
@@ -1481,12 +1490,13 @@ export class CenaFase1 extends CenaBase {
       titulo: 'GERADOR DE FLUXO EM ESCADA // PUZZLE 3: FUNÇÃO COM PARÂMETROS',
       linhasIniciais: [
         '=== ESPECIFICAÇÃO DA ESCADA DE VENTO ===',
+        `> CALIBRAÇÃO ATUAL: altura=${this.alturaEscadaPixels}px | atraso=${this.atrasoEscadaSegundos}s`,
         '> FUNÇÃO DISPONÍVEL: programar_rajada(altura, atraso)',
         '> PARÂMETROS OBRIGATÓRIOS:',
-        '>   - altura (pixels): elevação vertical necessária (mínimo 400)',
+        '>   - altura (pixels): elevação vertical gerada pelas rajadas (ex: 450)',
         '>   - atraso (segundos): intervalo rítmico entre as 3 colunas (ideal: 1.5)',
         '-------------------------------------------------------',
-        '> Errar os parâmetros causará falha de timing na física da escada.',
+        '> A física do jogo responderá EXATAMENTE aos valores submetidos.',
         '> Digite a chamada da função:',
       ],
     });
@@ -1516,13 +1526,42 @@ export class CenaFase1 extends CenaBase {
     });
   }
 
-  private executarAtivacaoEscadaRajadas(): void {
+  private executarAtivacaoEscadaRajadas(valor?: unknown): void {
+    let altura = 430;
+    let atraso = 1.5;
+
+    if (typeof valor === 'object' && valor !== null) {
+      const v = valor as { altura?: number; atraso?: number };
+      if (typeof v.altura === 'number' && !isNaN(v.altura)) altura = v.altura;
+      if (typeof v.atraso === 'number' && !isNaN(v.atraso)) atraso = v.atraso;
+    } else if (typeof valor === 'string') {
+      try {
+        const v = JSON.parse(valor);
+        if (v.altura) altura = Number(v.altura);
+        if (v.atraso) atraso = Number(v.atraso);
+      } catch {}
+    } else if (typeof valor === 'number' && !isNaN(valor)) {
+      altura = valor;
+    }
+
+    this.alturaEscadaPixels = altura;
+    this.atrasoEscadaSegundos = atraso;
+
+    // Conecta diretamente a força vertical das colunas à altura programada
+    for (const col of this.colunasEscada) {
+      col.forca = altura;
+    }
+
     this.escadaRajadasAtiva = true;
     this.tempoCicloEscada = 0;
 
     this.time.delayedCall(800, () => {
       this.terminal.fechar();
-      this.mostrarNotificacaoCurta('ESCADA DE RAJADAS ATIVADA EM RITMO SEQUENCIAL!');
+      const msg =
+        altura < 400
+          ? `ESCADA CALIBRADA (${altura}px, ${atraso}s) - AVISO: VENTO MUITO FRACO!`
+          : `ESCADA DE RAJADAS ATIVADA // ALTURA: ${altura}px | INTERVALO: ${atraso}s`;
+      this.mostrarNotificacaoCurta(msg);
     });
   }
 
