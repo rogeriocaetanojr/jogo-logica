@@ -26,6 +26,9 @@ export const JOGADOR_FASE1 = {
   HITBOX_OFFSET_Y: 26,
   VELOCIDADE_X: 220,
   VELOCIDADE_PULO: -490,
+  VELOCIDADE_MAX_PLANAR: 80, // Limite de velocidade de queda para descida suave ao planar
+  TEMPO_COYOTE_MS: 120, // Janela para pulo após sair de plataformas
+  TEMPO_JUMP_BUFFER_MS: 120, // Janela de tolerância para buffer de comando de pulo pré-aterrissagem
   TINT_VENTO: 0xbae6fd,
   TINT_RACHANDO: 0xf87171,
   PROFUNDIDADE: 10,
@@ -40,8 +43,8 @@ export const VENTO_FASE1 = {
   PADDING_PARTICULAS_X: 6,
   LARGURA_PARTICULA: 3,
   ALTURA_PARTICULA: 10,
-  SUSTENTACAO_PASSIVA_DELTA: 25,
-  SUSTENTACAO_PASSIVA_MIN_VY: -120,
+  FORCA_VENTO_LATERAL: 90, // Força contínua de arraste horizontal para a esquerda
+  SUSTENTACAO_PASSIVA_DELTA: 15,
   COR_FUNDO_COLUNA: 0x38bdf8,
   ALFA_FUNDO_COLUNA: 0.22,
   COR_BORDA_COLUNA: 0xa5f3fc,

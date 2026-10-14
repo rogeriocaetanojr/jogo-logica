@@ -85,6 +85,10 @@ export class CenaFase1 extends CenaBase {
   private teclaEspaco?: Phaser.Input.Keyboard.Key;
   private teclaInteragir?: Phaser.Input.Keyboard.Key;
 
+  // Temporizadores para Coyote Time e Jump Buffer
+  private tempoUltimaVezNoChao: number = -9999;
+  private tempoUltimoPressionarPulo: number = -9999;
+
   constructor() {
     super('CenaFase1', 'fase1');
   }
@@ -1002,42 +1006,51 @@ export class CenaFase1 extends CenaBase {
 
     if (!this.jogador || !this.jogador.body) return;
 
-    // Se o terminal ou o rádio estiverem abertos, trava movimento
-    if (this.terminal.estaAberto || this.comunicador.estaAtivo) {
-      this.jogador.setVelocityX(0);
+    const corpo = this.jogador.body as Phaser.Physics.Arcade.Body;
+
+    // 1. Congelamento Seguro no Terminal e Diálogos (Correção do Problema 8)
+    const emMenuOuDialogo = Boolean(this.terminal?.estaAberto || this.comunicador?.estaAtivo);
+    if (emMenuOuDialogo) {
+      this.jogador.setVelocity(0, 0);
+      corpo.setAllowGravity(false);
       this.jogador.anims.play(`${this.tipoPersonagem}_idle`, true);
       return;
     }
 
-    // 1. Atualização e verificação de Checkpoint e Queda
+    // Restaura a gravidade caso tenha sido desativada pelo terminal/diálogo (e a fase não tenha sido concluída)
+    if (!this.faseConcluida && !corpo.allowGravity) {
+      corpo.setAllowGravity(true);
+    }
+
+    // 2. Atualização e verificação de Checkpoint e Queda
     this.verificarLimitesECheckpoints();
 
-    // 2. Movimentação e Mecânica de Planar no Vento
-    this.tratarMovimentoEPlanar();
+    // 3. Movimentação, Coyote Time, Jump Buffer e Mecânica de Planar no Vento
+    this.tratarMovimentoEPlanar(tempo);
 
-    // 3. Atualização das plataformas de Mármore Rachado
+    // 4. Atualização das plataformas de Mármore Rachado
     this.tratarPlataformasRachadas(tempo);
 
-    // 4. Renderização e física das Colunas de Vento
+    // 5. Renderização e física das Colunas de Vento
     this.tratarColunasVento(delta);
 
-    // 5. Patrulha e detecção das Sentinelas-Nuvem
+    // 6. Patrulha e detecção das Sentinelas-Nuvem
     this.tratarSentinelas(tempo);
 
-    // 6. Verificação dos Altares do Puzzle 1
+    // 7. Verificação dos Altares do Puzzle 1
     this.tratarAltaresEPuzzle1();
 
-    // 7. Interação com os Totens
+    // 8. Interação com os Totens
     this.tratarInteracaoTotens();
 
-    // 8. Chegada ao Santuário Final
+    // 9. Chegada ao Santuário Final
     this.verificarFinalizacaoFase();
   }
 
   /**
-   * Mecânica de Plataforma: Pulo padrão + "planar no vento".
+   * Mecânica de Plataforma: Pulo com Coyote Time / Jump Buffer + "planar no ar e correntes de vento".
    */
-  private tratarMovimentoEPlanar(): void {
+  private tratarMovimentoEPlanar(tempo: number): void {
     const corpo = this.jogador.body as Phaser.Physics.Arcade.Body | null;
     if (!corpo) return;
 
@@ -1058,20 +1071,14 @@ export class CenaFase1 extends CenaBase {
 
     const noChao = corpo.blocked.down || corpo.touching.down;
 
-    // Movimentação Lateral
-    if (esquerda) {
-      this.jogador.setVelocityX(-JOGADOR_FASE1.VELOCIDADE_X);
-      this.jogador.setFlipX(true);
-    } else if (direita) {
-      this.jogador.setVelocityX(JOGADOR_FASE1.VELOCIDADE_X);
-      this.jogador.setFlipX(false);
-    } else {
-      this.jogador.setVelocityX(0);
+    // Atualiza temporizador de contato com o chão para Coyote Time
+    if (noChao) {
+      this.tempoUltimaVezNoChao = tempo;
     }
 
-    // Pulo padrão fora do vento
-    if (puloApertadoAgora && noChao) {
-      this.jogador.setVelocityY(JOGADOR_FASE1.VELOCIDADE_PULO);
+    // Registra buffer de pulo quando a tecla for pressionada
+    if (puloApertadoAgora) {
+      this.tempoUltimoPressionarPulo = tempo;
     }
 
     // Verificação de presença em Coluna de Vento Ativa
@@ -1095,17 +1102,60 @@ export class CenaFase1 extends CenaBase {
       }
     }
 
+    // --- Movimentação Lateral com Empurrão de Vento ---
+    let velX = 0;
+    if (esquerda) {
+      velX = -JOGADOR_FASE1.VELOCIDADE_X;
+      this.jogador.setFlipX(true);
+    } else if (direita) {
+      velX = JOGADOR_FASE1.VELOCIDADE_X;
+      this.jogador.setFlipX(false);
+    }
+
+    // Força contínua de arraste para a esquerda dentro do fluxo de vento
+    if (dentroDeColunaAtiva) {
+      velX -= VENTO_FASE1.FORCA_VENTO_LATERAL;
+    }
+
+    this.jogador.setVelocityX(velX);
+
+    // --- Pulo com Coyote Time e Jump Buffer ---
+    const podePularCoyote = (tempo - this.tempoUltimaVezNoChao) <= JOGADOR_FASE1.TEMPO_COYOTE_MS;
+    const bufferPuloAtivo = (tempo - this.tempoUltimoPressionarPulo) <= JOGADOR_FASE1.TEMPO_JUMP_BUFFER_MS;
+
+    if (bufferPuloAtivo && podePularCoyote) {
+      this.jogador.setVelocityY(JOGADOR_FASE1.VELOCIDADE_PULO);
+      // Consome o buffer e o coyote time
+      this.tempoUltimoPressionarPulo = -9999;
+      this.tempoUltimaVezNoChao = -9999;
+    }
+
+    // --- Mecânica de Vento e Planar Vertical ---
+    let modoPlaneioAtivo = false;
+
     if (dentroDeColunaAtiva) {
       if (puloSegurado) {
+        // Segurando pulo no vento: jato vertical ascensional eleva o jogador
         this.jogador.setVelocityY(-forcaVentoAtual);
+        modoPlaneioAtivo = true;
       } else {
-        this.jogador.setVelocityY(
-          Math.min(
-            corpo.velocity.y - VENTO_FASE1.SUSTENTACAO_PASSIVA_DELTA,
-            VENTO_FASE1.SUSTENTACAO_PASSIVA_MIN_VY
-          )
-        );
+        // Sem segurar pulo no vento: não catapulta! Apenas leve sustentação/amortecimento se estiver caindo
+        if (corpo.velocity.y > 0) {
+          this.jogador.setVelocityY(
+            Math.max(0, corpo.velocity.y - VENTO_FASE1.SUSTENTACAO_PASSIVA_DELTA)
+          );
+        }
       }
+    } else if (!noChao && puloSegurado) {
+      // Fora do vento mas no ar segurando pulo: Mecânica de Planar suave com velocidade de descida controlada
+      if (corpo.velocity.y > JOGADOR_FASE1.VELOCIDADE_MAX_PLANAR) {
+        this.jogador.setVelocityY(JOGADOR_FASE1.VELOCIDADE_MAX_PLANAR);
+      }
+      modoPlaneioAtivo = true;
+    }
+
+    // Feedback visual do modo de planeio ou sustentação
+    if (modoPlaneioAtivo || dentroDeColunaAtiva) {
       this.jogador.setTint(JOGADOR_FASE1.TINT_VENTO);
     } else {
       this.jogador.clearTint();
