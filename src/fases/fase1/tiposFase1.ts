@@ -1,4 +1,5 @@
 import type Phaser from 'phaser';
+import type { LinhaDialogo } from '../../compartilhado/tipos';
 
 /**
  * Representa uma plataforma de mármore com comportamento de rachadura e quebra temporária.
@@ -37,7 +38,16 @@ export interface ColunaVento {
 }
 
 /**
- * Drone sentinela com patrulha horizontal e cone de detecção óptico triangular.
+ * Estados operacionais da sentinela com alternância entre busca e rajada eólica.
+ */
+export type EstadoSentinela =
+  | 'scanner'
+  | 'carregando_pulso'
+  | 'disparando_pulso'
+  | 'desativada';
+
+/**
+ * Interface legada e descritor de dados da Sentinela.
  */
 export interface SentinelaInimiga {
   sprite: Phaser.Physics.Arcade.Sprite;
@@ -96,6 +106,7 @@ export interface ConfigSentinela {
   minX: number;
   maxX: number;
   velocidade: number;
+  podeDispararPulso?: boolean;
 }
 
 /**
@@ -118,4 +129,32 @@ export interface TotemConfigInteracao {
   dialogoAbertura: string;
   variaveisDisponiveis: string[];
   funcoesDisponiveis: string[];
+}
+
+/**
+ * Snapshot de progresso e estado para reset limpo ao morrer / respawnar.
+ */
+export interface SnapshotCheckpointFase1 {
+  idCheckpoint: string;
+  pontoSpawn: Coordenada2D;
+  totem1Resolvido: boolean;
+  totem2Resolvido: boolean;
+  totem3Resolvido: boolean;
+  totem4Resolvido: boolean;
+  totem5Resolvido: boolean;
+  totem6Resolvido: boolean;
+}
+
+/**
+ * Configuração de dados de um NPC interativo no cenário da Fase 1.
+ */
+export interface ConfigNpcFase1 {
+  id: string;
+  nome: string;
+  x: number;
+  y: number;
+  textura: string;
+  dialogo: LinhaDialogo[];
+  prompt: string;
+  raioInteracao?: number;
 }

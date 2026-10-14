@@ -3,11 +3,13 @@ import { CenaBase } from '../../compartilhado/CenaBase';
 import { GerenciadorEstado, type TipoPersonagem } from '../../nucleo/GerenciadorEstado';
 import type { ResultadoComando } from '../../compartilhado/tipos';
 import { interpretarComandoFase1 } from './InterpretadorFase1';
+import { SentinelaFase1 } from './SentinelaFase1';
+import { NpcFase1 } from './NpcFase1';
 import type {
   ColunaVento,
-  SentinelaInimiga,
   PlataformaRachada,
   PilarMovel,
+  SnapshotCheckpointFase1,
 } from './tiposFase1';
 import {
   MUNDO_FASE1,
@@ -17,6 +19,7 @@ import {
   MARMORE_RACHADO_FASE1,
   SENTINELAS_FASE1,
   CHECKPOINTS_FASE1,
+  NPCS_FASE1,
   DISTANCIA_INTERACAO_TOTEM_PADRAO,
   TOTEM_1_ALCOOLEMIA,
   TOTEM_2_BALANCA,
@@ -29,9 +32,9 @@ import {
 } from './constantesFase1';
 
 /**
- * CenaFase1: Céu Partido (Onda 2 Expandida).
- * Implementa todos os 6 desafios lógicos com humor sarcástico / ácido,
- * sem entregar as respostas prontas no terminal, integrando física Arcade e estética luminosa Stitch.
+ * CenaFase1: Céu Partido (Onda 3).
+ * Sentinelas modularizadas e independentes de FPS, mecânica de pulso eólico descendente,
+ * NPCs com diálogos sarcásticos e sistema robusto de snapshot e reset limpo no respawn.
  */
 export class CenaFase1 extends CenaBase {
   // Entidades e física
@@ -45,48 +48,48 @@ export class CenaFase1 extends CenaBase {
   // Mecânicas de Vento
   private colunasVento: ColunaVento[] = [];
 
-  // Inimigos Sentinela
-  private sentinelas: SentinelaInimiga[] = [];
+  // Inimigos Sentinela Modularizados
+  private sentinelas: SentinelaFase1[] = [];
 
-  // Checkpoints
-  private checkpointAtual: { x: number; y: number } = {
-    x: CHECKPOINTS_FASE1.INICIAL.x,
-    y: CHECKPOINTS_FASE1.INICIAL.y,
-  };
+  // NPCs com Diálogos
+  private npcs: NpcFase1[] = [];
+
+  // Sistema de Snapshot e Respawn Limpo (Onda 3)
+  private snapshotAtual!: SnapshotCheckpointFase1;
   private textoNotificacaoCheckpoint?: Phaser.GameObjects.Text;
 
   // =========================================================================
-  // OS 6 TOTENS E ESTADOS DOS PUZZLES (ONDA 2 EXPANDIDA)
+  // OS 6 TOTENS E ESTADOS DOS PUZZLES
   // =========================================================================
 
-  // Puzzle 1: "O Teste de Alcoolemia da Sentinela" (not / and)
+  // Puzzle 1: "O Teste de Alcoolemia da Sentinela"
   private totem1!: Phaser.GameObjects.Image;
   private promptTotem1!: Phaser.GameObjects.Text;
   private totem1Resolvido: boolean = false;
-  private sentinela1?: SentinelaInimiga;
+  private sentinela1?: SentinelaFase1;
   private barreiraEscudoSentinela?: Phaser.Physics.Arcade.Sprite;
   private graficoEscudo?: Phaser.GameObjects.Graphics;
 
-  // Puzzle 2: "A Balança Hipócrita de Nuvens" (if/elif/else com altitude)
+  // Puzzle 2: "A Balança Hipócrita de Nuvens"
   private totem2!: Phaser.GameObjects.Image;
   private promptTotem2!: Phaser.GameObjects.Text;
   private totem2Resolvido: boolean = false;
   private elevadorNuvem!: Phaser.Physics.Arcade.Sprite;
 
-  // Puzzle 3: "A Sentinela com DDA" (Debug de Limite de Patrulha / Loop)
+  // Puzzle 3: "A Sentinela com DDA"
   private totem3!: Phaser.GameObjects.Image;
   private promptTotem3!: Phaser.GameObjects.Text;
   private totem3Resolvido: boolean = false;
-  private sentinelaB02?: SentinelaInimiga;
+  private sentinelaB02?: SentinelaFase1;
 
-  // Puzzle 4: "O Portão com Crise Existencial" (Precedência (A or B) and C)
+  // Puzzle 4: "O Portão com Crise Existencial"
   private totem4!: Phaser.GameObjects.Image;
   private promptTotem4!: Phaser.GameObjects.Text;
   private totem4Resolvido: boolean = false;
   private portaoMilenar!: Phaser.Physics.Arcade.Sprite;
   private colisorPortao?: Phaser.Physics.Arcade.Collider;
 
-  // Puzzle 5: "O Sequenciador de Rajadas" (Parâmetros de Ritmo e Força)
+  // Puzzle 5: "O Sequenciador de Rajadas"
   private totem5!: Phaser.GameObjects.Image;
   private promptTotem5!: Phaser.GameObjects.Text;
   private totem5Resolvido: boolean = false;
@@ -96,7 +99,7 @@ export class CenaFase1 extends CenaBase {
   private forcaEscadaPixels: number = 450;
   private escadaRajadasAtiva: boolean = false;
 
-  // Puzzle 6: "O Desafio do Arquiteto Preguiçoso" (Filtro for com if)
+  // Puzzle 6: "O Desafio do Arquiteto Preguiçoso"
   private totem6!: Phaser.GameObjects.Image;
   private promptTotem6!: Phaser.GameObjects.Text;
   private totem6Resolvido: boolean = false;
@@ -132,37 +135,49 @@ export class CenaFase1 extends CenaBase {
     const larguraMundo = MUNDO_FASE1.LARGURA;
     const alturaMundo = MUNDO_FASE1.ALTURA;
 
-    // 1. Limites do Mundo e Câmera com fundo lilás celestial
+    // 1. Inicializa o Snapshot com o Checkpoint 0
+    this.snapshotAtual = {
+      idCheckpoint: 'cp0_inicial',
+      pontoSpawn: { x: CHECKPOINTS_FASE1.INICIAL.x, y: CHECKPOINTS_FASE1.INICIAL.y },
+      totem1Resolvido: false,
+      totem2Resolvido: false,
+      totem3Resolvido: false,
+      totem4Resolvido: false,
+      totem5Resolvido: false,
+      totem6Resolvido: false,
+    };
+
+    // 2. Limites do Mundo e Câmera com fundo lilás celestial
     this.physics.world.setBounds(0, 0, larguraMundo, alturaMundo + MUNDO_FASE1.PADDING_INFERIOR);
     this.cameras.main.setBounds(0, 0, larguraMundo, alturaMundo);
     this.cameras.main.setBackgroundColor(MUNDO_FASE1.COR_FUNDO);
     this.cameras.main.fadeIn(MUNDO_FASE1.FADE_IN_MS, 255, 255, 255);
 
-    // 2. HUD Superior e CRT Retrô
+    // 3. HUD Superior e CRT Retrô
     this.criarHUDSuperior('FASE 1 // CÉU PARTIDO');
     this.criarEfeitoCRT(1280, 720, MUNDO_FASE1.OPACIDADE_CRT);
 
-    // 3. Texturas procedurais na paleta luminosa do Stitch
+    // 4. Texturas procedurais na paleta luminosa do Stitch
     this.gerarTexturasProcedurais();
 
-    // 4. Cenário de Fundo Luminoso e Nuvens em Parallax
+    // 5. Cenário de Fundo Luminoso e Nuvens em Parallax
     this.criarCenarioParallax(larguraMundo, alturaMundo);
 
-    // 5. Grupos de Física
+    // 6. Grupos de Física
     this.plataformasEstaticas = this.physics.add.staticGroup();
     this.nuvensSolidas = this.physics.add.staticGroup();
     this.grupoMarmoreRachado = this.physics.add.staticGroup();
     this.grupoPilares = this.physics.add.staticGroup();
 
-    // 6. Jogador (CRÍTICO: criado antes de registrar colisores para não causar erro de objeto indefinido)
+    // 7. Jogador (criado antes de registrar colisores)
     this.criarJogador();
 
-    // 7. Construção dos 3 Blocos de Level Design com os 6 Puzzles
+    // 8. Construção dos 3 Blocos de Level Design com os 6 Puzzles, Sentinelas e NPCs
     this.construirBloco1_Introducao(alturaMundo);
     this.construirBloco2_PuzzlesECodigo(alturaMundo);
     this.construirBloco3_EscadaEAntecamara(alturaMundo);
 
-    // 8. Colisões com o Jogador
+    // 9. Colisões com o Jogador
     this.physics.add.collider(this.jogador, this.plataformasEstaticas);
     this.physics.add.collider(this.jogador, this.nuvensSolidas);
     this.physics.add.collider(this.jogador, this.grupoPilares);
@@ -174,17 +189,17 @@ export class CenaFase1 extends CenaBase {
       }
     );
 
-    // 9. Controles do Teclado
+    // 10. Controles do Teclado
     this.configurarControles();
 
-    // 10. Integração com o Terminal
+    // 11. Integração com o Terminal
     this.configurarTerminal();
 
-    // 11. Câmera seguindo o jogador com suavidade
+    // 12. Câmera seguindo o jogador com suavidade
     this.cameras.main.startFollow(this.jogador, true, CAMERA_FASE1.LERP_X, CAMERA_FASE1.LERP_Y);
     this.cameras.main.setDeadzone(CAMERA_FASE1.DEADZONE_LARGURA, CAMERA_FASE1.DEADZONE_ALTURA);
 
-    // 12. Notificação visual de Checkpoint
+    // 13. Notificação visual de Checkpoint
     this.textoNotificacaoCheckpoint = this.add.text(
       640,
       120,
@@ -202,7 +217,7 @@ export class CenaFase1 extends CenaBase {
     this.textoNotificacaoCheckpoint.setAlpha(0);
     this.textoNotificacaoCheckpoint.setDepth(9990);
 
-    // 13. Transmissão Inicial de Rádio Rebelde
+    // 14. Transmissão Inicial de Rádio Rebelde
     this.comunicador.iniciarDialogo([
       {
         falante: '> CANAL REBELDE // TRANSMISSÃO CELESTIAL',
@@ -212,7 +227,7 @@ export class CenaFase1 extends CenaBase {
       {
         falante: '> CANAL REBELDE // TRANSMISSÃO CELESTIAL',
         texto:
-          'Utilize as correntes de vento verticais para planar segurando o pulo. Cuidado com o mármore rachado e os totens de controle!',
+          'Utilize as correntes de vento verticais para planar segurando o pulo. Cuidado com o mármore rachado, os pulsos das sentinelas e converse com os desertores locais!',
       },
     ]);
   }
@@ -221,7 +236,7 @@ export class CenaFase1 extends CenaBase {
    * Gera todas as texturas procedurais com alta fidelidade visual à paleta do Stitch.
    */
   private gerarTexturasProcedurais(): void {
-    // 1. Mármore Claro com Friso Dourado (Superfície sólida)
+    // 1. Mármore Claro com Friso Dourado
     if (!this.textures.exists('marmore-bloco')) {
       const g = this.make.graphics();
       const w = 240;
@@ -230,12 +245,10 @@ export class CenaFase1 extends CenaBase {
       g.fillRoundedRect(0, 0, w, h, 4);
       g.fillStyle(0xe2e8f0, 1);
       g.fillRect(2, h - 6, w - 4, 4);
-      // Friso superior dourado reluzente
       g.fillStyle(0xf59e0b, 1);
       g.fillRect(0, 0, w, 5);
       g.fillStyle(0xfef08a, 0.9);
       g.fillRect(2, 1, w - 4, 2);
-      // Veios sutis de mármore
       g.lineStyle(1, 0xcbd5e1, 0.8);
       g.beginPath();
       g.moveTo(40, 5);
@@ -247,7 +260,7 @@ export class CenaFase1 extends CenaBase {
       g.destroy();
     }
 
-    // 2. Mármore Rachado (Fragilidade visível com telegraph de 0.4s)
+    // 2. Mármore Rachado
     if (!this.textures.exists('marmore-rachado')) {
       const g = this.make.graphics();
       const w = 180;
@@ -256,7 +269,6 @@ export class CenaFase1 extends CenaBase {
       g.fillRoundedRect(0, 0, w, h, 4);
       g.fillStyle(0xd97706, 0.9);
       g.fillRect(0, 0, w, 4);
-      // Rachaduras visíveis profundas
       g.lineStyle(2, 0x64748b, 1);
       g.beginPath();
       g.moveTo(50, 0);
@@ -268,7 +280,6 @@ export class CenaFase1 extends CenaBase {
       g.lineTo(135, 20);
       g.lineTo(125, 32);
       g.strokePath();
-      // Brilho tênue âmbar saindo das fendas
       g.lineStyle(1, 0xfbbf24, 0.9);
       g.beginPath();
       g.moveTo(51, 1);
@@ -278,7 +289,7 @@ export class CenaFase1 extends CenaBase {
       g.destroy();
     }
 
-    // 3. Nuvem Sólida (Plataforma fofa branca e lilás pastel)
+    // 3. Nuvem Sólida
     if (!this.textures.exists('nuvem-solida')) {
       const g = this.make.graphics();
       const w = 200;
@@ -296,7 +307,7 @@ export class CenaFase1 extends CenaBase {
       g.destroy();
     }
 
-    // 4. Coluna de Mármore Arquitetônica Antiga
+    // 4. Coluna de Mármore
     if (!this.textures.exists('coluna-marmore')) {
       const g = this.make.graphics();
       const w = 48;
@@ -317,7 +328,7 @@ export class CenaFase1 extends CenaBase {
       g.destroy();
     }
 
-    // 5. Coluna Dourada Majestosa do Santuário (Bloco 3 final)
+    // 5. Coluna Dourada
     if (!this.textures.exists('coluna-dourada')) {
       const g = this.make.graphics();
       const w = 56;
@@ -338,7 +349,7 @@ export class CenaFase1 extends CenaBase {
       g.destroy();
     }
 
-    // 6. Totem Celestial de Comando
+    // 6. Totem Celestial
     if (!this.textures.exists('totem-celestial')) {
       const g = this.make.graphics();
       const w = 52;
@@ -359,7 +370,7 @@ export class CenaFase1 extends CenaBase {
       g.destroy();
     }
 
-    // 7. Inimigo: Sentinela-Nuvem (Drone com olho vermelho)
+    // 7. Sentinela-Drone
     if (!this.textures.exists('sentinela-drone')) {
       const g = this.make.graphics();
       const w = 64;
@@ -433,6 +444,52 @@ export class CenaFase1 extends CenaBase {
       g.generateTexture('portal-santuario', w, h);
       g.destroy();
     }
+
+    // 11. NPC 1: Drone Desertor "Sucatinha"
+    if (!this.textures.exists('npc-sucatinha')) {
+      const g = this.make.graphics();
+      const w = 48;
+      const h = 48;
+      g.fillStyle(0x78716c, 1);
+      g.fillRoundedRect(6, 10, 36, 30, 8);
+      g.fillStyle(0xa8a29e, 1);
+      g.fillRect(10, 14, 28, 8);
+      g.lineStyle(2, 0xd6d3d1, 1);
+      g.lineBetween(w / 2, 10, w / 2, 2);
+      g.fillStyle(0x38bdf8, 1);
+      g.fillCircle(w / 2, 2, 3);
+      g.fillStyle(0xfbbf24, 1);
+      g.fillCircle(18, 26, 5);
+      g.fillCircle(30, 26, 5);
+      g.fillStyle(0x000000, 1);
+      g.fillCircle(19, 26, 2);
+      g.fillCircle(31, 26, 2);
+      g.lineStyle(2, 0xfacc15, 0.9);
+      g.lineBetween(8, 32, 20, 38);
+      g.generateTexture('npc-sucatinha', w, h);
+      g.destroy();
+    }
+
+    // 12. NPC 2: Mago da Nuvem Sem Salário
+    if (!this.textures.exists('npc-mago-nuvem')) {
+      const g = this.make.graphics();
+      const w = 48;
+      const h = 60;
+      g.fillStyle(0x7c3aed, 1);
+      g.fillTriangle(w / 2, 18, 6, h - 4, w - 6, h - 4);
+      g.fillStyle(0xc084fc, 0.85);
+      g.fillTriangle(w / 2, 22, 12, h - 4, w - 12, h - 4);
+      g.fillStyle(0xffffff, 1);
+      g.fillCircle(w / 2, 32, 10);
+      g.fillCircle(w / 2 - 6, 36, 7);
+      g.fillCircle(w / 2 + 6, 36, 7);
+      g.fillStyle(0x4c1d95, 1);
+      g.fillTriangle(w / 2, 2, 8, 20, w - 8, 20);
+      g.fillStyle(0xfbbf24, 1);
+      g.fillRect(10, 18, w - 20, 3);
+      g.generateTexture('npc-mago-nuvem', w, h);
+      g.destroy();
+    }
   }
 
   /**
@@ -442,10 +499,10 @@ export class CenaFase1 extends CenaBase {
     const gradiente = this.add.graphics();
     gradiente.setDepth(-10);
     gradiente.fillGradientStyle(
-      0x8b5cf6, // topo esquerdo: lilás vibrante
-      0xa855f7, // topo direito
-      0xf472b6, // base esquerda: rosa celestial
-      0xfbcfe8, // base direita: pêssego suave
+      0x8b5cf6,
+      0xa855f7,
+      0xf472b6,
+      0xfbcfe8,
       1
     );
     gradiente.fillRect(0, 0, 1280, 720);
@@ -493,8 +550,8 @@ export class CenaFase1 extends CenaBase {
     const chave = `${this.tipoPersonagem}_idle`;
 
     this.jogador = this.physics.add.sprite(
-      this.checkpointAtual.x,
-      this.checkpointAtual.y,
+      this.snapshotAtual.pontoSpawn.x,
+      this.snapshotAtual.pontoSpawn.y,
       chave
     );
     this.jogador.setCollideWorldBounds(true);
@@ -507,20 +564,17 @@ export class CenaFase1 extends CenaBase {
 
   /**
    * BLOCO 1: Introdução ao Ar (x: 0 a 1800).
-   * Plataformas de nuvem + mármore rachado intercaladas, 2 colunas de vento para ensinar o planar.
+   * Plataformas de nuvem + mármore rachado intercaladas, 2 colunas de vento e NPC 1 (Sucatinha).
    */
   private construirBloco1_Introducao(_alturaMundo: number): void {
-    // Chão inicial de mármore sólido
     const cfgChao = BLOCO_1_LEVEL_DESIGN.CHAO_INICIAL;
     const chaoInicial = this.plataformasEstaticas.create(cfgChao.x, cfgChao.y, 'marmore-bloco');
     chaoInicial.setScale(cfgChao.scaleX, cfgChao.scaleY).refreshBody();
 
-    // Colunas decorativas na entrada
     for (const pos of BLOCO_1_LEVEL_DESIGN.COLUNAS_DECORATIVAS) {
       this.add.image(pos.x, pos.y, 'coluna-marmore').setDepth(2);
     }
 
-    // Primeira Nuvem Sólida
     const nuvem1 = this.nuvensSolidas.create(
       BLOCO_1_LEVEL_DESIGN.NUVEM_1.x,
       BLOCO_1_LEVEL_DESIGN.NUVEM_1.y,
@@ -528,17 +582,34 @@ export class CenaFase1 extends CenaBase {
     );
     nuvem1.refreshBody();
 
-    // Coluna de Vento 1
     const c1 = VENTO_FASE1.COLUNA_1;
     this.criarColunaVento(c1.x, c1.y, c1.largura, c1.altura, c1.forca, c1.ativa);
 
-    // Mármore Rachado 1
     this.criarPlataformaRachada(
       BLOCO_1_LEVEL_DESIGN.MARMORE_RACHADO_1.x,
       BLOCO_1_LEVEL_DESIGN.MARMORE_RACHADO_1.y
     );
 
-    // Segunda Nuvem Sólida
+    // NPC 1: Drone Desertor "Sucatinha" (x ≈ 1200)
+    const nuvemSucatinha = this.nuvensSolidas.create(
+      NPCS_FASE1.SUCATINHA.X,
+      NPCS_FASE1.SUCATINHA.Y + 40,
+      'nuvem-solida'
+    );
+    nuvemSucatinha.refreshBody();
+
+    const npcSucatinha = new NpcFase1(
+      this,
+      NPCS_FASE1.SUCATINHA.ID,
+      NPCS_FASE1.SUCATINHA.NOME,
+      NPCS_FASE1.SUCATINHA.X,
+      NPCS_FASE1.SUCATINHA.Y,
+      'npc-sucatinha',
+      NPCS_FASE1.SUCATINHA.PROMPT,
+      [...NPCS_FASE1.SUCATINHA.DIALOGO]
+    );
+    this.npcs.push(npcSucatinha);
+
     const nuvem2 = this.nuvensSolidas.create(
       BLOCO_1_LEVEL_DESIGN.NUVEM_2.x,
       BLOCO_1_LEVEL_DESIGN.NUVEM_2.y,
@@ -546,11 +617,9 @@ export class CenaFase1 extends CenaBase {
     );
     nuvem2.refreshBody();
 
-    // Coluna de Vento 2
     const c2 = VENTO_FASE1.COLUNA_2;
     this.criarColunaVento(c2.x, c2.y, c2.largura, c2.altura, c2.forca, c2.ativa);
 
-    // Sequência de Mármore Rachado 2 e 3
     this.criarPlataformaRachada(
       BLOCO_1_LEVEL_DESIGN.MARMORE_RACHADO_2.x,
       BLOCO_1_LEVEL_DESIGN.MARMORE_RACHADO_2.y
@@ -560,7 +629,7 @@ export class CenaFase1 extends CenaBase {
       BLOCO_1_LEVEL_DESIGN.MARMORE_RACHADO_3.y
     );
 
-    // Platô de Chegada do Bloco 1 / Início do Checkpoint 1
+    // Platô de Chegada do Bloco 1 / Checkpoint 1
     const platoBloco1 = this.plataformasEstaticas.create(
       BLOCO_1_LEVEL_DESIGN.PLATO_CHEGADA.x,
       BLOCO_1_LEVEL_DESIGN.PLATO_CHEGADA.y,
@@ -570,7 +639,6 @@ export class CenaFase1 extends CenaBase {
       .setScale(BLOCO_1_LEVEL_DESIGN.PLATO_CHEGADA.scaleX, BLOCO_1_LEVEL_DESIGN.PLATO_CHEGADA.scaleY)
       .refreshBody();
 
-    // Obelisco marcador de Checkpoint 1
     const marcoCP1 = this.add.image(
       BLOCO_1_LEVEL_DESIGN.OBELISCO_CP1.x,
       BLOCO_1_LEVEL_DESIGN.OBELISCO_CP1.y,
@@ -583,32 +651,36 @@ export class CenaFase1 extends CenaBase {
   }
 
   /**
-   * BLOCO 2: Puzzles 1, 2 e 3 (x: 1800 a 3600).
-   * - Totem 1: Teste de Alcoolemia da Sentinela (not / and)
-   * - Totem 2: Balança Hipócrita de Nuvens (if/elif/else altitude 350)
-   * - Totem 3: Sentinela com DDA (patrulha limite 2300)
+   * BLOCO 2: Puzzles 1, 2 e 3 + NPC 2 (Mago da Nuvem) (x: 1800 a 3600).
    */
   private construirBloco2_PuzzlesECodigo(_alturaMundo: number): void {
-    // =========================================================================
-    // PUZZLE 1: Totem 1 - "O Teste de Alcoolemia da Sentinela" (x: 1880, y: 480)
-    // =========================================================================
+    // Totem 1: "O Teste de Alcoolemia da Sentinela"
     const platoTotem1 = this.plataformasEstaticas.create(1880, 540, 'marmore-bloco');
     platoTotem1.setScale(1.2, 1.0).refreshBody();
 
     this.totem1 = this.add.image(TOTEM_1_ALCOOLEMIA.X, TOTEM_1_ALCOOLEMIA.Y, 'totem-celestial');
-
     this.promptTotem1 = this.criarPromptTexto(
       TOTEM_1_ALCOOLEMIA.X,
       TOTEM_1_ALCOOLEMIA.Y - 50,
       '[E] CONECTAR AO TESTE DE ALCOOLEMIA'
     );
 
-    // Sentinela A-01 e Barreira de Escudo
+    // Sentinela A-01 Modularizada
     const s1 = SENTINELAS_FASE1.SENTINELA_1;
-    this.sentinela1 = this.criarSentinela(s1.x, s1.y, s1.minX, s1.maxX, s1.velocidade);
+    this.sentinela1 = new SentinelaFase1(
+      this,
+      'sentinela_1',
+      s1.x,
+      s1.y,
+      s1.minX,
+      s1.maxX,
+      s1.velocidade,
+      s1.podeDispararPulso
+    );
     this.sentinela1.escudoAtivo = true;
+    this.sentinelas.push(this.sentinela1);
 
-    // Barreira física do escudo que bloqueia a passagem até ser desativada
+    // Barreira física do escudo da Sentinela A-01
     this.barreiraEscudoSentinela = this.physics.add.sprite(2160, 430, 'marmore-bloco');
     this.barreiraEscudoSentinela.setVisible(false);
     this.barreiraEscudoSentinela.setScale(0.2, 3.5);
@@ -616,29 +688,23 @@ export class CenaFase1 extends CenaBase {
     (this.barreiraEscudoSentinela.body as Phaser.Physics.Arcade.Body).setAllowGravity(false);
     this.physics.add.collider(this.jogador, this.barreiraEscudoSentinela);
 
-    // Gráfico de energia do escudo
     this.graficoEscudo = this.add.graphics();
     this.graficoEscudo.setDepth(8);
 
-    // Plataforma abaixo da Sentinela A-01
     const platSobSentinela = this.plataformasEstaticas.create(2140, 590, 'marmore-bloco');
     platSobSentinela.refreshBody();
 
-    // =========================================================================
-    // PUZZLE 2: Totem 2 - "A Balança Hipócrita de Nuvens" (x: 2480, y: 534)
-    // =========================================================================
+    // Totem 2: "A Balança Hipócrita de Nuvens"
     const platoTotem2 = this.plataformasEstaticas.create(2480, 590, 'marmore-bloco');
     platoTotem2.refreshBody();
 
     this.totem2 = this.add.image(TOTEM_2_BALANCA.X, TOTEM_2_BALANCA.Y, 'totem-celestial');
-
     this.promptTotem2 = this.criarPromptTexto(
       TOTEM_2_BALANCA.X,
       TOTEM_2_BALANCA.Y - 50,
       '[E] AJUSTAR BALANÇA DE NUVENS'
     );
 
-    // Placa informativa de altitude no cenário
     this.add.image(TOTEM_2_BALANCA.X + 65, TOTEM_2_BALANCA.Y - 45, 'placa-runica').setDepth(2);
     this.add
       .text(TOTEM_2_BALANCA.X + 65, TOTEM_2_BALANCA.Y - 45, 'ALTITUDE ALVO: 350', {
@@ -649,7 +715,6 @@ export class CenaFase1 extends CenaBase {
       .setOrigin(0.5)
       .setDepth(3);
 
-    // Elevador de mármore/nuvem que inicia descalibrado em y: 540 e sobe para y: 350
     this.elevadorNuvem = this.physics.add.sprite(
       TOTEM_2_BALANCA.ELEVADOR_X,
       TOTEM_2_BALANCA.ELEVADOR_Y_INICIAL,
@@ -659,25 +724,21 @@ export class CenaFase1 extends CenaBase {
     (this.elevadorNuvem.body as Phaser.Physics.Arcade.Body).setAllowGravity(false);
     this.physics.add.collider(this.jogador, this.elevadorNuvem);
 
-    // Platô elevado de recepção após o elevador
+    // Platô de Recepção do Elevador / Checkpoint 2
     const platoAposElevador = this.plataformasEstaticas.create(2820, 390, 'marmore-bloco');
     platoAposElevador.setScale(1.2, 1.0).refreshBody();
 
-    // =========================================================================
-    // PUZZLE 3: Totem 3 - "A Sentinela com DDA" (x: 3000, y: 414)
-    // =========================================================================
+    // Totem 3: "A Sentinela com DDA"
     const platoTotem3 = this.plataformasEstaticas.create(3000, 470, 'marmore-bloco');
     platoTotem3.refreshBody();
 
     this.totem3 = this.add.image(TOTEM_3_DDA.X, TOTEM_3_DDA.Y, 'totem-celestial');
-
     this.promptTotem3 = this.criarPromptTexto(
       TOTEM_3_DDA.X,
       TOTEM_3_DDA.Y - 50,
       '[E] CORRIGIR ALCANCE DA SENTINELA'
     );
 
-    // Placa com o limite gravado
     this.add.image(TOTEM_3_DDA.X + 65, TOTEM_3_DDA.Y - 45, 'placa-runica').setDepth(2);
     this.add
       .text(TOTEM_3_DDA.X + 65, TOTEM_3_DDA.Y - 45, 'LIMITE = 2300', {
@@ -688,45 +749,65 @@ export class CenaFase1 extends CenaBase {
       .setOrigin(0.5)
       .setDepth(3);
 
-    // Sentinela B-02 com loop curto bloqueando o corredor
+    // Sentinela B-02 Modularizada
     const sb = SENTINELAS_FASE1.SENTINELA_B02;
-    this.sentinelaB02 = this.criarSentinela(sb.x, sb.y, sb.minX, sb.maxX, sb.velocidade);
+    this.sentinelaB02 = new SentinelaFase1(
+      this,
+      'sentinela_b02',
+      sb.x,
+      sb.y,
+      sb.minX,
+      sb.maxX,
+      sb.velocidade,
+      sb.podeDispararPulso
+    );
+    this.sentinelas.push(this.sentinelaB02);
 
-    // Corredor estreito vigiado
     const corredorMarmore = this.plataformasEstaticas.create(3200, 450, 'marmore-bloco');
     corredorMarmore.setScale(1.6, 1.0).refreshBody();
 
-    // Mármore rachado na saída do corredor
-    this.criarPlataformaRachada(3420, 440);
+    // NPC 2: Mago da Nuvem Sem Salário (x ≈ 3400)
+    const nuvemMago = this.nuvensSolidas.create(
+      NPCS_FASE1.MAGO_NUVEM.X,
+      NPCS_FASE1.MAGO_NUVEM.Y + 45,
+      'nuvem-solida'
+    );
+    nuvemMago.refreshBody();
 
-    // Platô de Chegada do Bloco 2 / Checkpoint 2
+    const npcMago = new NpcFase1(
+      this,
+      NPCS_FASE1.MAGO_NUVEM.ID,
+      NPCS_FASE1.MAGO_NUVEM.NOME,
+      NPCS_FASE1.MAGO_NUVEM.X,
+      NPCS_FASE1.MAGO_NUVEM.Y,
+      'npc-mago-nuvem',
+      NPCS_FASE1.MAGO_NUVEM.PROMPT,
+      [...NPCS_FASE1.MAGO_NUVEM.DIALOGO]
+    );
+    this.npcs.push(npcMago);
+
+    this.criarPlataformaRachada(3480, 440);
+
+    // Platô de Chegada do Bloco 2 / Checkpoint 3
     const platoBloco2 = this.plataformasEstaticas.create(3600, 470, 'marmore-bloco');
     platoBloco2.setScale(1.4, 1.2).refreshBody();
 
-    const marcoCP2 = this.add.image(3560, 390, 'coluna-marmore');
-    marcoCP2.setScale(0.8, 0.6);
+    const marcoCP3 = this.add.image(3560, 390, 'coluna-marmore');
+    marcoCP3.setScale(0.8, 0.6);
   }
 
   /**
    * BLOCO 3: Puzzles 4, 5 e 6 + Santuário Final (x: 3600 a 5400).
-   * - Totem 4: Portão com Crise Existencial (precedência)
-   * - Totem 5: Sequenciador de Rajadas (função parametrizada e física)
-   * - Totem 6: Desafio do Arquiteto Preguiçoso (for com filtro)
-   * - Santuário Celestial com Portal
    */
   private construirBloco3_EscadaEAntecamara(alturaMundo: number): void {
-    // =========================================================================
-    // PUZZLE 4: Totem 4 - "O Portão com Crise Existencial" (x: 3620, y: 450)
-    // =========================================================================
+    // Totem 4: "O Portão com Crise Existencial"
     this.totem4 = this.add.image(TOTEM_4_PORTAO.X, TOTEM_4_PORTAO.Y, 'totem-celestial');
-
     this.promptTotem4 = this.criarPromptTexto(
       TOTEM_4_PORTAO.X,
       TOTEM_4_PORTAO.Y - 50,
       '[E] CONECTAR AO PORTÃO MILENAR'
     );
 
-    // Portão Milenar sólido bloqueando a passagem para o terceiro bloco
     this.portaoMilenar = this.physics.add.sprite(
       TOTEM_4_PORTAO.X_PORTAO,
       TOTEM_4_PORTAO.Y_PORTAO,
@@ -736,22 +817,31 @@ export class CenaFase1 extends CenaBase {
     (this.portaoMilenar.body as Phaser.Physics.Arcade.Body).setAllowGravity(false);
     this.colisorPortao = this.physics.add.collider(this.jogador, this.portaoMilenar);
 
-    // =========================================================================
-    // PUZZLE 5: Totem 5 - "O Sequenciador de Rajadas" (x: 4100, y: 434)
-    // =========================================================================
-    // Nuvem de apoio do Totem 5
+    // Sentinela 3 Modularizada com Pulso Eólico
+    const s3 = SENTINELAS_FASE1.SENTINELA_3;
+    const sentinela3 = new SentinelaFase1(
+      this,
+      'sentinela_3',
+      s3.x,
+      s3.y,
+      s3.minX,
+      s3.maxX,
+      s3.velocidade,
+      s3.podeDispararPulso
+    );
+    this.sentinelas.push(sentinela3);
+
+    // Totem 5: "O Sequenciador de Rajadas"
     const nuvemTotem5 = this.nuvensSolidas.create(4100, 490, 'nuvem-solida');
     nuvemTotem5.refreshBody();
 
     this.totem5 = this.add.image(TOTEM_5_SEQUENCIADOR.X, TOTEM_5_SEQUENCIADOR.Y, 'totem-celestial');
-
     this.promptTotem5 = this.criarPromptTexto(
       TOTEM_5_SEQUENCIADOR.X,
       TOTEM_5_SEQUENCIADOR.Y - 50,
       '[E] SINCRONIZAR ESCADA DE RAJADAS'
     );
 
-    // As 3 Colunas de Vento em Escada (iniciam inativas aguardando calibração)
     const e1 = TOTEM_5_SEQUENCIADOR.COLUNA_ESCADA_1;
     const e2 = TOTEM_5_SEQUENCIADOR.COLUNA_ESCADA_2;
     const e3 = TOTEM_5_SEQUENCIADOR.COLUNA_ESCADA_3;
@@ -760,29 +850,24 @@ export class CenaFase1 extends CenaBase {
     const col3 = this.criarColunaVento(e3.x, e3.y, e3.largura, e3.altura, e3.forca, e3.ativa);
     this.colunasEscada = [col1, col2, col3];
 
-    // Plataformas de mármore rachado intercaladas na escada
     this.criarPlataformaRachada(4350, 420);
     this.criarPlataformaRachada(4530, 360);
 
-    // Platô de saída pós-escada de vento
+    // Platô Pós-Escada / Checkpoint 4
     const platoAposEscada = this.plataformasEstaticas.create(4760, 340, 'marmore-bloco');
     platoAposEscada.setScale(1.2, 1.0).refreshBody();
 
-    // =========================================================================
-    // PUZZLE 6: Totem 6 - "O Desafio do Arquiteto Preguiçoso" (x: 4860, y: 270)
-    // =========================================================================
+    // Totem 6: "O Desafio do Arquiteto Preguiçoso"
     const platoTotem6 = this.plataformasEstaticas.create(4860, 330, 'marmore-bloco');
     platoTotem6.setScale(0.8, 1.0).refreshBody();
 
     this.totem6 = this.add.image(TOTEM_6_ARQUITETO.X, TOTEM_6_ARQUITETO.Y, 'totem-celestial');
-
     this.promptTotem6 = this.criarPromptTexto(
       TOTEM_6_ARQUITETO.X,
       TOTEM_6_ARQUITETO.Y - 50,
       '[E] INSPECIONAR PILARES DA ANTECÂMARA'
     );
 
-    // Os 4 Pilares móveis da antecâmara
     this.pilaresMoveis = [];
     for (const cfg of TOTEM_6_ARQUITETO.PILARES_CONFIG) {
       const texture = cfg.rachado ? 'marmore-rachado' : 'marmore-bloco';
@@ -790,7 +875,7 @@ export class CenaFase1 extends CenaBase {
       sprite.setScale(0.35, 1.0).refreshBody();
 
       if (cfg.rachado) {
-        sprite.setTint(0xfca5a5); // Tonalidade avermelhada avisando rachadura estrutural
+        sprite.setTint(0xfca5a5);
       }
 
       this.pilaresMoveis.push({
@@ -802,9 +887,7 @@ export class CenaFase1 extends CenaBase {
       });
     }
 
-    // =========================================================================
-    // ANTECÂMARA FINAL: O SANTUÁRIO CELESTIAL (x: 5200 a 5400)
-    // =========================================================================
+    // Santuário Final
     const chaoSantuario = this.plataformasEstaticas.create(
       SANTUARIO_FASE1.CHAO.x,
       alturaMundo - SANTUARIO_FASE1.CHAO.yOffset,
@@ -812,18 +895,15 @@ export class CenaFase1 extends CenaBase {
     );
     chaoSantuario.setScale(SANTUARIO_FASE1.CHAO.scaleX, SANTUARIO_FASE1.CHAO.scaleY).refreshBody();
 
-    // Colunas Douradas Intactas
     for (const xCol of SANTUARIO_FASE1.COLUNAS_DOURADAS_X) {
       this.add.image(xCol, alturaMundo - SANTUARIO_FASE1.COLUNAS_DOURADAS_Y_OFFSET, 'coluna-dourada').setDepth(2);
     }
 
-    // Feixes de luz celestial
     const luzSantuario = this.add.graphics();
     luzSantuario.fillStyle(0xfef08a, 0.18);
     luzSantuario.fillTriangle(5020, 0, 4940, 660, 5100, 660);
     luzSantuario.fillTriangle(5280, 0, 5180, 660, 5380, 660);
 
-    // Portal Final
     this.portalFinal = this.add.sprite(
       SANTUARIO_FASE1.PORTAL.x,
       alturaMundo - SANTUARIO_FASE1.PORTAL.yOffset,
@@ -842,9 +922,6 @@ export class CenaFase1 extends CenaBase {
     });
   }
 
-  /**
-   * Helper para criação de textos de prompt de interação com totens.
-   */
   private criarPromptTexto(x: number, y: number, texto: string): Phaser.GameObjects.Text {
     const t = this.add.text(x, y, texto, {
       fontFamily: 'Consolas, Courier New, monospace',
@@ -859,9 +936,6 @@ export class CenaFase1 extends CenaBase {
     return t;
   }
 
-  /**
-   * Cria uma plataforma de mármore rachado dentro do grupo estático dedicado.
-   */
   private criarPlataformaRachada(x: number, y: number): void {
     const sprite = this.grupoMarmoreRachado.create(
       x,
@@ -882,9 +956,6 @@ export class CenaFase1 extends CenaBase {
     this.plataformasRachadas.push(platObj);
   }
 
-  /**
-   * Instancia uma entidade de coluna de vento com física e partículas ascendentes.
-   */
   private criarColunaVento(
     x: number,
     y: number,
@@ -923,43 +994,6 @@ export class CenaFase1 extends CenaBase {
     return coluna;
   }
 
-  /**
-   * Instancia um drone sentinela inimigo.
-   */
-  private criarSentinela(
-    x: number,
-    y: number,
-    minX: number,
-    maxX: number,
-    velocidade: number
-  ): SentinelaInimiga {
-    const sprite = this.physics.add.sprite(x, y, 'sentinela-drone');
-    sprite.setDepth(SENTINELAS_FASE1.PROFUNDIDADE_SPRITE);
-    (sprite.body as Phaser.Physics.Arcade.Body).setAllowGravity(false);
-    sprite.setVelocityX(velocidade);
-
-    const coneGrafico = this.add.graphics();
-    coneGrafico.setDepth(SENTINELAS_FASE1.PROFUNDIDADE_CONE);
-
-    const sentinela: SentinelaInimiga = {
-      sprite,
-      coneGrafico,
-      xInicial: x,
-      yInicial: y,
-      minX,
-      maxX,
-      velocidade,
-      direcao: 1,
-      alcanceVisao: SENTINELAS_FASE1.ALCANCE_VISAO_PADRAO,
-      aberturaCone: SENTINELAS_FASE1.ABERTURA_CONE_PADRAO,
-      emAlerta: false,
-      hackeada: false,
-    };
-
-    this.sentinelas.push(sentinela);
-    return sentinela;
-  }
-
   private configurarControles(): void {
     if (this.input?.keyboard) {
       this.cursores = this.input.keyboard.createCursorKeys();
@@ -974,9 +1008,6 @@ export class CenaFase1 extends CenaBase {
     }
   }
 
-  /**
-   * Conecta o terminal ao interpretador da Fase 1 e vincula todas as ações aos puzzles.
-   */
   private configurarTerminal(): void {
     this.terminal.definirInterpretador(interpretarComandoFase1);
 
@@ -1017,7 +1048,7 @@ export class CenaFase1 extends CenaBase {
       corpo.setAllowGravity(true);
     }
 
-    // 2. Atualização e verificação de Checkpoint e Queda
+    // 2. Atualização e verificação de Checkpoints e Queda (Onda 3)
     this.verificarLimitesECheckpoints();
 
     // 3. Movimentação, Coyote Time, Jump Buffer e Mecânica de Planar no Vento
@@ -1035,19 +1066,16 @@ export class CenaFase1 extends CenaBase {
     // 7. Renderização do Escudo da Sentinela A-01 (Puzzle 1)
     this.tratarEscudoSentinela1(tempo);
 
-    // 8. Patrulha e detecção das Sentinelas
-    this.tratarSentinelas(tempo);
+    // 8. Atualização Modular das Sentinelas (FPS Independente + Pulso Eólico)
+    this.tratarSentinelas(tempo, delta, emMenuOuDialogo);
 
-    // 9. Interação com os 6 Totens
-    this.tratarInteracaoTotens();
+    // 9. Interação com NPCs e com os 6 Totens (sem conflito)
+    this.tratarInteracoes();
 
     // 10. Chegada ao Santuário Final
     this.verificarFinalizacaoFase();
   }
 
-  /**
-   * Mecânica de Plataforma: Pulo com Coyote Time / Jump Buffer + planar no ar e correntes de vento.
-   */
   private tratarMovimentoEPlanar(tempo: number): void {
     const corpo = this.jogador.body as Phaser.Physics.Arcade.Body | null;
     if (!corpo) return;
@@ -1077,7 +1105,6 @@ export class CenaFase1 extends CenaBase {
       this.tempoUltimoPressionarPulo = tempo;
     }
 
-    // Verificação de presença em Coluna de Vento Ativa
     let dentroDeColunaAtiva = false;
     let forcaVentoAtual = 0;
 
@@ -1098,7 +1125,6 @@ export class CenaFase1 extends CenaBase {
       }
     }
 
-    // --- Movimentação Lateral com Empurrão de Vento ---
     let velX = 0;
     if (esquerda) {
       velX = -JOGADOR_FASE1.VELOCIDADE_X;
@@ -1114,7 +1140,6 @@ export class CenaFase1 extends CenaBase {
 
     this.jogador.setVelocityX(velX);
 
-    // --- Pulo com Coyote Time e Jump Buffer ---
     const podePularCoyote = (tempo - this.tempoUltimaVezNoChao) <= JOGADOR_FASE1.TEMPO_COYOTE_MS;
     const bufferPuloAtivo = (tempo - this.tempoUltimoPressionarPulo) <= JOGADOR_FASE1.TEMPO_JUMP_BUFFER_MS;
 
@@ -1124,7 +1149,6 @@ export class CenaFase1 extends CenaBase {
       this.tempoUltimaVezNoChao = -9999;
     }
 
-    // --- Mecânica de Vento e Planar Vertical ---
     let modoPlaneioAtivo = false;
 
     if (dentroDeColunaAtiva) {
@@ -1139,7 +1163,6 @@ export class CenaFase1 extends CenaBase {
         }
       }
     } else {
-      // Planar Livre no ar fora de jatos
       if (!noChao && puloSegurado && corpo.velocity.y > 0) {
         this.jogador.setVelocityY(
           Math.min(corpo.velocity.y, JOGADOR_FASE1.VELOCIDADE_MAX_PLANAR)
@@ -1148,7 +1171,6 @@ export class CenaFase1 extends CenaBase {
       }
     }
 
-    // Tint visual e animação do personagem
     if (modoPlaneioAtivo) {
       this.jogador.setTint(JOGADOR_FASE1.TINT_VENTO);
     } else {
@@ -1166,9 +1188,6 @@ export class CenaFase1 extends CenaBase {
     }
   }
 
-  /**
-   * Ciclo dinâmico das 3 colunas de vento da escada (Puzzle 5).
-   */
   private tratarCicloEscadaRajadas(delta: number): void {
     if (!this.escadaRajadasAtiva || this.colunasEscada.length === 0) return;
 
@@ -1183,9 +1202,6 @@ export class CenaFase1 extends CenaBase {
     }
   }
 
-  /**
-   * Renderização gráfica pulsante do escudo da Sentinela A-01 (Puzzle 1).
-   */
   private tratarEscudoSentinela1(tempo: number): void {
     if (!this.graficoEscudo) return;
 
@@ -1197,14 +1213,12 @@ export class CenaFase1 extends CenaBase {
     this.graficoEscudo.clear();
     const alfaOscilante = 0.5 + Math.sin(tempo * 0.006) * 0.25;
 
-    // Barreira vertical reluzente
     this.graficoEscudo.fillStyle(0x0284c7, alfaOscilante * 0.35);
     this.graficoEscudo.fillRect(2150, 330, 20, 200);
 
     this.graficoEscudo.lineStyle(2, 0x38bdf8, alfaOscilante);
     this.graficoEscudo.strokeRect(2150, 330, 20, 200);
 
-    // Linhas de energia eólica
     this.graficoEscudo.lineStyle(1.5, 0xa5f3fc, 0.8);
     const deslocamentoY = (tempo * 0.1) % 40;
     for (let y = 340 + deslocamentoY; y < 520; y += 40) {
@@ -1212,9 +1226,6 @@ export class CenaFase1 extends CenaBase {
     }
   }
 
-  /**
-   * Gerenciamento de quebra e respawn das plataformas de mármore rachado.
-   */
   private tratarPlataformasRachadas(tempo: number): void {
     for (const plat of this.plataformasRachadas) {
       if (plat.rachando && !plat.quebrada) {
@@ -1255,9 +1266,6 @@ export class CenaFase1 extends CenaBase {
     }
   }
 
-  /**
-   * Renderização e física de partículas ascendentes em todas as colunas de vento ativas.
-   */
   private tratarColunasVento(delta: number): void {
     const dt = delta / 1000;
 
@@ -1303,82 +1311,17 @@ export class CenaFase1 extends CenaBase {
   }
 
   /**
-   * Patrulha e detecção óptica das Sentinelas com cone de visão triangular.
+   * Atualização das Sentinelas Modularizadas (FPS independente + detecção por laser).
    */
-  private tratarSentinelas(tempo: number): void {
+  private tratarSentinelas(tempo: number, delta: number, emMenuOuDialogo: boolean): void {
     for (const s of this.sentinelas) {
-      s.coneGrafico.clear();
-
-      if (!s.hackeada) {
-        if (s.sprite.x >= s.maxX) {
-          s.sprite.setVelocityX(-s.velocidade);
-          s.direcao = -1;
-        } else if (s.sprite.x <= s.minX) {
-          s.sprite.setVelocityX(s.velocidade);
-          s.direcao = 1;
-        }
-      }
-
-      s.sprite.y =
-        s.yInicial +
-        Math.sin(tempo * SENTINELAS_FASE1.OSCILACAO_Y_VEL) *
-          SENTINELAS_FASE1.OSCILACAO_Y_AMP;
-
-      const anguloBase = s.direcao === 1 ? 0 : 180;
-      const pontaX = s.sprite.x + s.direcao * SENTINELAS_FASE1.OFFSET_PONTA_CONE_X;
-      const pontaY = s.sprite.y;
-
-      const dist = s.alcanceVisao;
-      const rad1 = Phaser.Math.DegToRad(anguloBase - s.aberturaCone / 2);
-      const rad2 = Phaser.Math.DegToRad(anguloBase + s.aberturaCone / 2);
-
-      const p1x = pontaX + Math.cos(rad1) * dist;
-      const p1y = pontaY + Math.sin(rad1) * dist;
-      const p2x = pontaX + Math.cos(rad2) * dist;
-      const p2y = pontaY + Math.sin(rad2) * dist;
-
-      const corCone = s.hackeada
-        ? SENTINELAS_FASE1.COR_CONE_HACKEADA
-        : SENTINELAS_FASE1.COR_CONE_ALERTA;
-      s.coneGrafico.fillStyle(corCone, SENTINELAS_FASE1.ALFA_CONE_FUNDO);
-      s.coneGrafico.fillTriangle(pontaX, pontaY, p1x, p1y, p2x, p2y);
-
-      s.coneGrafico.lineStyle(1.5, corCone, SENTINELAS_FASE1.ALFA_CONE_BORDA);
-      s.coneGrafico.strokeTriangle(pontaX, pontaY, p1x, p1y, p2x, p2y);
-
-      // Detecção do jogador no cone de alerta
-      if (!s.hackeada && !this.faseConcluida) {
-        const distAoDrone = Phaser.Math.Distance.Between(
-          this.jogador.x,
-          this.jogador.y,
-          s.sprite.x,
-          s.sprite.y
-        );
-
-        if (distAoDrone <= s.alcanceVisao) {
-          const dentroDoCone = this.verificarPontoNoTriangulo(
-            this.jogador.x,
-            this.jogador.y,
-            pontaX,
-            pontaY,
-            p1x,
-            p1y,
-            p2x,
-            p2y
-          );
-
-          if (dentroDoCone) {
-            this.dispararAlarmeSentinela(s);
-            break;
-          }
-        }
-      }
+      s.update(tempo, delta, this.jogador, emMenuOuDialogo, (sentinela) => {
+        this.dispararAlarmeSentinela(sentinela);
+      });
     }
   }
 
-  private dispararAlarmeSentinela(sentinela: SentinelaInimiga): void {
-    sentinela.emAlerta = true;
-
+  private dispararAlarmeSentinela(sentinela: SentinelaFase1): void {
     const laser = this.add.graphics();
     laser.lineStyle(3, 0xff0055, 1);
     laser.lineBetween(sentinela.sprite.x, sentinela.sprite.y, this.jogador.x, this.jogador.y);
@@ -1387,37 +1330,37 @@ export class CenaFase1 extends CenaBase {
 
     this.time.delayedCall(160, () => {
       laser.destroy();
-      sentinela.emAlerta = false;
-      this.respawnNoCheckpoint('SENTINELA DISPAROU: DETECTADO NO ESPAÇO AÉREO!');
+      this.restaurarSnapshot('SENTINELA DISPAROU: DETECTADO NO ESPAÇO AÉREO!');
     });
   }
 
-  private verificarPontoNoTriangulo(
-    px: number,
-    py: number,
-    x1: number,
-    y1: number,
-    x2: number,
-    y2: number,
-    x3: number,
-    y3: number
-  ): boolean {
-    const d1 = (px - x2) * (y1 - y2) - (x1 - x2) * (py - y2);
-    const d2 = (px - x3) * (y2 - y3) - (x2 - x3) * (py - y3);
-    const d3 = (px - x1) * (y3 - y1) - (x3 - x1) * (py - y1);
-    const temNeg = d1 < 0 || d2 < 0 || d3 < 0;
-    const temPos = d1 > 0 || d2 > 0 || d3 > 0;
-    return !(temNeg && temPos);
-  }
-
   /**
-   * Monitoramento de proximidade e acionamento dos 6 Totens de controle.
+   * Monitoramento de proximidade e acionamento de NPCs e dos 6 Totens de controle.
+   * Prioriza NPCs para evitar conflito de tecla E.
    */
-  private tratarInteracaoTotens(): void {
+  private tratarInteracoes(): void {
     const interagirApertado =
       this.teclaInteragir && Phaser.Input.Keyboard.JustDown(this.teclaInteragir);
 
-    // Totem 1: "O Teste de Alcoolemia da Sentinela" (x: 1880)
+    // 1. Interação prioritária com NPCs
+    let npcInteragiu = false;
+    for (const npc of this.npcs) {
+      if (
+        npc.update(
+          this.jogador.x,
+          this.jogador.y,
+          Boolean(interagirApertado),
+          this.comunicador
+        )
+      ) {
+        npcInteragiu = true;
+        break;
+      }
+    }
+
+    if (npcInteragiu) return;
+
+    // 2. Interação com os 6 Totens
     const distT1 = Phaser.Math.Distance.Between(this.jogador.x, this.jogador.y, this.totem1.x, this.totem1.y);
     const pertoT1 = distT1 < DISTANCIA_INTERACAO_TOTEM_PADRAO && !this.totem1Resolvido;
     this.promptTotem1.setVisible(pertoT1);
@@ -1432,7 +1375,6 @@ export class CenaFase1 extends CenaBase {
       return;
     }
 
-    // Totem 2: "A Balança Hipócrita de Nuvens" (x: 2480)
     const distT2 = Phaser.Math.Distance.Between(this.jogador.x, this.jogador.y, this.totem2.x, this.totem2.y);
     const pertoT2 = distT2 < DISTANCIA_INTERACAO_TOTEM_PADRAO && !this.totem2Resolvido;
     this.promptTotem2.setVisible(pertoT2);
@@ -1447,7 +1389,6 @@ export class CenaFase1 extends CenaBase {
       return;
     }
 
-    // Totem 3: "A Sentinela com DDA" (x: 3000)
     const distT3 = Phaser.Math.Distance.Between(this.jogador.x, this.jogador.y, this.totem3.x, this.totem3.y);
     const pertoT3 = distT3 < DISTANCIA_INTERACAO_TOTEM_PADRAO && !this.totem3Resolvido;
     this.promptTotem3.setVisible(pertoT3);
@@ -1462,7 +1403,6 @@ export class CenaFase1 extends CenaBase {
       return;
     }
 
-    // Totem 4: "O Portão com Crise Existencial" (x: 3620)
     const distT4 = Phaser.Math.Distance.Between(this.jogador.x, this.jogador.y, this.totem4.x, this.totem4.y);
     const pertoT4 = distT4 < DISTANCIA_INTERACAO_TOTEM_PADRAO && !this.totem4Resolvido;
     this.promptTotem4.setVisible(pertoT4);
@@ -1477,7 +1417,6 @@ export class CenaFase1 extends CenaBase {
       return;
     }
 
-    // Totem 5: "O Sequenciador de Rajadas" (x: 4100) - permite reconfiguração contínua
     const distT5 = Phaser.Math.Distance.Between(this.jogador.x, this.jogador.y, this.totem5.x, this.totem5.y);
     const pertoT5 = distT5 < DISTANCIA_INTERACAO_TOTEM_PADRAO;
     this.promptTotem5.setVisible(pertoT5);
@@ -1499,7 +1438,6 @@ export class CenaFase1 extends CenaBase {
       return;
     }
 
-    // Totem 6: "O Desafio do Arquiteto Preguiçoso" (x: 4860)
     const distT6 = Phaser.Math.Distance.Between(this.jogador.x, this.jogador.y, this.totem6.x, this.totem6.y);
     const pertoT6 = distT6 < DISTANCIA_INTERACAO_TOTEM_PADRAO && !this.totem6Resolvido;
     this.promptTotem6.setVisible(pertoT6);
@@ -1515,10 +1453,6 @@ export class CenaFase1 extends CenaBase {
     }
   }
 
-  /**
-   * Abre o terminal formatado para o puzzle correspondente sem entregar código pronto.
-   * Apresenta o diálogo de humor sarcástico, lista variáveis/sensores e funções, e aguarda entrada do jogador.
-   */
   private abrirTerminalTotem(config: {
     ID: string;
     TITULO: string;
@@ -1560,7 +1494,7 @@ export class CenaFase1 extends CenaBase {
   private executarDesativarEscudoSentinela(): void {
     this.totem1Resolvido = true;
     if (this.sentinela1) {
-      this.sentinela1.escudoAtivo = false;
+      this.sentinela1.hackear();
     }
 
     if (this.barreiraEscudoSentinela) {
@@ -1581,7 +1515,7 @@ export class CenaFase1 extends CenaBase {
     this.time.delayedCall(800, () => {
       this.terminal.fechar();
       this.cameras.main.flash(200, 255, 255, 255);
-      this.mostrarNotificacaoCurta('ESCUDO DESATIVADO // CORREDOR LIVRE!');
+      this.mostrarNotificacaoCurta('SENTINELA HACKEADA // CORREDOR LIVRE!');
     });
   }
 
@@ -1654,6 +1588,16 @@ export class CenaFase1 extends CenaBase {
       if (typeof v.forca === 'number' && !isNaN(v.forca)) {
         this.forcaEscadaPixels = v.forca;
       }
+    } else if (typeof valor === 'string') {
+      try {
+        const v = JSON.parse(valor);
+        if (typeof v.intervalo === 'number' && !isNaN(v.intervalo)) {
+          this.intervaloEscadaSegundos = v.intervalo;
+        }
+        if (typeof v.forca === 'number' && !isNaN(v.forca)) {
+          this.forcaEscadaPixels = v.forca;
+        }
+      } catch {}
     }
 
     for (const col of this.colunasEscada) {
@@ -1696,44 +1640,130 @@ export class CenaFase1 extends CenaBase {
     });
   }
 
+  // =========================================================================
+  // SISTEMA DE SNAPSHOT E RESPAWN LIMPO (ONDA 3)
+  // =========================================================================
+
   private verificarLimitesECheckpoints(): void {
+    const x = this.jogador.x;
+
+    // Checkpoint 1: Pós Bloco 1 (Tutorial) / Antes Totem 1 (x ≈ 1650)
     if (
-      this.jogador.x >= CHECKPOINTS_FASE1.GATILHO_CP1_X &&
-      this.checkpointAtual.x < CHECKPOINTS_FASE1.GATILHO_CP1_X
+      x >= CHECKPOINTS_FASE1.CP1.GATILHO_X &&
+      this.snapshotAtual.idCheckpoint === 'cp0_inicial'
     ) {
-      this.checkpointAtual = {
-        x: CHECKPOINTS_FASE1.PONTO_CP1.x,
-        y: CHECKPOINTS_FASE1.PONTO_CP1.y,
-      };
-      this.exibirAnimacaoCheckpoint('CHECKPOINT 1 REGISTRADO // SETOR CENTRAL');
-    } else if (
-      this.jogador.x >= CHECKPOINTS_FASE1.GATILHO_CP2_X &&
-      this.checkpointAtual.x < CHECKPOINTS_FASE1.GATILHO_CP2_X
+      this.salvarSnapshotCheckpoint(
+        CHECKPOINTS_FASE1.CP1.ID,
+        CHECKPOINTS_FASE1.CP1.PONTO,
+        CHECKPOINTS_FASE1.CP1.NOME
+      );
+    }
+    // Checkpoint 2: Platô Pós-Elevador de Nuvens (x ≈ 2750)
+    else if (
+      x >= CHECKPOINTS_FASE1.CP2.GATILHO_X &&
+      (this.snapshotAtual.idCheckpoint === 'cp0_inicial' ||
+        this.snapshotAtual.idCheckpoint === CHECKPOINTS_FASE1.CP1.ID)
     ) {
-      this.checkpointAtual = {
-        x: CHECKPOINTS_FASE1.PONTO_CP2.x,
-        y: CHECKPOINTS_FASE1.PONTO_CP2.y,
-      };
-      this.exibirAnimacaoCheckpoint('CHECKPOINT 2 REGISTRADO // ANTECÂMARA');
+      this.salvarSnapshotCheckpoint(
+        CHECKPOINTS_FASE1.CP2.ID,
+        CHECKPOINTS_FASE1.CP2.PONTO,
+        CHECKPOINTS_FASE1.CP2.NOME
+      );
+    }
+    // Checkpoint 3: Platô Pós-Sentinela B-02 / Entrada Bloco 3 (x ≈ 3520)
+    else if (
+      x >= CHECKPOINTS_FASE1.CP3.GATILHO_X &&
+      this.snapshotAtual.idCheckpoint !== CHECKPOINTS_FASE1.CP3.ID &&
+      this.snapshotAtual.idCheckpoint !== CHECKPOINTS_FASE1.CP4.ID
+    ) {
+      this.salvarSnapshotCheckpoint(
+        CHECKPOINTS_FASE1.CP3.ID,
+        CHECKPOINTS_FASE1.CP3.PONTO,
+        CHECKPOINTS_FASE1.CP3.NOME
+      );
+    }
+    // Checkpoint 4: Pós-Escada de Rajadas / Antecâmara (x ≈ 4700)
+    else if (
+      x >= CHECKPOINTS_FASE1.CP4.GATILHO_X &&
+      this.snapshotAtual.idCheckpoint !== CHECKPOINTS_FASE1.CP4.ID
+    ) {
+      this.salvarSnapshotCheckpoint(
+        CHECKPOINTS_FASE1.CP4.ID,
+        CHECKPOINTS_FASE1.CP4.PONTO,
+        CHECKPOINTS_FASE1.CP4.NOME
+      );
     }
 
     // Queda no abismo
     if (this.jogador.y > CHECKPOINTS_FASE1.LIMITE_QUEDA_Y) {
-      this.respawnNoCheckpoint('QUEDA NO ABISMO DO CÉU!');
+      this.restaurarSnapshot('QUEDA NO ABISMO DO CÉU!');
     }
   }
 
-  private respawnNoCheckpoint(motivo: string): void {
+  /**
+   * Salva o snapshot com o progresso do jogador ao alcançar um novo checkpoint.
+   */
+  private salvarSnapshotCheckpoint(
+    idCheckpoint: string,
+    ponto: { x: number; y: number },
+    nomeNotificacao: string
+  ): void {
+    this.snapshotAtual = {
+      idCheckpoint,
+      pontoSpawn: { ...ponto },
+      totem1Resolvido: this.totem1Resolvido,
+      totem2Resolvido: this.totem2Resolvido,
+      totem3Resolvido: this.totem3Resolvido,
+      totem4Resolvido: this.totem4Resolvido,
+      totem5Resolvido: this.totem5Resolvido,
+      totem6Resolvido: this.totem6Resolvido,
+    };
+
+    this.exibirAnimacaoCheckpoint(nomeNotificacao);
+  }
+
+  /**
+   * Restaura o mundo e o jogador para um estado limpo baseado no último snapshot salvo.
+   * - Plataformas rachadas retornam intactas.
+   * - Sentinelas ativas retornam às rotas iniciais.
+   * - Puzzles concluídos permanecem abertos/resolvidos.
+   */
+  private restaurarSnapshot(motivo: string): void {
     const corpo = this.jogador.body as Phaser.Physics.Arcade.Body | null;
     if (corpo) {
-      corpo.reset(this.checkpointAtual.x, this.checkpointAtual.y);
+      corpo.reset(this.snapshotAtual.pontoSpawn.x, this.snapshotAtual.pontoSpawn.y);
     } else {
-      this.jogador.setPosition(this.checkpointAtual.x, this.checkpointAtual.y);
+      this.jogador.setPosition(this.snapshotAtual.pontoSpawn.x, this.snapshotAtual.pontoSpawn.y);
       this.jogador.setVelocity(0, 0);
     }
 
     this.tempoUltimaVezNoChao = -9999;
     this.tempoUltimoPressionarPulo = -9999;
+
+    // 1. Reset instantâneo de todas as plataformas de mármore rachado
+    for (const plat of this.plataformasRachadas) {
+      plat.rachando = false;
+      plat.quebrada = false;
+      plat.sprite.x = plat.xOriginal;
+      plat.sprite.y = plat.yOriginal;
+      plat.sprite.setVisible(true);
+      plat.sprite.setAlpha(1);
+      plat.sprite.clearTint();
+      plat.sprite.enableBody(false, plat.xOriginal, plat.yOriginal, true, true);
+    }
+
+    // 2. Reset de Sentinelas ativas às posições iniciais
+    for (const s of this.sentinelas) {
+      s.resetarPosicao();
+    }
+
+    // 3. Reconciliação dos puzzles concluídos no snapshot
+    this.totem1Resolvido = this.snapshotAtual.totem1Resolvido;
+    this.totem2Resolvido = this.snapshotAtual.totem2Resolvido;
+    this.totem3Resolvido = this.snapshotAtual.totem3Resolvido;
+    this.totem4Resolvido = this.snapshotAtual.totem4Resolvido;
+    this.totem5Resolvido = this.snapshotAtual.totem5Resolvido;
+    this.totem6Resolvido = this.snapshotAtual.totem6Resolvido;
 
     this.cameras.main.flash(200, 255, 255, 255);
     this.mostrarNotificacaoCurta(motivo);
@@ -1802,7 +1832,7 @@ export class CenaFase1 extends CenaBase {
               {
                 falante: '> CANAL REBELDE // TRANSMISSÃO CELESTIAL',
                 texto:
-                  'Magnífico, Hacker! Você superou os seis totens do Céu Partido, decifrou as armadilhas lógicas e alcançou o Santuário.',
+                  'Magnífico, Hacker! Você superou as sentinelas, interagiu com os desertores e sincronizou todos os puzzles do Céu Partido.',
               },
               {
                 falante: '> CANAL REBELDE // TRANSMISSÃO CELESTIAL',

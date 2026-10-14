@@ -93,6 +93,16 @@ export const SENTINELAS_FASE1 = {
   ALFA_CONE_BORDA: 0.6,
   PROFUNDIDADE_SPRITE: 6,
   PROFUNDIDADE_CONE: 7,
+  PROFUNDIDADE_PULSO: 8,
+
+  // Mecânica de Pulso Eólico (Modo Scanner -> Modo Pulso a cada 3.5s)
+  TEMPO_SCANNER_MS: 3500,
+  TEMPO_CARGA_PULSO_MS: 1000,
+  TEMPO_DISPARO_PULSO_MS: 400,
+  RAIO_PULSO_MAX: 180,
+  FORCA_PULSO_DESCENDENTE: 550,
+  COR_CARGA_PULSO: 0x38bdf8,
+  COR_DISPARO_PULSO: 0xa5f3fc,
 
   // Sentinelas do Level Design
   SENTINELA_1: {
@@ -101,6 +111,7 @@ export const SENTINELAS_FASE1 = {
     minX: 2040,
     maxX: 2260,
     velocidade: 80,
+    podeDispararPulso: true,
   },
   SENTINELA_B02: {
     x: 3180,
@@ -108,6 +119,7 @@ export const SENTINELAS_FASE1 = {
     minX: 3100,
     maxX: 3280,
     velocidade: 75,
+    podeDispararPulso: false, // Foco em puzzle de patrulha
   },
   SENTINELA_3: {
     x: 3940,
@@ -115,19 +127,74 @@ export const SENTINELAS_FASE1 = {
     minX: 3870,
     maxX: 4040,
     velocidade: 90,
+    podeDispararPulso: true,
   },
 } as const;
 
 export const CHECKPOINTS_FASE1 = {
   INICIAL: { x: 120, y: 560 },
-  GATILHO_CP1_X: 1650,
-  PONTO_CP1: { x: 1740, y: 400 }, // Spawna com segurança acima do platô (topo y≈478)
-  GATILHO_CP2_X: 3520,
-  PONTO_CP2: { x: 3600, y: 410 }, // Spawna com segurança acima do platô (topo y≈488)
+  CP1: {
+    ID: 'cp1_central',
+    GATILHO_X: 1650,
+    PONTO: { x: 1740, y: 400 },
+    NOME: 'CHECKPOINT 1 // SETOR CENTRAL',
+  },
+  CP2: {
+    ID: 'cp2_elevador',
+    GATILHO_X: 2750,
+    PONTO: { x: 2820, y: 320 },
+    NOME: 'CHECKPOINT 2 // PLATÔ DO ELEVADOR',
+  },
+  CP3: {
+    ID: 'cp3_portao',
+    GATILHO_X: 3520,
+    PONTO: { x: 3600, y: 400 },
+    NOME: 'CHECKPOINT 3 // PORTÃO MILENAR',
+  },
+  CP4: {
+    ID: 'cp4_ante_camara',
+    GATILHO_X: 4700,
+    PONTO: { x: 4760, y: 270 },
+    NOME: 'CHECKPOINT 4 // ENTRADA DA ANTECÂMARA',
+  },
   LIMITE_QUEDA_Y: 690,
 } as const;
 
 export const DISTANCIA_INTERACAO_TOTEM_PADRAO = 80;
+export const DISTANCIA_INTERACAO_NPC_PADRAO = 90;
+
+export const NPCS_FASE1 = {
+  SUCATINHA: {
+    ID: 'npc_sucatinha',
+    NOME: 'Sucatinha',
+    X: 1200,
+    Y: 390,
+    PROMPT: '[E] FALAR COM SUCATINHA',
+    FALANTE: '> SUCATINHA // DRONE DESERTOR',
+    DIALOGO: [
+      {
+        falante: '> SUCATINHA // DRONE DESERTOR',
+        texto:
+          'Psiu, carne com osso! Se você continuar pulando desse jeito sem usar o vento, vai virar adubo lá embaixo. Eu fugi da tropa do Azel porque o código de segurança dele é uma vergonha alheia. Dica de graça: se o terminal falar grosso com você, devolve lógica pura, senão ele vai te humilhar.',
+      },
+    ],
+  },
+  MAGO_NUVEM: {
+    ID: 'npc_mago_nuvem',
+    NOME: 'Mago da Nuvem Sem Salário',
+    X: 3400,
+    Y: 390,
+    PROMPT: '[E] FALAR COM MAGO DA NUVEM',
+    FALANTE: '> MAGO DA NUVEM // SEM SALÁRIO',
+    DIALOGO: [
+      {
+        falante: '> MAGO DA NUVEM // SEM SALÁRIO',
+        texto:
+          'Você demorou tudo isso pra passar daquela sentinela? Eu já vi lesmas com compilação mais rápida. O santuário do Azel tá logo na frente. Ele acha que manda nos ventos só porque usa uma capa dramática. Vai lá e desconfigura a inteligência dele.',
+      },
+    ],
+  },
+} as const;
 
 // =============================================================================
 // OS 6 DESAFIOS LÓGICOS DA FASE 1
