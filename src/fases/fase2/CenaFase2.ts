@@ -1,10 +1,13 @@
 import Phaser from 'phaser';
+import './estilos/fase2.css';
 import { CenaBase } from '../../compartilhado/CenaBase';
 import type { ResultadoComando } from '../../compartilhado/tipos';
 import { GerenciadorEstado } from '../../nucleo/GerenciadorEstado';
 import { interpretarComandoFase2 } from './InterpretadorFase2';
 import type { DesafioPorto } from './InterpretadorFase2';
 import { COR, ESCALA } from './porto/ArtePorto';
+import { AjudaPorto } from './porto/AjudaPorto';
+import type { IdAjuda } from './porto/AjudaConteudo';
 import type { AguaPorto } from './porto/AguaPorto';
 import { ArmasPorto } from './porto/ArmasPorto';
 import { ModeloLoja } from './porto/DesafiosPorto';
@@ -106,6 +109,8 @@ export class CenaFase2 extends CenaBase {
   private nevoa!: Phaser.GameObjects.Rectangle;
   private desafioAberto: DesafioPorto | null = null;
   private teclas!: Record<string, Phaser.Input.Keyboard.Key>;
+  private ajuda!: AjudaPorto;
+  private inicioCena = 0;
 
   constructor() {
     super('CenaFase2', 'fase2');
@@ -149,6 +154,7 @@ export class CenaFase2 extends CenaBase {
     this.nomeOperador = tipo === 'reis' ? 'Reis' : 'Alvares';
     this.estadoEntrada = clonarEstado(this.estado);
     salvarProgresso(this.estado);
+    this.inicioCena = this.time.now;
 
     this.efeitos = new EfeitosPorto(this);
     this.som = new SomPorto(this);
@@ -194,20 +200,23 @@ export class CenaFase2 extends CenaBase {
       .setDepth(PROF.textos)
       .setVisible(false);
 
-    this.criarHUDSuperior('FASE 2 // PORTO BUGADO');
     this.criarEfeitoCRT(this.scale.width, this.scale.height, 0.025);
     this.configurarTeclas();
     this.configurarTerminal();
+    this.configurarOverlays();
     this.efeitos.cinzas(indiceFumaca(this.estado) / 100, this.area.noite);
 
     const info = AREAS[this.indiceArea];
     this.hud.cartaoArea(info.numero, info.nome, info.subtitulo);
     if (this.continuouDoSave) {
-      this.time.delayedCall(2600, () => this.hud.aviso(`PROGRESSO RESTAURADO: ÁREA ${info.numero}  ·  [N] RECOMEÇAR DO INÍCIO`, COR.telaBoia, 4500));
+      this.time.delayedCall(2600, () => this.hud.aviso(`PROGRESSO RESTAURADO: ÁREA ${info.numero}  ·  [N] RECOMEÇA DO INÍCIO`, COR.telaBoia, 4500));
     }
     this.som.iniciarAmbiente(this.area.volumeOndas, this.area.volumeFogo);
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.ajuda.destruir();
+      document.body.classList.remove('fase2');
+      document.getElementById('terminal-input')?.setAttribute('placeholder', 'Digite um comando...');
       this.som.destruir();
       this.armas.destruir();
       this.agua?.destruir();
@@ -243,6 +252,7 @@ export class CenaFase2 extends CenaBase {
       Q: K.Q,
       F: K.F,
       N: K.N,
+      H: K.H,
     };
     this.teclas = {};
     for (const [nome, codigo] of Object.entries(nomes)) this.teclas[nome] = kb.addKey(codigo, false);
@@ -266,6 +276,19 @@ export class CenaFase2 extends CenaBase {
     };
   }
 
+  /** Liga o tema da fase nos overlays DOM e cria o painel de ajuda (tecla H). */
+  private configurarOverlays(): void {
+    document.body.classList.add('fase2');
+    document.getElementById('terminal-input')?.setAttribute('placeholder', 'Digite um comando ou "ajuda"');
+    this.ajuda = new AjudaPorto();
+  }
+
+  /** Seção da ajuda que combina com a área atual (cada área de 2 a 5 tem um desafio). */
+  private ajudaDaArea(): IdAjuda {
+    const porArea: IdAjuda[] = ['controles', 'pilha', 'fila', 'vetor', 'ordenacao'];
+    return porArea[this.indiceArea] ?? 'controles';
+  }
+
   /* =========================================================================
    * TERMINAL
    * ========================================================================= */
@@ -273,6 +296,8 @@ export class CenaFase2 extends CenaBase {
   private configurarTerminal(): void {
     this.terminal.definirInterpretador(interpretarComandoFase2);
     this.terminal.definirAoSubmeter((resultado: ResultadoComando) => {
+      // O quadro do desafio (pilhas, fila, carretas...) e o texto de ajuda vêm à parte para não herdar a cor do feedback
+      if (typeof resultado.valor === 'string' && resultado.valor) this.terminal.imprimirLinha(resultado.valor, 'info');
       if (this.desafioAberto === 'loja') {
         this.hud.atualizar();
         if (resultado.acao === 'LOJA_COMPROU') this.som.tocar('item');
@@ -580,10 +605,11 @@ export class CenaFase2 extends CenaBase {
    * ========================================================================= */
 
   override update(tempo: number, delta: number): void {
-    super.update(tempo, delta);
+    // Com a ajuda aberta o Esc só fecha a ajuda (a CenaBase usaria o Esc para voltar ao Hub)
+    if (!this.ajuda?.aberta) super.update(tempo, delta);
     if (!this.jogador || !this.area) return;
 
-    const pausado = this.terminal.estaAberto || this.comunicador.estaAtivo || this.cutscene || this.transicionando;
+    const pausado = this.ajuda.aberta || this.terminal.estaAberto || this.comunicador.estaAtivo || this.cutscene || this.transicionando;
     if (pausado !== this.fisicaPausada) {
       this.fisicaPausada = pausado;
       if (pausado) this.physics.world.pause();
@@ -605,6 +631,7 @@ export class CenaFase2 extends CenaBase {
 
     if (pausado) {
       this.textoPrompt.setVisible(false);
+      Phaser.Input.Keyboard.JustDown(this.teclas.H); // descarta o H apertado durante diálogos
       this.jogador.congelado = true;
       this.jogador.atualizar(this.lerControlesVazios(), delta);
       this.area.atualizarPausado(tempo, delta);
@@ -619,11 +646,12 @@ export class CenaFase2 extends CenaBase {
       this.atualizarGatilhos();
       this.atualizarInterativos();
       this.area.atualizar(tempo, delta);
+      if (Phaser.Input.Keyboard.JustDown(this.teclas.H)) this.ajuda.abrir(this.ajudaDaArea());
       if (this.jogador.y > this.area.altura + 60 && !this.jogador.morto) {
         this.jogador.receberDano(2, this.jogador.x);
         if (!this.jogador.morto) this.jogador.posicionar(this.checkpoint.x, this.checkpoint.y);
       }
-      if (Phaser.Input.Keyboard.JustDown(this.teclas.N) && this.continuouDoSave && tempo < 15000) {
+      if (Phaser.Input.Keyboard.JustDown(this.teclas.N) && this.continuouDoSave && tempo - this.inicioCena < 15000) {
         apagarProgresso();
         this.scene.restart({ area: 0, estado: criarEstadoInicial() });
         return;

@@ -185,7 +185,7 @@ export function obterRetratos(): RetratosPorto {
 
 /** HTML do avatar para o comunicador (imagem pixelada centralizada). */
 export function avatarHtml(dataUrl: string, rotulo: string): string {
-  return `<img src="${dataUrl}" alt="${rotulo}" style="width:52px;height:auto;image-rendering:pixelated;display:block;margin:auto" />`;
+  return `<img src="${dataUrl}" alt="${rotulo}" style="width:72px;height:auto;image-rendering:pixelated;display:block;margin:auto" />`;
 }
 
 function desenharEstivador(p: Pincel, quadro: number, x = 0, y = 0): void {

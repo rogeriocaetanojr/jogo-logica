@@ -13,6 +13,9 @@ const FONTE = 'Consolas, "Courier New", monospace';
 export class HudPorto {
   private readonly cena: CenaFase2;
   private readonly grafico: Phaser.GameObjects.Graphics;
+  private readonly graficoIndice: Phaser.GameObjects.Graphics;
+  private readonly textoTitulo: Phaser.GameObjects.Text;
+  private readonly textoAtalhos: Phaser.GameObjects.Text;
   private readonly textoVidas: Phaser.GameObjects.Text;
   private readonly textoFerramenta: Phaser.GameObjects.Text;
   private readonly textoLacres: Phaser.GameObjects.Text;
@@ -36,6 +39,8 @@ export class HudPorto {
 
     this.grafico = cena.add.graphics();
     fixo(this.grafico);
+    this.graficoIndice = cena.add.graphics();
+    fixo(this.graficoIndice);
 
     const estilo = (cor: string, tamanho = 12): Phaser.Types.GameObjects.Text.TextStyle => ({
       fontFamily: FONTE,
@@ -46,24 +51,34 @@ export class HudPorto {
       strokeThickness: 3,
     });
 
-    this.textoVidas = cena.add.text(238, 56, '', estilo('#F2EEE2', 12));
-    this.textoFerramenta = cena.add.text(28, 77, '', estilo('#F2EEE2', 11));
-    this.textoLacres = cena.add.text(46, 101, '', estilo(COR.advertencia, 12));
-    this.textoItens = cena.add.text(110, 101, '', estilo('#C8C2B4', 11));
-    this.textoIndice = cena.add.text(1264 - 290, 52, 'ÍNDICE DE FUMAÇA', estilo('#C8C2B4', 11));
-    this.textoIndiceValor = cena.add.text(1264 - 16, 48, '100%', estilo(COR.fogoLaranja, 18));
+    // Faixa superior: nome da fase à esquerda e atalhos à direita (substitui a barra genérica de setor)
+    this.textoTitulo = cena.add.text(16, 14, 'FASE 2  ·  PORTO BUGADO', estilo('#C8C2B4', 13));
+    this.textoAtalhos = cena.add.text(1264, 14, '[H] AJUDA   [ESC] HUB', estilo(COR.telaBoia, 13));
+    this.textoAtalhos.setOrigin(1, 0);
+
+    this.textoVidas = cena.add.text(238, 53, '', estilo('#F2EEE2', 14));
+    this.textoFerramenta = cena.add.text(28, 77, '', estilo('#F2EEE2', 13));
+    this.textoLacres = cena.add.text(50, 99, '', estilo(COR.advertencia, 15));
+    this.textoItens = cena.add.text(92, 101, '', estilo('#C8C2B4', 13));
+    this.textoIndice = cena.add.text(1264 - 290, 51, 'ÍNDICE DE FUMAÇA', estilo('#C8C2B4', 13));
+    this.textoIndiceValor = cena.add.text(1264 - 16, 48, '100%', estilo(COR.fogoLaranja, 20));
     this.textoIndiceValor.setOrigin(1, 0);
-    this.textoArea = cena.add.text(1264 - 290, 96, '', estilo('#C8C2B4', 11));
-    this.textoFiltro = cena.add.text(1264 - 16, 96, '', estilo(COR.telaBoia, 11));
+    this.textoArea = cena.add.text(1264 - 290, 97, '', estilo('#C8C2B4', 13));
+    this.textoFiltro = cena.add.text(1264 - 16, 97, '', estilo(COR.telaBoia, 13));
     this.textoFiltro.setOrigin(1, 0);
     this.textoAviso = cena.add.text(640, 150, '', {
-      ...estilo(COR.advertencia, 15),
-      backgroundColor: 'rgba(14,10,10,0.82)',
-      padding: { x: 12, y: 6 },
+      ...estilo(COR.advertencia, 17),
+      backgroundColor: 'rgba(14,10,10,0.88)',
+      padding: { x: 14, y: 8 },
       align: 'center',
+      wordWrap: { width: 900 },
     });
     this.textoAviso.setOrigin(0.5).setAlpha(0);
-    this.textoControles = cena.add.text(640, 700, '', estilo('#E8E2D2', 12));
+    this.textoControles = cena.add.text(640, 704, '', {
+      ...estilo('#E8E2D2', 14),
+      backgroundColor: 'rgba(14,10,10,0.88)',
+      padding: { x: 12, y: 6 },
+    });
     this.textoControles.setOrigin(0.5, 1).setAlpha(0);
 
     texturaPixel(cena, 'pb-hud-lacre', 5, 8, (p) => {
@@ -72,9 +87,11 @@ export class HudPorto {
       p.ponto(2, 3, '#1A1414');
       p.px(2, 7, 1, 1, '#8A847C');
     });
-    this.iconeLacre = cena.add.image(28, 100, 'pb-hud-lacre').setOrigin(0, 0).setScale(3);
+    this.iconeLacre = cena.add.image(28, 99, 'pb-hud-lacre').setOrigin(0, 0).setScale(3);
 
     for (const o of [
+      this.textoTitulo,
+      this.textoAtalhos,
       this.textoVidas,
       this.textoFerramenta,
       this.textoLacres,
@@ -102,7 +119,6 @@ export class HudPorto {
 
     // Painel esquerdo
     this.painel(g, 16, 44, 300, 78);
-    g.fillStyle(0x000000, 0.5);
     this.textoPequeno(g, 'VIDA', 28, 54);
     const vida = jogador ? jogador.vida : VIDA_MAXIMA;
     for (let i = 0; i < VIDA_MAXIMA; i++) {
@@ -144,12 +160,21 @@ export class HudPorto {
 
     this.textoLacres.setText(`${estado.lacres}`);
     const itens: string[] = [];
-    if (estado.tanquesE > 0) itens.push(`TANQUE-E x${estado.tanquesE} [Q]`);
-    if (estado.filtros > 0) itens.push(`FILTRO x${estado.filtros} [F]`);
-    this.textoItens.setText(itens.join('   '));
+    if (estado.tanquesE > 0) itens.push(`Q:TANQUE x${estado.tanquesE}`);
+    if (estado.filtros > 0) itens.push(`F:FILTRO x${estado.filtros}`);
+    this.textoItens.setText(itens.join('  '));
 
-    // Painel direito: Índice de Fumaça
+    // Painel direito: moldura (o medidor em si é redesenhado por desenharIndice)
     this.painel(g, 1264 - 300, 44, 300, 78);
+    const info = AREAS[estado.area] ?? AREAS[0];
+    this.textoArea.setText(`ÁREA ${info.numero}/6 · ${info.nome}`);
+    this.desenharIndice();
+  }
+
+  /** Medidor do Índice de Fumaça: é a única parte do HUD que anima, então tem o próprio gráfico. */
+  private desenharIndice(): void {
+    const g = this.graficoIndice;
+    g.clear();
     const indice = this.indiceExibido;
     const barraX = 1264 - 290;
     const barraW = 280;
@@ -167,8 +192,6 @@ export class HudPorto {
     g.fillStyle(hexNum(COR.virus), 0.8);
     g.fillRect(barraX + 2 + Math.round((barraW - 4) * 0.4), 72, 2, 18);
     this.textoIndiceValor.setText(`${Math.round(indice)}%`);
-    const info = AREAS[estado.area] ?? AREAS[0];
-    this.textoArea.setText(`ÁREA ${info.numero}/6 · ${info.nome}`);
   }
 
   /** Atualizações contínuas leves (contadores e animação do medidor). */
@@ -176,7 +199,7 @@ export class HudPorto {
     const alvo = indiceFumaca(this.cena.estado);
     if (Math.abs(alvo - this.indiceExibido) > 0.05) {
       this.indiceExibido += (alvo - this.indiceExibido) * 0.08;
-      this.atualizar();
+      this.desenharIndice();
     }
     const fumaca = this.cena.fumaca;
     if (fumaca.filtroAtivo) {
@@ -232,10 +255,10 @@ export class HudPorto {
     });
     const titulo = this.cena.add.image(640, 300, chave).setScale(ESCALA).setScrollFactor(0).setDepth(PROF.hud + 5).setAlpha(0);
     const sub = this.cena.add
-      .text(640, 360, subtitulo.toUpperCase(), {
+      .text(640, 368, subtitulo.toUpperCase(), {
         fontFamily: FONTE,
-        fontSize: '15px',
-        color: '#C8C2B4',
+        fontSize: '19px',
+        color: '#E8E2D2',
         fontStyle: 'bold',
         stroke: '#000000',
         strokeThickness: 4,

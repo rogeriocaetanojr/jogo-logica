@@ -1,4 +1,6 @@
 import type { ContextoInterpretador, ResultadoComando } from '../../compartilhado/tipos';
+import { textoAjudaTerminal } from './porto/AjudaConteudo';
+import type { IdAjuda } from './porto/AjudaConteudo';
 import { DICAS_BOIA } from './porto/DialogosPorto';
 import { ITENS_LOJA, ModeloCarretas, ModeloFila, ModeloLoja, ModeloPilha, ModeloValvulas } from './porto/DesafiosPorto';
 import type { NomePilha } from './porto/DesafiosPorto';
@@ -60,38 +62,19 @@ function compactar(cmd: string): string {
   return cmd.replace(/\s+/g, '').replace(/["'`]/g, '').toLowerCase();
 }
 
-const AJUDA: Record<DesafioPorto, string> = {
-  pilha:
-    '[PAINEL DO GUINDASTE // PILHA]\n' +
-    '  pilhaA.pop()            - tira o contêiner do TOPO de A e segura na garra\n' +
-    '  pilhaB.push(conteiner)  - coloca o contêiner da garra no TOPO de B\n' +
-    '  pilhaC.push(pilhaA.pop()) - as duas coisas de uma vez\n' +
-    '  Vários comandos na mesma linha: separe com ;\n' +
-    '  status / dica / limpar',
-  fila:
-    '[PORTÃO DO CAIS // FILA]\n' +
-    '  fila.dequeue()          - o navio da FRENTE atraca\n' +
-    '  fila.enqueue(navio)     - um navio novo entra no FIM da fila\n' +
-    '  status / dica / limpar',
-  vetor:
-    '[PAINEL DE SPRINKLERS // VETORES E ÍNDICES]\n' +
-    '  valvula[3].abrir()      - molha a prateleira 4\n' +
-    '  Índices válidos: 0 a 7. Vários comandos: separe com ;\n' +
-    '  Também vale: for i in [0, 1]: valvula[i].abrir()\n' +
-    '  status / dica / limpar',
-  ordenacao:
-    '[DRENO DAS CARRETAS // ORDENAÇÃO]\n' +
-    '  trocar(i, i+1)          - o guindaste troca duas carretas VIZINHAS\n' +
-    '  se pressao[i] > pressao[i+1]: trocar(i, i+1)\n' +
-    '  status / dica / limpar',
-  loja: '[CRACA // MERCADO DEBAIXO DO PÍER]\n  Digite o número do item (ex: 2) ou comprar("filtro"). Digite sair para fechar.',
-};
+const ID_AJUDA: Record<DesafioPorto, IdAjuda> = { pilha: 'pilha', fila: 'fila', vetor: 'vetor', ordenacao: 'ordenacao', loja: 'itens' };
+
+/** Monta o resultado: o texto do feedback vai em `mensagem` e o quadro ASCII do desafio em `valor` (cor neutra no terminal). */
+function resposta(sucesso: boolean, linhas: string[], quadro?: string, acao?: string): ResultadoComando {
+  const mensagem = linhas.join('\n').replace(/^\n+|\n+$/g, '');
+  return { sucesso, mensagem, ...(quadro ? { valor: quadro } : {}), ...(acao ? { acao } : {}) };
+}
 
 const INDICE_DICA: Record<DesafioPorto, number> = { pilha: 0, fila: 1, vetor: 2, ordenacao: 3, loja: 0 };
 
 export function interpretarComandoFase2(entrada: string, contexto?: ContextoInterpretador): ResultadoComando {
   const bruto = entrada.trim();
-  if (!bruto) return { sucesso: false, mensagem: '[AVISO] Digite um comando.' };
+  if (!bruto) return { sucesso: false, mensagem: '[AVISO] Digite um comando. Para ver os comandos, digite ajuda.' };
 
   const desafio = (contexto?.desafio as DesafioPorto) || 'pilha';
   const simples = bruto.replace(/;+$/, '').trim().toLowerCase();
@@ -100,7 +83,7 @@ export function interpretarComandoFase2(entrada: string, contexto?: ContextoInte
     return { sucesso: true, mensagem: '', acao: 'LIMPAR_TERMINAL' };
   }
   if (simples === 'help' || simples === 'ajuda' || simples === 'manual') {
-    return { sucesso: true, mensagem: AJUDA[desafio] };
+    return resposta(true, [], textoAjudaTerminal(ID_AJUDA[desafio]));
   }
   if (desafio !== 'loja' && (simples === 'dica' || simples === 'boia')) {
     return { sucesso: true, mensagem: `[DICA DA BOIA] "${DICAS_BOIA[INDICE_DICA[desafio]]}"` };
@@ -124,7 +107,7 @@ export function interpretarComandoFase2(entrada: string, contexto?: ContextoInte
 /* ---------------- Desafio 1: Pilha ---------------- */
 
 function interpretarPilha(bruto: string, simples: string, modelo: ModeloPilha): ResultadoComando {
-  if (simples === 'status' || simples === 'estado') return { sucesso: true, mensagem: modelo.desenhar() };
+  if (simples === 'status' || simples === 'estado') return resposta(true, [], modelo.desenhar());
   const linhas: string[] = [];
   for (const cmd of dividirComandos(bruto)) {
     const c = compactar(cmd);
@@ -136,8 +119,11 @@ function interpretarPilha(bruto: string, simples: string, modelo: ModeloPilha): 
       erro = modelo.pop(m[2].toUpperCase() as NomePilha);
       if (!erro) {
         linhas.push(`> pilha${m[2].toUpperCase()}.pop()  ->  garra pegou [${modelo.garra}]`);
-        erro = modelo.push(m[1].toUpperCase() as NomePilha);
-        if (!erro) linhas.push(`> pilha${m[1].toUpperCase()}.push(conteiner)  ->  contêiner no topo de ${m[1].toUpperCase()}`);
+        // Ao pegar o ESP o desafio já acabou: o guindaste entrega a garra sem precisar do push
+        if (!modelo.concluido) {
+          erro = modelo.push(m[1].toUpperCase() as NomePilha);
+          if (!erro) linhas.push(`> pilha${m[1].toUpperCase()}.push(conteiner)  ->  contêiner no topo de ${m[1].toUpperCase()}`);
+        }
       }
     } else if ((m = c.match(/^pilha_?([abc])\.pop\(\)$/))) {
       erro = modelo.pop(m[1].toUpperCase() as NomePilha);
@@ -155,25 +141,25 @@ function interpretarPilha(bruto: string, simples: string, modelo: ModeloPilha): 
     }
 
     if (erro) {
-      const msg = [...linhas, `[${erroTopo ? 'GUINDASTE TRAVADO' : 'ERRO'}] ${erro}`, deboche('pilha'), '', modelo.desenhar()].join('\n');
-      return { sucesso: false, mensagem: msg, acao: erroTopo ? 'PILHA_TOPO' : linhas.length ? 'PILHA_MOVEU' : 'PILHA_ERRO' };
+      return resposta(
+        false,
+        [...linhas, `[${erroTopo ? 'GUINDASTE TRAVADO' : 'ERRO'}] ${erro}`, deboche('pilha')],
+        modelo.desenhar(),
+        erroTopo ? 'PILHA_TOPO' : linhas.length ? 'PILHA_MOVEU' : 'PILHA_ERRO'
+      );
     }
     if (modelo.concluido) break;
   }
   if (modelo.concluido) {
-    return {
-      sucesso: true,
-      mensagem: [...linhas, '', '[CONTÊINER DE ESPUMA LIBERADO] O guindaste está descendo o contêiner até você!'].join('\n'),
-      acao: 'PILHA_CONCLUIDA',
-    };
+    return resposta(true, [...linhas, '', '[CONTÊINER DE ESPUMA LIBERADO] O guindaste está descendo o contêiner até você!'], undefined, 'PILHA_CONCLUIDA');
   }
-  return { sucesso: true, mensagem: [...linhas, '', modelo.desenhar()].join('\n'), acao: 'PILHA_MOVEU' };
+  return resposta(true, linhas, modelo.desenhar(), 'PILHA_MOVEU');
 }
 
 /* ---------------- Desafio 2: Fila ---------------- */
 
 function interpretarFila(bruto: string, simples: string, modelo: ModeloFila): ResultadoComando {
-  if (simples === 'status' || simples === 'estado') return { sucesso: true, mensagem: modelo.desenhar() };
+  if (simples === 'status' || simples === 'estado') return resposta(true, [], modelo.desenhar());
   const linhas: string[] = [];
   for (const cmd of dividirComandos(bruto)) {
     const c = compactar(cmd);
@@ -200,24 +186,27 @@ function interpretarFila(bruto: string, simples: string, modelo: ModeloFila): Re
       erro = `Comando não reconhecido: "${cmd}". Use fila.dequeue() ou fila.enqueue(navio).`;
     }
     if (erro) {
-      return {
-        sucesso: false,
-        mensagem: [...linhas, `[${erroMeio ? 'BUZINAÇO' : 'ERRO'}] ${erro}`, deboche('fila'), '', modelo.desenhar()].join('\n'),
-        acao: erroMeio ? 'FILA_BUZINA' : linhas.length ? 'FILA_MOVEU' : 'FILA_ERRO',
-      };
+      return resposta(
+        false,
+        [...linhas, `[${erroMeio ? 'BUZINAÇO' : 'ERRO'}] ${erro}`, deboche('fila')],
+        modelo.desenhar(),
+        erroMeio ? 'FILA_BUZINA' : linhas.length ? 'FILA_MOVEU' : 'FILA_ERRO'
+      );
     }
     if (modelo.concluido) break;
   }
   if (modelo.concluido) {
-    return { sucesso: true, mensagem: [...linhas, '', '[REBOCADOR-BOMBEIRO ATRACADO] Canhões d\'água ligados: limpando o cais!'].join('\n'), acao: 'FILA_CONCLUIDA' };
+    return resposta(true, [...linhas, '', "[REBOCADOR-BOMBEIRO ATRACADO] Canhões d'água ligados: limpando o cais!"], undefined, 'FILA_CONCLUIDA');
   }
-  return { sucesso: true, mensagem: [...linhas, '', modelo.desenhar()].join('\n'), acao: 'FILA_MOVEU' };
+  return resposta(true, linhas, modelo.desenhar(), 'FILA_MOVEU');
 }
 
 /* ---------------- Desafio 3: Vetores e índices ---------------- */
 
 function interpretarVetor(bruto: string, simples: string, modelo: ModeloValvulas): ResultadoComando {
-  if (simples === 'status' || simples === 'estado') return { sucesso: true, mensagem: modelo.desenhar() + '\n   (os sensores de calor estão cegos pela fumaça: confira as PLACAS das prateleiras em chamas)' };
+  if (simples === 'status' || simples === 'estado') {
+    return resposta(true, ['(os sensores de calor estão cegos pela fumaça: confira as PLACAS das prateleiras em chamas)'], modelo.desenhar());
+  }
   const linhas: string[] = [];
   const indices: number[] = [];
   let laco = bruto.match(/^for\s+(\w+)\s+in\s+\[([^\]]*)\]\s*:\s*valvulas?\[\s*(\w+)\s*\]\s*\.\s*(abrir|open)\(\s*\)\s*;?$/i);
@@ -262,18 +251,18 @@ function interpretarVetor(bruto: string, simples: string, modelo: ModeloValvulas
     }
   }
   if (foraDoLimite) {
-    return { sucesso: false, mensagem: [...linhas, deboche('vetor'), 'ALERTA: o glitch soltou um inimigo no depósito!'].join('\n'), acao: 'VETOR_FORA' };
+    return resposta(false, [...linhas, deboche('vetor'), 'ALERTA: o glitch soltou um inimigo no depósito!'], undefined, 'VETOR_FORA');
   }
   if (modelo.concluido) {
-    return { sucesso: true, mensagem: [...linhas, '', '[SPRINKLERS CERTOS ABERTOS] Caminho até o topo do depósito liberado!'].join('\n'), acao: 'VETOR_CONCLUIDO' };
+    return resposta(true, [...linhas, '', '[SPRINKLERS CERTOS ABERTOS] Caminho até o topo do depósito liberado!'], undefined, 'VETOR_CONCLUIDO');
   }
-  return { sucesso: true, mensagem: [...linhas, '', modelo.desenhar()].join('\n'), acao: 'VETOR_ABRIU' };
+  return resposta(true, linhas, modelo.desenhar(), 'VETOR_ABRIU');
 }
 
 /* ---------------- Desafio 4: Ordenação ---------------- */
 
 function interpretarOrdenacao(bruto: string, simples: string, modelo: ModeloCarretas): ResultadoComando {
-  if (simples === 'status' || simples === 'estado') return { sucesso: true, mensagem: modelo.desenhar() };
+  if (simples === 'status' || simples === 'estado') return resposta(true, [], modelo.desenhar());
   const linhas: string[] = [];
   for (const cmd of dividirComandos(bruto)) {
     const c = compactar(cmd);
@@ -286,14 +275,29 @@ function interpretarOrdenacao(bruto: string, simples: string, modelo: ModeloCarr
     } else if ((m = c.match(/^pressao\[(\d+)\],pressao\[(\d+)\]=pressao\[(\d+)\],pressao\[(\d+)\]$/)) && m[1] === m[4] && m[2] === m[3]) {
       a = Number(m[1]);
       b = Number(m[2]);
+    } else if ((m = c.match(/^(?:se|if)pressao\[(\d+)\](>=|<=|==|>|<)pressao\[(\d+)\]:(?:trocar|swap)\((-?\d+),(-?\d+)\)$/))) {
+      const [x, op, y] = [Number(m[1]), m[2], Number(m[3])];
+      const n = modelo.pressao.length;
+      if (x >= n || y >= n) {
+        return resposta(false, [...linhas, `[ERRO] IndexError: índice fora do limite. As carretas vão de 0 a ${n - 1}.`], modelo.desenhar(), linhas.length ? 'ORDEM_TROCOU' : 'ORDEM_ERRO');
+      }
+      const [va, vb] = [modelo.pressao[x], modelo.pressao[y]];
+      const verdadeiro = op === '>' ? va > vb : op === '<' ? va < vb : op === '>=' ? va >= vb : op === '<=' ? va <= vb : va === vb;
+      if (!verdadeiro) {
+        linhas.push(`> se pressao[${x}] ${op} pressao[${y}]  ->  ${va} ${op} ${vb} é FALSO: nenhuma troca.`);
+        continue;
+      }
+      linhas.push(`> se pressao[${x}] ${op} pressao[${y}]  ->  ${va} ${op} ${vb} é VERDADEIRO.`);
+      a = Number(m[4]);
+      b = Number(m[5]);
     } else if (/^(se|if)/.test(c)) {
-      return { sucesso: false, mensagem: 'Boa ideia, mas aqui quem compara é você! Olhe os valores e mande a troca direto: trocar(i, i+1)' };
+      return resposta(false, ['Condição não entendida. Escreva assim: se pressao[0] > pressao[1]: trocar(0, 1)', 'Operadores aceitos: >, <, >=, <= e ==.']);
     } else {
-      return { sucesso: false, mensagem: `Comando não reconhecido: "${cmd}". Exemplo: trocar(0, 1)\n${deboche('ordenacao')}` };
+      return resposta(false, [`Comando não reconhecido: "${cmd}". Exemplo: trocar(0, 1)`, deboche('ordenacao')]);
     }
     const erro = modelo.trocar(a, b);
     if (erro) {
-      return { sucesso: false, mensagem: [...linhas, `[ERRO] ${erro}`, '', modelo.desenhar()].join('\n'), acao: linhas.length ? 'ORDEM_TROCOU' : 'ORDEM_ERRO' };
+      return resposta(false, [...linhas, `[ERRO] ${erro}`], modelo.desenhar(), linhas.length ? 'ORDEM_TROCOU' : 'ORDEM_ERRO');
     }
     const ev = modelo.eventos[modelo.eventos.length - 1];
     linhas.push(
@@ -304,9 +308,9 @@ function interpretarOrdenacao(bruto: string, simples: string, modelo: ModeloCarr
     if (modelo.ordenado) break;
   }
   if (modelo.ordenado) {
-    return { sucesso: true, mensagem: [...linhas, '', modelo.desenhar(), '', '[DRENO CONECTADO EM ORDEM CRESCENTE] Portão de saída liberado!'].join('\n'), acao: 'ORDEM_CONCLUIDA' };
+    return resposta(true, [...linhas, '', '[DRENO CONECTADO EM ORDEM CRESCENTE] Portão de saída liberado!'], modelo.desenhar(), 'ORDEM_CONCLUIDA');
   }
-  return { sucesso: true, mensagem: [...linhas, '', modelo.desenhar()].join('\n'), acao: 'ORDEM_TROCOU' };
+  return resposta(true, linhas, modelo.desenhar(), 'ORDEM_TROCOU');
 }
 
 /* ---------------- Loja da CRACA ---------------- */

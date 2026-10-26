@@ -1,0 +1,418 @@
+/*
+ * Porto Bugado (fase 2): tema dos overlays DOM (diálogo, terminal e ajuda).
+ * Tudo é escopado em body.fase2, classe que a CenaFase2 liga ao entrar e remove ao sair,
+ * então as outras fases continuam com o visual verde padrão.
+ *
+ * Paleta da direção de arte: asfalto queimado, amarelo de advertência, laranja de fogo,
+ * verde de vírus (sucesso) e ciano da tela da BOIA (destaque de código).
+ */
+
+body.fase2 {
+  --pb-fundo: rgba(18, 13, 12, 0.96);
+  --pb-fundo-fundo: #0c0808;
+  --pb-borda: #f2c230;
+  --pb-borda-suave: rgba(242, 194, 48, 0.35);
+  --pb-texto: #ece6d6;
+  --pb-suave: #b9b2a2;
+  --pb-fogo: #f08a24;
+  --pb-ok: #5cff8a;
+  --pb-erro: #ff7a66;
+  --pb-codigo: #4fd8e8;
+  --pb-fonte-codigo: 'Cascadia Mono', 'Consolas', 'Courier New', monospace;
+  --pb-fonte-texto: 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* ------------------------------------------------------------------ Diálogo */
+
+/* Fica logo abaixo do HUD (que ocupa os 18% de cima): o operador e o cenário continuam visíveis. */
+body.fase2 #dialog-overlay {
+  top: 18.8%;
+  width: 880px;
+  min-height: 112px;
+  padding: 16px 22px;
+  gap: 20px;
+  background: var(--pb-fundo);
+  border: 2px solid var(--pb-borda);
+  border-radius: 2px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.75);
+  backdrop-filter: none;
+  font-family: var(--pb-fonte-texto);
+}
+
+body.fase2 #dialog-overlay::before {
+  display: none;
+}
+
+body.fase2 #dialog-avatar {
+  width: 84px;
+  height: 84px;
+  align-self: flex-start;
+  background: var(--pb-fundo-fundo);
+  border: 2px solid var(--pb-borda-suave);
+  border-radius: 2px;
+  box-shadow: none;
+  color: var(--pb-borda);
+  text-shadow: none;
+}
+
+body.fase2 #dialog-avatar::after {
+  display: none;
+}
+
+body.fase2 #dialog-speaker {
+  margin-bottom: 8px;
+  font-family: var(--pb-fonte-codigo);
+  font-size: 13px;
+  letter-spacing: 0.5px;
+  color: var(--pb-borda);
+  text-shadow: none;
+  text-transform: none;
+}
+
+body.fase2 #dialog-text {
+  font-family: var(--pb-fonte-texto);
+  font-size: 18px;
+  line-height: 1.55;
+  color: var(--pb-texto);
+}
+
+body.fase2 .dialog-prompt {
+  margin-top: 10px;
+  font-family: var(--pb-fonte-codigo);
+  font-size: 12px;
+  letter-spacing: 0;
+  color: var(--pb-suave);
+  text-shadow: none;
+  animation: none;
+  opacity: 1;
+}
+
+/* ----------------------------------------------------------------- Terminal */
+
+body.fase2 #terminal-overlay {
+  width: min(900px, 94%);
+  height: min(560px, 82%);
+  background: var(--pb-fundo);
+  border: 2px solid var(--pb-borda);
+  border-radius: 2px;
+  box-shadow: 0 10px 36px rgba(0, 0, 0, 0.8);
+  backdrop-filter: none;
+  font-family: var(--pb-fonte-codigo);
+  color: var(--pb-texto);
+}
+
+body.fase2 .terminal-header {
+  gap: 16px;
+  padding: 10px 16px;
+  background: rgba(242, 194, 48, 0.12);
+  border-bottom: 1px solid var(--pb-borda-suave);
+  font-size: 14px;
+  letter-spacing: 0.3px;
+}
+
+body.fase2 .terminal-title {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--pb-borda);
+  text-shadow: none;
+}
+
+body.fase2 .terminal-status {
+  flex-shrink: 0;
+  color: var(--pb-ok);
+  animation: none;
+}
+
+body.fase2 #terminal-output {
+  padding: 14px 16px;
+  font-size: 15px;
+  line-height: 1.5;
+  scroll-behavior: auto;
+}
+
+body.fase2 #terminal-output::-webkit-scrollbar-thumb {
+  background: var(--pb-borda-suave);
+}
+
+body.fase2 .log-line.info {
+  color: var(--pb-suave);
+}
+
+body.fase2 .log-line.command {
+  color: var(--pb-borda);
+}
+
+body.fase2 .log-line.success {
+  color: var(--pb-ok);
+  text-shadow: none;
+}
+
+body.fase2 .log-line.error {
+  color: var(--pb-erro);
+  text-shadow: none;
+}
+
+body.fase2 .terminal-input-row {
+  gap: 10px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--pb-borda-suave);
+  background: rgba(8, 5, 5, 0.9);
+}
+
+/* Lembrete fixo de como pedir ajuda, ao lado do campo de digitação. */
+body.fase2 .terminal-input-row::after {
+  content: 'ajuda mostra os comandos  ·  Esc fecha';
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--pb-suave);
+}
+
+body.fase2 .prompt {
+  color: var(--pb-borda);
+  text-shadow: none;
+}
+
+body.fase2 #terminal-input {
+  min-width: 0;
+  font-size: 15px;
+  color: var(--pb-texto);
+  caret-color: var(--pb-borda);
+}
+
+body.fase2 #terminal-input::placeholder {
+  color: var(--pb-suave);
+  opacity: 0.8;
+}
+
+body.fase2 #terminal-input:focus-visible {
+  outline: none;
+}
+
+body.fase2 .terminal-input-row:focus-within {
+  box-shadow: inset 0 2px 0 var(--pb-borda);
+}
+
+/* ------------------------------------------------------------------- Ajuda */
+
+#ajuda-fase2 {
+  position: absolute;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  box-sizing: border-box;
+  background: rgba(8, 5, 5, 0.78);
+  font-family: var(--pb-fonte-texto);
+  color: var(--pb-texto);
+}
+
+.ajuda-janela {
+  display: flex;
+  flex-direction: column;
+  width: min(1000px, 100%);
+  height: min(600px, 100%);
+  background: var(--pb-fundo);
+  border: 2px solid var(--pb-borda);
+  border-radius: 2px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.8);
+  overflow: hidden;
+}
+
+.ajuda-topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 18px;
+  background: rgba(242, 194, 48, 0.12);
+  border-bottom: 1px solid var(--pb-borda-suave);
+}
+
+.ajuda-topo h2 {
+  margin: 0;
+  font-family: var(--pb-fonte-codigo);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--pb-borda);
+}
+
+.ajuda-fechar {
+  padding: 6px 12px;
+  font: inherit;
+  font-family: var(--pb-fonte-codigo);
+  font-size: 13px;
+  color: var(--pb-texto);
+  background: transparent;
+  border: 1px solid var(--pb-borda-suave);
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.ajuda-fechar:hover {
+  border-color: var(--pb-borda);
+  color: var(--pb-borda);
+}
+
+.ajuda-corpo {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.ajuda-abas {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  width: 190px;
+  padding: 12px 0;
+  border-right: 1px solid var(--pb-borda-suave);
+  background: rgba(8, 5, 5, 0.5);
+}
+
+.ajuda-aba {
+  padding: 12px 18px;
+  font: inherit;
+  font-size: 15px;
+  text-align: left;
+  color: var(--pb-suave);
+  background: transparent;
+  border: 0;
+  border-left: 4px solid transparent;
+  cursor: pointer;
+}
+
+.ajuda-aba:hover {
+  color: var(--pb-texto);
+  background: rgba(242, 194, 48, 0.07);
+}
+
+.ajuda-aba[aria-selected='true'] {
+  color: var(--pb-texto);
+  font-weight: 700;
+  background: rgba(242, 194, 48, 0.12);
+  border-left-color: var(--pb-borda);
+}
+
+.ajuda-painel {
+  flex: 1;
+  min-width: 0;
+  padding: 20px 26px 24px;
+  overflow-y: auto;
+}
+
+.ajuda-painel h3 {
+  margin: 0 0 8px;
+  font-size: 22px;
+  line-height: 1.25;
+  color: var(--pb-texto);
+}
+
+.ajuda-conceito {
+  max-width: 62ch;
+  margin: 0 0 20px;
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--pb-suave);
+}
+
+.ajuda-itens {
+  display: grid;
+  grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
+  gap: 10px 20px;
+  margin: 0 0 20px;
+  align-items: baseline;
+}
+
+.ajuda-itens dt {
+  margin: 0;
+}
+
+.ajuda-itens dd {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.ajuda-itens code {
+  display: inline-block;
+  max-width: 100%;
+  padding: 3px 9px;
+  font-family: var(--pb-fonte-codigo);
+  font-size: 14px;
+  color: var(--pb-codigo);
+  background: rgba(79, 216, 232, 0.08);
+  border: 1px solid rgba(79, 216, 232, 0.28);
+  border-radius: 2px;
+  overflow-wrap: anywhere;
+}
+
+.ajuda-cuidados-titulo {
+  margin: 0 0 8px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--pb-fogo);
+}
+
+.ajuda-cuidados {
+  max-width: 66ch;
+  margin: 0;
+  padding-left: 20px;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--pb-texto);
+}
+
+.ajuda-cuidados li + li {
+  margin-top: 6px;
+}
+
+.ajuda-rodape {
+  padding: 10px 18px;
+  font-family: var(--pb-fonte-codigo);
+  font-size: 12px;
+  color: var(--pb-suave);
+  border-top: 1px solid var(--pb-borda-suave);
+}
+
+#ajuda-fase2 button:focus-visible {
+  outline: 2px solid var(--pb-codigo);
+  outline-offset: -2px;
+}
+
+@media (max-width: 760px) {
+  .ajuda-corpo {
+    flex-direction: column;
+  }
+
+  .ajuda-abas {
+    flex-direction: row;
+    width: auto;
+    padding: 0;
+    overflow-x: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--pb-borda-suave);
+  }
+
+  .ajuda-aba {
+    flex-shrink: 0;
+    border-left: 0;
+    border-bottom: 4px solid transparent;
+  }
+
+  .ajuda-aba[aria-selected='true'] {
+    border-bottom-color: var(--pb-borda);
+  }
+
+  .ajuda-itens {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+
+  .ajuda-itens dd {
+    margin-bottom: 10px;
+  }
+}
