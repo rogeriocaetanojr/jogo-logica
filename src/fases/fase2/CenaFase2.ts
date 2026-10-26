@@ -1,274 +1,740 @@
 import Phaser from 'phaser';
 import { CenaBase } from '../../compartilhado/CenaBase';
-import { GerenciadorEstado, type TipoPersonagem } from '../../nucleo/GerenciadorEstado';
 import type { ResultadoComando } from '../../compartilhado/tipos';
+import { GerenciadorEstado } from '../../nucleo/GerenciadorEstado';
 import { interpretarComandoFase2 } from './InterpretadorFase2';
+import type { DesafioPorto } from './InterpretadorFase2';
+import { COR, ESCALA } from './porto/ArtePorto';
+import type { AguaPorto } from './porto/AguaPorto';
+import { ArmasPorto } from './porto/ArmasPorto';
+import { ModeloLoja } from './porto/DesafiosPorto';
+import { FALAS, roteiro } from './porto/DialogosPorto';
+import type { Falante } from './porto/DialogosPorto';
+import { EfeitosPorto, PROF } from './porto/EfeitosPorto';
+import { GerenciadorFogo } from './porto/FogoPorto';
+import type { FocoIncendio } from './porto/FogoPorto';
+import { FumacaPorto } from './porto/FumacaPorto';
+import { HudPorto } from './porto/HudPorto';
+import { GerenciadorInimigos } from './porto/InimigosPorto';
+import { JogadorPorto } from './porto/JogadorPorto';
+import type { ControlesPorto } from './porto/JogadorPorto';
+import { PlataformaMovel } from './porto/PlataformasPorto';
+import { SomPorto } from './porto/SomPorto';
+import { gerarSpritesPorto } from './porto/SpritesPorto';
+import {
+  AREAS,
+  CARGAS_EXTINTOR,
+  ESPUMA_MAXIMA,
+  VIDAS_INICIAIS,
+  apagarProgresso,
+  carregarProgresso,
+  clonarEstado,
+  criarEstadoInicial,
+  indiceFumaca,
+  salvarProgresso,
+} from './porto/TiposPorto';
+import type { EstadoPorto } from './porto/TiposPorto';
+import type { AreaPorto } from './ambientes/AreaBase';
+import { criarArea } from './ambientes/FabricaAreas';
+
+interface Interativo {
+  x: number;
+  y: number;
+  raio: number;
+  rotulo: string;
+  ativo: () => boolean;
+  acao: () => void;
+}
+
+interface Gatilho {
+  x0: number;
+  x1: number;
+  y0: number;
+  y1: number;
+  feito: boolean;
+  acao: () => void;
+}
+
+interface Coletavel {
+  sprite: Phaser.GameObjects.Sprite | Phaser.GameObjects.Image;
+  tipo: 'lacre' | 'kit';
+}
+
+interface DadosCenaPorto {
+  area?: number;
+  estado?: EstadoPorto;
+}
 
 /**
- * CenaFase2: Fábrica de Cilindros e Automação com Loops (Integrante 2).
+ * CenaFase2: PORTO BUGADO (cidade de Bug).
+ * O operador atravessa 6 ambientes do porto, resolve 4 desafios de estruturas de dados
+ * (Pilha, Fila, Vetores e índices, Ordenação), vence o BORRACHÃO.EXE e o KRAKEN.EXE
+ * e desconecta o servidor central do MegaBrain.
  */
 export class CenaFase2 extends CenaBase {
-  private plataformas!: Phaser.Physics.Arcade.StaticGroup;
-  private jogador!: Phaser.Physics.Arcade.Sprite;
-  private tipoPersonagem: TipoPersonagem = 'alvares';
-  private totemLoop!: Phaser.GameObjects.Image;
-  private textoPrompt!: Phaser.GameObjects.Text;
-  private barreiraMecanica!: Phaser.Physics.Arcade.Sprite;
-  private colisorBarreira?: Phaser.Physics.Arcade.Collider;
-  private isResolvido: boolean = false;
+  public estado!: EstadoPorto;
+  public jogador!: JogadorPorto;
+  public efeitos!: EfeitosPorto;
+  public som!: SomPorto;
+  public fumaca!: FumacaPorto;
+  public hud!: HudPorto;
+  public fogo!: GerenciadorFogo;
+  public armas!: ArmasPorto;
+  public inimigos!: GerenciadorInimigos;
+  public agua: AguaPorto | null = null;
+  public solidos!: Phaser.Physics.Arcade.StaticGroup;
+  public grupoMoveis!: Phaser.Physics.Arcade.Group;
+  public plataformasMoveis: PlataformaMovel[] = [];
+  /** Retângulos de óleo no chão (escorregadio). */
+  public zonasOleo: Phaser.Geom.Rectangle[] = [];
+  public nomeOperador = 'Alvares';
+  public checkpoint = { x: 160, y: 560 };
+  public cutscene = false;
+  public area!: AreaPorto;
 
-  private cursores?: Phaser.Types.Input.Keyboard.CursorKeys;
-  private teclaInteragir?: Phaser.Input.Keyboard.Key;
+  private indiceArea = 0;
+  private estadoEntrada!: EstadoPorto;
+  private continuouDoSave = false;
+  private interativos: Interativo[] = [];
+  private gatilhos: Gatilho[] = [];
+  private coletaveis: Coletavel[] = [];
+  private textoPrompt!: Phaser.GameObjects.Text;
+  private transicionando = false;
+  private fisicaPausada = false;
+  private ultimoDanoAgua = 0;
+  private ultimoDanoFumaca = 0;
+  private nevoa!: Phaser.GameObjects.Rectangle;
+  private desafioAberto: DesafioPorto | null = null;
+  private teclas!: Record<string, Phaser.Input.Keyboard.Key>;
 
   constructor() {
     super('CenaFase2', 'fase2');
   }
 
-  create(): void {
+  override init(dados?: DadosCenaPorto): void {
+    this.continuouDoSave = false;
+    if (dados?.estado) {
+      this.estado = clonarEstado(dados.estado);
+      this.indiceArea = dados.area ?? this.estado.area;
+    } else {
+      const salvo = carregarProgresso();
+      if (salvo && salvo.area > 0 && salvo.area < AREAS.length) {
+        this.estado = salvo;
+        this.continuouDoSave = true;
+      } else {
+        this.estado = criarEstadoInicial();
+      }
+      this.indiceArea = dados?.area ?? this.estado.area;
+    }
+    this.estado.area = Phaser.Math.Clamp(this.indiceArea, 0, AREAS.length - 1);
+    this.indiceArea = this.estado.area;
+    this.agua = null;
+    this.plataformasMoveis = [];
+    this.zonasOleo = [];
+    this.interativos = [];
+    this.gatilhos = [];
+    this.coletaveis = [];
+    this.transicionando = false;
+    this.fisicaPausada = false;
+    this.cutscene = false;
+    this.desafioAberto = null;
+    this.ultimoDanoAgua = 0;
+    this.ultimoDanoFumaca = 0;
+  }
+
+  override create(): void {
     super.create();
-    const { width, height } = this.scale;
+    gerarSpritesPorto(this);
+    const tipo = GerenciadorEstado.obterPersonagem();
+    this.nomeOperador = tipo === 'reis' ? 'Reis' : 'Alvares';
+    this.estadoEntrada = clonarEstado(this.estado);
+    salvarProgresso(this.estado);
 
-    this.physics.world.setBounds(0, 0, width, height);
-    this.cameras.main.setBounds(0, 0, width, height);
-    this.cameras.main.setBackgroundColor('#080d12');
-    this.cameras.main.fadeIn(300, 0, 0, 0);
+    this.efeitos = new EfeitosPorto(this);
+    this.som = new SomPorto(this);
+    this.solidos = this.physics.add.staticGroup();
+    this.grupoMoveis = this.physics.add.group({ allowGravity: false, immovable: true });
+    this.fogo = new GerenciadorFogo(this);
+    this.armas = new ArmasPorto(this);
+    this.inimigos = new GerenciadorInimigos(this);
 
-    this.criarHUDSuperior('FASE 2 // LAÇOS DE REPETIÇÃO E AUTOMAÇÃO');
-    this.criarCenario(width, height);
-    this.criarPlataformas(width, height);
-    this.criarBarreira(width, height);
-    this.criarTotem(width, height);
-    this.criarJogador();
-    this.configurarControles();
+    this.jogador = new JogadorPorto(this, 160, 500, tipo);
+    this.physics.add.collider(this.jogador.corpo, this.solidos);
+    this.physics.add.collider(this.jogador.corpo, this.grupoMoveis);
+
+    this.fumaca = new FumacaPorto(this);
+    this.area = criarArea(this, this.indiceArea);
+    this.fumaca.noite = this.area.noite;
+    this.fumaca.definirNivel(AREAS[this.indiceArea].fumaca);
+
+    this.nevoa = this.add.rectangle(640, 360, 1280, 720, this.area.noite ? 0x0e0e1a : 0x3a2822, 0.2).setScrollFactor(0).setDepth(PROF.fumacaFundo + 1);
+
+    this.area.construir();
+    this.physics.world.setBounds(0, 0, this.area.largura, this.area.altura);
+    this.cameras.main.setBounds(0, 0, this.area.largura, this.area.altura);
+    this.cameras.main.setBackgroundColor('#140f0e');
+    this.checkpoint = { ...this.area.inicio };
+    this.jogador.posicionar(this.area.inicio.x, this.area.inicio.y);
+    this.cameras.main.startFollow(this.jogador.corpo, true, 0.12, 0.12);
+    this.cameras.main.setDeadzone(140, 90);
+    this.cameras.main.setRoundPixels(true);
+    this.cameras.main.fadeIn(500, 0, 0, 0);
+
+    this.hud = new HudPorto(this);
+    this.textoPrompt = this.add
+      .text(0, 0, '', {
+        fontFamily: 'Consolas, Courier New, monospace',
+        fontSize: '13px',
+        color: '#F2C230',
+        fontStyle: 'bold',
+        backgroundColor: 'rgba(14,10,10,0.85)',
+        padding: { x: 6, y: 3 },
+      })
+      .setOrigin(0.5, 1)
+      .setDepth(PROF.textos)
+      .setVisible(false);
+
+    this.criarHUDSuperior('FASE 2 // PORTO BUGADO');
+    this.criarEfeitoCRT(this.scale.width, this.scale.height, 0.025);
+    this.configurarTeclas();
     this.configurarTerminal();
-    this.criarEfeitoCRT(width, height, 0.03);
+    this.efeitos.cinzas(indiceFumaca(this.estado) / 100, this.area.noite);
 
-    this.comunicador.iniciarDialogo([
-      {
-        falante: '> CANAL REBELDE // INTERCEPTAÇÃO: INTEGRANTE 2',
-        texto:
-          'Setor 2 alcançado. As esteiras de alimentação estão desacopladas.',
-      },
-      {
-        falante: '> CANAL REBELDE // INTERCEPTAÇÃO: INTEGRANTE 2',
-        texto:
-          'Programe um laço de repetição FOR no console de automação para calibrar os 5 pistões de uma só vez.',
-      },
-    ]);
-  }
-
-  private criarCenario(width: number, height: number): void {
-    const g = this.add.graphics();
-    g.fillGradientStyle(0x080d12, 0x080d12, 0x141f1a, 0x141f1a, 1);
-    g.fillRect(0, 0, width, height);
-
-    g.lineStyle(1, 0x38ef7d, 0.12);
-    for (let x = 80; x < width; x += 100) {
-      g.beginPath();
-      g.moveTo(x, 60);
-      g.lineTo(x, 660);
-      g.strokePath();
+    const info = AREAS[this.indiceArea];
+    this.hud.cartaoArea(info.numero, info.nome, info.subtitulo);
+    if (this.continuouDoSave) {
+      this.time.delayedCall(2600, () => this.hud.aviso(`PROGRESSO RESTAURADO: ÁREA ${info.numero}  ·  [N] RECOMEÇAR DO INÍCIO`, COR.telaBoia, 4500));
     }
-  }
+    this.som.iniciarAmbiente(this.area.volumeOndas, this.area.volumeFogo);
 
-  private criarPlataformas(width: number, height: number): void {
-    this.plataformas = this.physics.add.staticGroup();
-
-    if (!this.textures.exists('chao-fase2')) {
-      const g = this.make.graphics();
-      g.fillStyle(0x111c18, 1);
-      g.fillRect(0, 0, width, 50);
-      g.fillStyle(0x38ef7d, 0.6);
-      g.fillRect(0, 0, width, 4);
-      g.generateTexture('chao-fase2', width, 50);
-      g.destroy();
-    }
-    this.plataformas.create(width / 2, height - 25, 'chao-fase2');
-
-    if (!this.textures.exists('plat-fase2')) {
-      const g = this.make.graphics();
-      g.fillStyle(0x182c24, 1);
-      g.fillRect(0, 0, 200, 24);
-      g.fillStyle(0x00ffcc, 0.5);
-      g.fillRect(0, 0, 200, 3);
-      g.generateTexture('plat-fase2', 200, 24);
-      g.destroy();
-    }
-    this.plataformas.create(400, 480, 'plat-fase2');
-    this.plataformas.create(750, 370, 'plat-fase2');
-  }
-
-  private criarBarreira(width: number, height: number): void {
-    if (!this.textures.exists('barreira-fase2')) {
-      const g = this.make.graphics();
-      g.fillStyle(0xf59e0b, 0.85);
-      g.fillRect(0, 0, 30, 220);
-      g.generateTexture('barreira-fase2', 30, 220);
-      g.destroy();
-    }
-
-    this.barreiraMecanica = this.physics.add.sprite(width - 150, height - 160, 'barreira-fase2');
-    (this.barreiraMecanica.body as Phaser.Physics.Arcade.Body).setImmovable(true);
-    (this.barreiraMecanica.body as Phaser.Physics.Arcade.Body).allowGravity = false;
-  }
-
-  private criarTotem(_width: number, _height: number): void {
-    if (!this.textures.exists('totem-fase2')) {
-      const g = this.make.graphics();
-      g.fillStyle(0x0c1e17, 1);
-      g.fillRect(0, 0, 48, 64);
-      g.fillStyle(0x38ef7d, 0.8);
-      g.fillRect(8, 8, 32, 24);
-      g.generateTexture('totem-fase2', 48, 64);
-      g.destroy();
-    }
-
-    this.totemLoop = this.add.image(400, 436, 'totem-fase2');
-
-    this.textoPrompt = this.add.text(400, 385, '[E] CONSOLE DE AUTOMAÇÃO', {
-      fontFamily: 'Consolas, Courier New, monospace',
-      fontSize: '13px',
-      color: '#38ef7d',
-      backgroundColor: '#040d0a',
-      padding: { x: 6, y: 3 },
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.som.destruir();
+      this.armas.destruir();
+      this.agua?.destruir();
+      this.agua = null;
     });
-    this.textoPrompt.setOrigin(0.5);
-    this.textoPrompt.setVisible(false);
+
+    this.time.delayedCall(700, () => this.area.iniciar());
   }
 
-  private criarJogador(): void {
-    this.tipoPersonagem = GerenciadorEstado.obterPersonagem();
-    const chave = this.tipoPersonagem === 'reis' ? 'reis' : 'alvares';
-    this.jogador = this.physics.add.sprite(120, 580, chave);
-    this.jogador.setCollideWorldBounds(true);
+  /* =========================================================================
+   * ENTRADA
+   * ========================================================================= */
 
-    const body = this.jogador.body as Phaser.Physics.Arcade.Body;
-    body.setSize(44, 96);
-    body.setOffset(42, 26);
-
-    this.jogador.anims.play(`${this.tipoPersonagem}_idle`, true);
-
-    this.physics.add.collider(this.jogador, this.plataformas);
-    this.colisorBarreira = this.physics.add.collider(this.jogador, this.barreiraMecanica);
+  private configurarTeclas(): void {
+    const kb = this.input.keyboard;
+    if (!kb) return;
+    const K = Phaser.Input.Keyboard.KeyCodes;
+    const nomes: Record<string, number> = {
+      A: K.A,
+      D: K.D,
+      W: K.W,
+      S: K.S,
+      ESQ: K.LEFT,
+      DIR: K.RIGHT,
+      CIMA: K.UP,
+      BAIXO: K.DOWN,
+      ESPACO: K.SPACE,
+      J: K.J,
+      X: K.X,
+      K: K.K,
+      C: K.C,
+      E: K.E,
+      Q: K.Q,
+      F: K.F,
+      N: K.N,
+    };
+    this.teclas = {};
+    for (const [nome, codigo] of Object.entries(nomes)) this.teclas[nome] = kb.addKey(codigo, false);
   }
 
-  private configurarControles(): void {
-    if (this.input.keyboard) {
-      this.cursores = this.input.keyboard.createCursorKeys();
-      this.teclaInteragir = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
-    }
+  private lerControles(): ControlesPorto {
+    const t = this.teclas;
+    const down = (n: string) => t[n]?.isDown ?? false;
+    const just = (n: string) => (t[n] ? Phaser.Input.Keyboard.JustDown(t[n]) : false);
+    const puloApertado = just('W') || just('CIMA') || just('ESPACO');
+    return {
+      esquerda: down('A') || down('ESQ'),
+      direita: down('D') || down('DIR'),
+      cima: down('W') || down('CIMA'),
+      pulo: down('W') || down('CIMA') || down('ESPACO'),
+      puloApertado,
+      agachar: down('S') || down('BAIXO'),
+      atirar: down('J') || down('X'),
+      espuma: down('K') || down('C'),
+      espumaApertada: just('K') || just('C'),
+    };
   }
+
+  /* =========================================================================
+   * TERMINAL
+   * ========================================================================= */
 
   private configurarTerminal(): void {
     this.terminal.definirInterpretador(interpretarComandoFase2);
     this.terminal.definirAoSubmeter((resultado: ResultadoComando) => {
-      if (resultado.acao === 'CONCLUIR_FASE2') {
-        this.desativarBarreira();
-        setTimeout(() => {
-          this.terminal.fechar();
-        }, 1200);
+      if (this.desafioAberto === 'loja') {
+        this.hud.atualizar();
+        if (resultado.acao === 'LOJA_COMPROU') this.som.tocar('item');
+        if (resultado.acao === 'LOJA_SAIR') this.time.delayedCall(500, () => this.terminal.fechar());
+        return;
+      }
+      if (resultado.sucesso) this.som.tocar('acerto');
+      else if (resultado.acao !== 'LIMPAR_TERMINAL') this.som.tocar('erro');
+      this.area.aoResultadoTerminal(resultado, this.desafioAberto ?? '');
+    });
+  }
+
+  abrirDesafio(desafio: DesafioPorto, modelo: unknown, titulo: string, linhasIniciais: string[]): void {
+    this.desafioAberto = desafio;
+    this.jogador.body.setVelocityX(0);
+    this.terminal.abrir({
+      titulo,
+      contexto: { cena: 'fase2', desafio, modelo },
+      linhasIniciais,
+    });
+  }
+
+  abrirLoja(): void {
+    const loja = new ModeloLoja(this.estado);
+    this.abrirDesafio('loja', loja, 'CRACA // MERCADO DEBAIXO DO PÍER', [
+      'CRACA: Psst! Tem lacre aí? Tenho filtro novinho, quase sem fuligem.',
+      '',
+      loja.desenhar(),
+      '',
+      `   Seus lacres: ${this.estado.lacres}`,
+      '> Digite o número do item para comprar, ou "sair".',
+    ]);
+  }
+
+  imprimirNoTerminal(texto: string, tipo: 'info' | 'sucesso' | 'erro' = 'info'): void {
+    if (this.terminal.estaAberto) this.terminal.imprimirLinha(texto, tipo);
+  }
+
+  fecharTerminal(): void {
+    this.terminal.fecharForcado();
+  }
+
+  get terminalAberto(): boolean {
+    return this.terminal.estaAberto;
+  }
+
+  fecharTerminalEm(ms: number): void {
+    this.time.delayedCall(ms, () => this.terminal.fecharForcado());
+  }
+
+  /* =========================================================================
+   * DIÁLOGOS
+   * ========================================================================= */
+
+  /** Abre um diálogo (uma única vez por partida quando a chave é informada). */
+  falar(linhas: Array<[Falante, string]>, aoFim?: () => void, chaveUnica?: string): void {
+    if (chaveUnica) {
+      if (this.estado.falasVistas.includes(chaveUnica)) {
+        aoFim?.();
+        return;
+      }
+      this.estado.falasVistas.push(chaveUnica);
+    }
+    this.jogador.body.setVelocityX(0);
+    this.comunicador.iniciarDialogo(roteiro(linhas, this.nomeOperador), aoFim);
+  }
+
+  /* =========================================================================
+   * CONSTRUÇÃO (usada pelas áreas)
+   * ========================================================================= */
+
+  /** Sólido invisível (chão, paredes); umaVia = só colide por cima. */
+  solido(x: number, y: number, w: number, h: number, umaVia = false): Phaser.GameObjects.Zone {
+    const z = this.add.zone(x + w / 2, y + h / 2, w, h);
+    this.physics.add.existing(z, true);
+    this.solidos.add(z);
+    const body = z.body as Phaser.Physics.Arcade.StaticBody;
+    if (umaVia) {
+      body.checkCollision.down = false;
+      body.checkCollision.left = false;
+      body.checkCollision.right = false;
+    }
+    return z;
+  }
+
+  /** Imagem em pixel art (escala 4) posicionada pela base (x centro, y base). */
+  imagem(chave: string, x: number, y: number, profundidade: number = PROF.estruturas, origemY = 1): Phaser.GameObjects.Image {
+    return this.add.image(Math.round(x), Math.round(y), chave).setOrigin(0.5, origemY).setScale(ESCALA).setDepth(profundidade);
+  }
+
+  plataformaMovel(x: number, y: number, w: number, h: number, umaVia = true): PlataformaMovel {
+    const p = new PlataformaMovel(this.grupoMoveis, this, x, y, w, h, umaVia);
+    this.plataformasMoveis.push(p);
+    return p;
+  }
+
+  /** Plataforma fixa de mão única com visual (ex.: mancha de óleo seca pela espuma). */
+  criarPlataformaFixa(x: number, topo: number, largura: number, textura: string): void {
+    this.solido(x - largura / 2, topo, largura, 16, true);
+    this.add.image(x, topo - 4, textura).setOrigin(0.5, 0).setScale(ESCALA).setDepth(PROF.plataformas);
+  }
+
+  interativo(x: number, y: number, rotulo: string, acao: () => void, ativo: () => boolean = () => true, raio = 90): void {
+    this.interativos.push({ x, y, raio, rotulo, acao, ativo });
+  }
+
+  gatilho(x0: number, x1: number, acao: () => void, y0 = -10000, y1 = 10000): void {
+    this.gatilhos.push({ x0, x1, y0, y1, feito: false, acao });
+  }
+
+  criarLacre(x: number, y: number): void {
+    const s = this.add.sprite(x, y, 'pb-lacre', 0).setScale(ESCALA).setDepth(PROF.itens);
+    s.play('pb-anim-lacre');
+    this.tweens.add({ targets: s, y: y - 6, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    this.coletaveis.push({ sprite: s, tipo: 'lacre' });
+  }
+
+  criarKit(x: number, y: number): void {
+    const s = this.add.image(x, y, 'pb-kit').setScale(ESCALA).setDepth(PROF.itens);
+    this.tweens.add({ targets: s, y: y - 6, duration: 600, yoyo: true, repeat: -1 });
+    this.coletaveis.push({ sprite: s, tipo: 'kit' });
+  }
+
+  /** Hidrante: recarrega o tanque do Canhão de Espuma. */
+  criarHidrante(x: number, chao: number): void {
+    this.imagem('pb-hidrante', x, chao, PROF.npcs);
+    this.interativo(
+      x,
+      chao - 30,
+      '[E] RECARREGAR ESPUMA',
+      () => {
+        this.estado.espuma = ESPUMA_MAXIMA;
+        this.hud.atualizar();
+        this.som.tocar('item');
+        this.efeitos.textoFlutuante(x, chao - 70, 'TANQUE CHEIO!', COR.espuma);
+      },
+      () => this.estado.temCanhao && this.estado.espuma < ESPUMA_MAXIMA
+    );
+  }
+
+  /** Caixa de incêndio: recarrega o extintor básico. */
+  criarCaixaExtintor(x: number, chao: number): void {
+    this.imagem('pb-caixa-extintor', x, chao - 40, PROF.npcs);
+    this.interativo(
+      x,
+      chao - 60,
+      '[E] RECARREGAR EXTINTOR',
+      () => {
+        this.estado.cargasExtintor = CARGAS_EXTINTOR;
+        this.hud.atualizar();
+        this.som.tocar('item');
+        this.efeitos.textoFlutuante(x, chao - 110, 'EXTINTOR: 3 JATOS', '#FF8A6A');
+      },
+      () => this.estado.temExtintor && !this.estado.temCanhao && this.estado.cargasExtintor < CARGAS_EXTINTOR
+    );
+  }
+
+  /** Terminal holográfico do PORTUS com uma das 5 gravações. */
+  criarGravacaoPortus(numero: number, x: number, chao: number, texto: string): void {
+    this.imagem('pb-pedestal-portus', x, chao, PROF.npcs);
+    const holo = this.add.sprite(x, chao - 12 * ESCALA, 'pb-portus', 0).setOrigin(0.5, 1).setScale(ESCALA).setDepth(PROF.emissivo).setAlpha(0.8);
+    holo.play('pb-anim-portus');
+    this.tweens.add({ targets: holo, y: holo.y - 6, duration: 1400, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    this.efeitos.brilho(x, chao - 90, 70, COR.telaBoia, 0.25);
+    this.interativo(x, chao - 50, `[E] GRAVAÇÃO DO PORTUS ${numero}/5`, () => {
+      if (!this.estado.gravacoes.includes(numero)) this.estado.gravacoes.push(numero);
+      this.comunicador.iniciarDialogo([
+        { ...roteiro([['portus', texto]], this.nomeOperador)[0], falante: `> PORTUS // GRAVAÇÃO ${numero} DE 5 (ANTES DA CORRUPÇÃO)` },
+      ]);
+    });
+  }
+
+  /** CRACA escondida (loja). */
+  criarCraca(x: number, chao: number): void {
+    const s = this.add.sprite(x, chao, 'pb-craca', 0).setOrigin(0.5, 1).setScale(ESCALA).setDepth(PROF.npcs);
+    s.play('pb-anim-craca');
+    this.interativo(x, chao - 30, '[E] CRACA (LOJA)', () => {
+      if (!this.estado.falasVistas.includes('craca')) {
+        this.falar(FALAS.craca, () => this.abrirLoja(), 'craca');
+      } else {
+        this.abrirLoja();
       }
     });
   }
 
-  private desativarBarreira(): void {
-    if (this.isResolvido) return;
-    this.isResolvido = true;
+  /** Recompensa ao derrotar inimigo: lacre (35%) ou kit de reparo (10%). */
+  soltarRecompensa(x: number, y: number): void {
+    const r = Math.random();
+    if (r < 0.35) this.criarLacre(x, Math.min(y, this.area.altura - 120));
+    else if (r < 0.45) this.criarKit(x, Math.min(y, this.area.altura - 120));
+  }
 
-    if (this.colisorBarreira) {
-      this.physics.world.removeCollider(this.colisorBarreira);
+  /* =========================================================================
+   * EVENTOS DE JOGO
+   * ========================================================================= */
+
+  dispararPatch(x: number, y: number, dir: number): boolean {
+    return this.armas.dispararPatch(x, y, dir);
+  }
+
+  usarFerramentaEspuma(x: number, y: number, dir: number, mira: 'normal' | 'alto' | 'baixo'): void {
+    const e = this.estado;
+    if (e.temCanhao) {
+      if (e.espuma <= 0) {
+        this.hud.aviso('TANQUE DE ESPUMA VAZIO! RECARREGUE NUM HIDRANTE [E]', '#FF8A6A');
+        this.som.tocar('erro');
+        return;
+      }
+      e.espuma--;
+      this.armas.dispararEspuma(x, y, dir, mira);
+    } else if (e.temExtintor) {
+      if (e.cargasExtintor <= 0) {
+        this.hud.aviso('EXTINTOR VAZIO! RECARREGUE NA CAIXA DE INCÊNDIO [E]', '#FF8A6A');
+        this.som.tocar('erro');
+        return;
+      }
+      e.cargasExtintor--;
+      this.armas.usarExtintor(x, y, dir);
+    } else {
+      this.hud.aviso('VOCÊ AINDA NÃO TEM FERRAMENTA CONTRA FOGO', '#C8C2B4', 1400);
+      return;
     }
+    this.hud.atualizar();
+  }
 
-    this.tweens.add({
-      targets: this.barreiraMecanica,
-      y: this.barreiraMecanica.y + 220,
-      alpha: 0,
-      duration: 700,
-      onComplete: () => {
-        this.barreiraMecanica.destroy();
-        this.concluirFaseAtual();
+  atingirComPatch(tiro: Phaser.Physics.Arcade.Image): boolean {
+    return this.inimigos.atingirPatch(tiro) || this.area.atingirPatch(tiro);
+  }
 
-        this.comunicador.iniciarDialogo(
-          [
-            {
-              falante: '> CANAL REBELDE // INTERCEPTAÇÃO: INTEGRANTE 2',
-              texto:
-                'Pistões sincronizados com sucesso via loop! A Fase 2 foi dominada.',
-            },
-            {
-              falante: '> CANAL REBELDE // INTERCEPTAÇÃO: INTEGRANTE 2',
-              texto: 'Pressione ENTER ou ESC para retornar ao Hub Central.',
-            },
-          ],
-          () => {
-            this.retornarAoHub();
-          }
-        );
-      },
+  atingirComEspuma(bola: Phaser.Physics.Arcade.Image): boolean {
+    return this.inimigos.atingirEspuma(bola) || this.area.atingirEspuma(bola);
+  }
+
+  aoApagarFoco(foco: FocoIncendio): void {
+    if (foco.id && !this.estado.focosApagados.includes(foco.id)) {
+      this.estado.focosApagados.push(foco.id);
+      this.hud.aviso(`FOCO APAGADO! ÍNDICE DE FUMAÇA: ${indiceFumaca(this.estado)}%  (${this.estado.focosApagados.length}/12)`, COR.espuma);
+      this.nevoa.setAlpha(0.32 * (indiceFumaca(this.estado) / 100));
+    }
+    this.area.aoApagarFoco(foco);
+  }
+
+  aoEspumaNoOleo(x: number, zona: Phaser.Geom.Rectangle): void {
+    this.area.aoEspumaNoOleo(x, zona);
+  }
+
+  fogoNoChaoEm(x: number): boolean {
+    return this.area.fogoNoChaoEm(x);
+  }
+
+  aoMorrerJogador(): void {
+    this.estado.vidas--;
+    this.hud.atualizar();
+    if (this.estado.vidas > 0) {
+      this.cameras.main.flash(300, 255, 255, 255);
+      this.jogador.reviver(this.checkpoint.x, this.checkpoint.y);
+      this.hud.aviso(`VIDAS RESTANTES: ${this.estado.vidas}`, '#FF8A6A');
+      this.area.aoReviver();
+      return;
+    }
+    // Fim de jogo: recomeça a área com o estado da entrada e 3 vidas
+    this.hud.aviso('FIM DE JOGO — REINICIANDO A ÁREA', '#FF4A3A', 1800);
+    this.transicionando = true;
+    const estado = clonarEstado(this.estadoEntrada);
+    estado.vidas = VIDAS_INICIAIS;
+    this.time.delayedCall(1800, () => {
+      this.cameras.main.fade(500, 0, 0, 0);
+      this.time.delayedCall(520, () => this.scene.restart({ area: this.indiceArea, estado }));
     });
   }
 
-  override update(tempo: number, delta: number): void {
-    super.update(tempo, delta);
+  registrarCheckpoint(x: number, y: number, texto = 'CHECKPOINT'): void {
+    if (this.checkpoint.x === x && this.checkpoint.y === y) return;
+    this.checkpoint = { x, y };
+    this.hud.aviso(texto, COR.telaBoia, 1500);
+  }
 
-    if (!this.jogador || !this.jogador.body) return;
-
-    if (this.terminal.estaAberto || this.comunicador.estaAtivo) {
-      this.jogador.setVelocityX(0);
-      this.jogador.anims.play(`${this.tipoPersonagem}_idle`, true);
-      this.textoPrompt.setVisible(false);
+  /** Avança para a próxima área (ou conclui a fase após a torre). */
+  concluirArea(): void {
+    if (this.transicionando) return;
+    this.transicionando = true;
+    this.terminal.fecharForcado();
+    const proxima = this.indiceArea + 1;
+    if (proxima >= AREAS.length) {
+      this.concluirFaseAtual();
+      apagarProgresso();
+      this.cameras.main.fade(900, 0, 0, 0);
+      this.time.delayedCall(950, () => this.scene.start('CenaHub'));
       return;
     }
+    const estado = clonarEstado(this.estado);
+    estado.area = proxima;
+    salvarProgresso(estado);
+    this.cameras.main.fade(600, 0, 0, 0);
+    this.time.delayedCall(650, () => this.scene.restart({ area: proxima, estado }));
+  }
 
-    const dist = Phaser.Math.Distance.Between(
-      this.jogador.x,
-      this.jogador.y,
-      this.totemLoop.x,
-      this.totemLoop.y
-    );
-    const perto = dist < 70 && !this.isResolvido;
-    this.textoPrompt.setVisible(perto);
+  /** Desliga a névoa de fundo (final) */
+  definirNevoa(alpha: number): void {
+    this.tweens.add({ targets: this.nevoa, alpha, duration: 2000 });
+  }
 
-    if (perto && this.teclaInteragir && Phaser.Input.Keyboard.JustDown(this.teclaInteragir)) {
-      this.jogador.setVelocityX(0);
-      this.terminal.abrir({
-        titulo: 'CONSOLE DE CONTROLE DE PISTÕES // SETOR 2',
-        linhasIniciais: [
-          '=== SISTEMA DE CALIBRAÇÃO DE ESTEIRAS ===',
-          '> TOTAL DE PISTÕES DESALINHADOS: 5',
-          '> DIRETRIZ: Execute um loop para calibrar os 5 pistões sequencialmente.',
-          '> EXEMPLO: for i in range(5): alinhar_esteira()',
-          '> Digite a instrução de repetição:',
-        ],
-      });
+  /* =========================================================================
+   * LAÇO PRINCIPAL
+   * ========================================================================= */
+
+  override update(tempo: number, delta: number): void {
+    super.update(tempo, delta);
+    if (!this.jogador || !this.area) return;
+
+    const pausado = this.terminal.estaAberto || this.comunicador.estaAtivo || this.cutscene || this.transicionando;
+    if (pausado !== this.fisicaPausada) {
+      this.fisicaPausada = pausado;
+      if (pausado) this.physics.world.pause();
+      else {
+        this.physics.world.resume();
+        if (!this.terminal.estaAberto) this.desafioAberto = null;
+      }
     }
 
-    const esquerda = this.cursores?.left.isDown ?? false;
-    const direita = this.cursores?.right.isDown ?? false;
-    const pulo = this.cursores?.up.isDown ?? false;
-    const noChao = this.jogador.body.blocked.down || this.jogador.body.touching.down;
+    for (const p of this.plataformasMoveis) {
+      if (!p.body?.enable) continue;
+      if (pausado) p.teleportar(p.alvoX, p.alvoY);
+      else p.aplicar(delta);
+    }
+    for (const p of this.armas.plataformas) {
+      if (pausado) p.plat.teleportar(p.plat.alvoX, p.plat.alvoY);
+      else p.plat.aplicar(delta);
+    }
 
-    if (esquerda) {
-      this.jogador.setVelocityX(-220);
-      this.jogador.setFlipX(true);
-    } else if (direita) {
-      this.jogador.setVelocityX(220);
-      this.jogador.setFlipX(false);
+    if (pausado) {
+      this.textoPrompt.setVisible(false);
+      this.jogador.congelado = true;
+      this.jogador.atualizar(this.lerControlesVazios(), delta);
+      this.area.atualizarPausado(tempo, delta);
     } else {
-      this.jogador.setVelocityX(0);
+      this.jogador.congelado = false;
+      this.atualizarAmbiente(tempo);
+      this.jogador.atualizar(this.lerControles(), delta);
+      this.atualizarItens();
+      this.fogo.atualizar();
+      this.armas.atualizar();
+      this.inimigos.atualizar(tempo, delta);
+      this.atualizarGatilhos();
+      this.atualizarInterativos();
+      this.area.atualizar(tempo, delta);
+      if (this.jogador.y > this.area.altura + 60 && !this.jogador.morto) {
+        this.jogador.receberDano(2, this.jogador.x);
+        if (!this.jogador.morto) this.jogador.posicionar(this.checkpoint.x, this.checkpoint.y);
+      }
+      if (Phaser.Input.Keyboard.JustDown(this.teclas.N) && this.continuouDoSave && tempo < 15000) {
+        apagarProgresso();
+        this.scene.restart({ area: 0, estado: criarEstadoInicial() });
+        return;
+      }
     }
 
-    if (pulo && noChao) {
-      this.jogador.setVelocityY(-520);
+    for (const p of this.plataformasMoveis) p.sincronizar();
+    for (const p of this.armas.plataformas) p.plat.sincronizar();
+    this.agua?.atualizar(delta);
+    const cam = this.cameras.main;
+    const cabeca = this.jogador.cabeca;
+    this.fumaca.atualizar(delta, cabeca.x - cam.scrollX, cabeca.y - cam.scrollY, this.jogador.agachado, indiceFumaca(this.estado));
+    this.hud.quadro();
+  }
+
+  private lerControlesVazios(): ControlesPorto {
+    return { esquerda: false, direita: false, cima: false, pulo: false, puloApertado: false, agachar: false, atirar: false, espuma: false, espumaApertada: false };
+  }
+
+  /** Água, óleo e fumaça sufocante. */
+  private atualizarAmbiente(tempo: number): void {
+    const j = this.jogador;
+    const agua = this.agua;
+    j.naAgua = !!agua && agua.estaSubmerso(j.x, j.y + 20);
+    j.aguaLimpa = !!agua && agua.limpeza >= 0.6;
+    if (j.naAgua && !j.aguaLimpa && tempo - this.ultimoDanoAgua > 900) {
+      this.ultimoDanoAgua = tempo;
+      if (j.receberDano(1, j.x, 0)) this.efeitos.textoFlutuante(j.x, j.y - 70, 'ÁGUA CONTAMINADA!', '#8ACB9A', 12);
+    }
+    const pes = j.pes;
+    j.noOleo = this.zonasOleo.some((r) => j.x >= r.x && j.x <= r.right && pes >= r.y - 6 && pes <= r.bottom + 4);
+
+    // Fumaça sufocante: em pé, o operador tosse e perde vida; agachado, respira
+    if (this.fumaca.densidadeAtual > 0.86 && !j.agachado && !this.fumaca.filtroAtivo && tempo - this.ultimoDanoFumaca > 3500) {
+      this.ultimoDanoFumaca = tempo;
+      if (j.receberDano(1, j.x, 0)) this.efeitos.textoFlutuante(j.x, j.y - 80, 'COF! COF! AGACHE [S]!', '#C8C2B4', 13);
     }
 
-    // Máquina de animações
-    if (!noChao) {
-      this.jogador.anims.play(`${this.tipoPersonagem}_jump`, true);
-    } else if (esquerda || direita) {
-      this.jogador.anims.play(`${this.tipoPersonagem}_run`, true);
+    if (Phaser.Input.Keyboard.JustDown(this.teclas.Q)) {
+      if (this.estado.tanquesE > 0 && j.vida < 10) {
+        this.estado.tanquesE--;
+        j.curar(10);
+        this.som.tocar('item');
+        this.efeitos.textoFlutuante(j.x, j.y - 80, 'TANQUE-E: VIDA CHEIA!', COR.virus);
+      }
+    }
+    if (Phaser.Input.Keyboard.JustDown(this.teclas.F)) {
+      if (this.estado.filtros > 0 && !this.fumaca.filtroAtivo) {
+        this.estado.filtros--;
+        this.fumaca.ativarFiltro(60000);
+        this.som.tocar('item');
+        this.hud.atualizar();
+        this.efeitos.textoFlutuante(j.x, j.y - 80, 'FILTRO DE MÁSCARA: VISÃO EM DOBRO!', COR.telaBoia);
+      }
+    }
+  }
+
+  private atualizarItens(): void {
+    const j = this.jogador;
+    for (let i = this.coletaveis.length - 1; i >= 0; i--) {
+      const c = this.coletaveis[i];
+      if (Math.abs(c.sprite.x - j.x) < 34 && Math.abs(c.sprite.y - j.y) < 64) {
+        if (c.tipo === 'lacre') {
+          this.estado.lacres++;
+          this.som.tocar('lacre');
+          this.efeitos.textoFlutuante(c.sprite.x, c.sprite.y - 20, '+1 LACRE', COR.advertencia, 12);
+        } else {
+          j.curar(3);
+          this.som.tocar('item');
+          this.efeitos.textoFlutuante(c.sprite.x, c.sprite.y - 20, '+3 VIDA', COR.telaBoia, 12);
+        }
+        this.tweens.killTweensOf(c.sprite);
+        c.sprite.destroy();
+        this.coletaveis.splice(i, 1);
+        this.hud.atualizar();
+      }
+    }
+  }
+
+  private atualizarGatilhos(): void {
+    const j = this.jogador;
+    for (const g of this.gatilhos) {
+      if (!g.feito && j.x >= g.x0 && j.x <= g.x1 && j.y >= g.y0 && j.y <= g.y1) {
+        g.feito = true;
+        g.acao();
+        if (this.comunicador.estaAtivo || this.terminal.estaAberto) break;
+      }
+    }
+  }
+
+  private atualizarInterativos(): void {
+    const j = this.jogador;
+    let melhor: Interativo | null = null;
+    let menor = Infinity;
+    for (const it of this.interativos) {
+      if (!it.ativo()) continue;
+      const d = Phaser.Math.Distance.Between(j.x, j.y, it.x, it.y);
+      if (d < it.raio && d < menor) {
+        menor = d;
+        melhor = it;
+      }
+    }
+    if (melhor) {
+      this.textoPrompt.setText(melhor.rotulo).setPosition(melhor.x, melhor.y - 46).setVisible(true);
+      if (Phaser.Input.Keyboard.JustDown(this.teclas.E)) {
+        this.textoPrompt.setVisible(false);
+        melhor.acao();
+      }
     } else {
-      this.jogador.anims.play(`${this.tipoPersonagem}_idle`, true);
+      this.textoPrompt.setVisible(false);
+      Phaser.Input.Keyboard.JustDown(this.teclas.E);
     }
   }
 }
