@@ -307,17 +307,8 @@ export class Area3Cais extends AreaPorto {
 
   private abrirPainel(): void {
     this.cena.abrirDesafio('fila', this.modelo, 'PORTÃO DO CAIS // CAIS DA FILA // DESAFIO 2: FILA', [
-      '=== CONTROLE DO PORTÃO DO CAIS ===',
-      '> O REBOCADOR-BOMBEIRO está no FIM da fila de 6 navios.',
-      '> Só o navio da FRENTE atraca. Navios novos entram no FIM.',
-      '> Um script do MegaBrain faz navios-vírus furarem a fila: bloqueie-os mandando para o fim!',
-      '>',
-      '>   fila.dequeue()        // o navio da frente atraca',
-      '>   fila.enqueue(navio)   // um navio novo entra no fim',
-      '>',
-      this.modelo.desenhar(),
-      '>',
-      '> Digite "ajuda" para o manual ou "dica" para a dica da BOIA.',
+      'Só o navio da FRENTE atraca; navios novos entram no FIM da fila.',
+      'Um script do MegaBrain faz navios-vírus furarem a fila: bloqueie-os mandando para o fim!',
     ]);
   }
 

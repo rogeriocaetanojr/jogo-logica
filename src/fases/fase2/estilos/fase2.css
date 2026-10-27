@@ -311,6 +311,32 @@ body.fase2 .terminal-input-row:focus-within {
   color: var(--pb-texto);
 }
 
+.ajuda-nivel {
+  display: inline-block;
+  margin: 0 0 12px;
+  padding: 3px 10px;
+  font-family: var(--pb-fonte-codigo);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: var(--pb-borda);
+  border: 1px solid var(--pb-borda);
+  border-radius: 2px;
+}
+
+.ajuda-passos {
+  max-width: 66ch;
+  margin: 0 0 20px;
+  padding-left: 22px;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--pb-texto);
+}
+
+.ajuda-passos li + li {
+  margin-top: 6px;
+}
+
 .ajuda-conceito {
   max-width: 62ch;
   margin: 0 0 20px;

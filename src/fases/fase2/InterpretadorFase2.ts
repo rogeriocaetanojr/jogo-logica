@@ -3,6 +3,7 @@ import { textoAjudaTerminal } from './porto/AjudaConteudo';
 import type { IdAjuda } from './porto/AjudaConteudo';
 import { DICAS_BOIA } from './porto/DialogosPorto';
 import { ITENS_LOJA, ModeloCarretas, ModeloFila, ModeloLoja, ModeloPilha, ModeloValvulas } from './porto/DesafiosPorto';
+import { FICHAS, linhasGabarito } from './porto/FichaDesafio';
 import type { NomePilha } from './porto/DesafiosPorto';
 
 /**
@@ -87,6 +88,9 @@ export function interpretarComandoFase2(entrada: string, contexto?: ContextoInte
   }
   if (desafio !== 'loja' && (simples === 'dica' || simples === 'boia')) {
     return { sucesso: true, mensagem: `[DICA DA BOIA] "${DICAS_BOIA[INDICE_DICA[desafio]]}"` };
+  }
+  if (desafio !== 'loja' && ['solucao', 'solução', 'resolver', 'gabarito'].includes(simples)) {
+    return resposta(true, [], linhasGabarito(FICHAS[desafio]).join('\n'));
   }
 
   switch (desafio) {
@@ -225,6 +229,9 @@ function interpretarVetor(bruto: string, simples: string, modelo: ModeloValvulas
         indices.push(Number(m[1]));
       } else if (/^valvulas?\(\d+\)/.test(c)) {
         return { sucesso: false, mensagem: `[SyntaxError] Vetor se acessa com COLCHETES: valvula[3].abrir() — e não valvula(3).\n${deboche('vetor')}` };
+      } else if ((m = c.match(/^valvulas?\[(-?\d+)\]/))) {
+        return { sucesso: false, mensagem: `Comando incompleto: "${cmd}". Escreva valvula[${m[1]}].abrir() e separe vários comandos com ponto e vírgula (;).
+${deboche('vetor')}` };
       } else if ((m = c.match(/^valvulas?\[([^\]]*)\]/))) {
         return { sucesso: false, mensagem: `[TypeError] O índice precisa ser um número inteiro: valvula[${m[1]}] não serve.\n${deboche('vetor')}` };
       } else {

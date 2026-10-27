@@ -134,14 +134,12 @@ export class Area1Portaria extends AreaPorto {
   }
 
   override iniciar(): void {
-    this.cena.falar(
-      FALAS.abertura,
-      () => {
-        this.cena.hud.mostrarControles('[A/D] MOVER   [W/ESPAÇO] PULAR   [S] AGACHAR   [J] PATCH   [K] EXTINTOR/ESPUMA   [E] INTERAGIR   [ESC] HUB');
-        this.cena.hud.aviso('FALE COM O CAPITÃO PRÁTICO NA GUARITA', COR.telaBoia, 3000);
-      },
-      'a1-abertura'
+    // Sem pop-up de abertura: os controles ficam fixos no rodapé durante toda a portaria
+    this.cena.hud.mostrarControles(
+      '[A/D] MOVER   [W/ESPAÇO] PULAR   [S] AGACHAR   [E] INTERAGIR\n' +
+        '[J] ATIRAR (Pistola de Patch)   [K] EXTINTOR (jato no fogo)   [H] AJUDA   [ESC] HUB'
     );
+    this.cena.hud.aviso('FALE COM O CAPITÃO PRÁTICO NA GUARITA', COR.telaBoia, 5000);
   }
 
   private falarComCapitao(): void {

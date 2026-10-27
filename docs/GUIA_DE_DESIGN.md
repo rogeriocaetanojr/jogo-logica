@@ -136,7 +136,7 @@ Textos dentro da arte (placas, painéis LED, título de área) usam a fonte 3×5
 Regras: o que **brilha** (olhos de vírus, explosões, faíscas) fica em `emissivo` (acima da máscara de fumaça); a máscara de visão fica em `mascara`; o HUD sempre em `hud`.
 
 ### 4.6 Parallax
-Fundo em camadas (`AreaPorto.camada`): céu fixo (`fator 0`), cidade/estruturas distantes (~0.2–0.5), meio (~0.6–0.8), chão (1.0). Cada camada é uma textura desenhada uma vez, com largura calculada para cobrir o mundo inteiro.
+Fundo em camadas (`AreaPorto.camada`): quanto mais longe, menor o fator de rolagem. Exemplo da Área 1: céu `0`, cidade `0.1`, armazéns `0.5`, chão `1`. Cada camada é uma textura desenhada uma vez, com largura calculada para cobrir o mundo inteiro.
 
 ---
 
@@ -350,17 +350,17 @@ Todos têm **olho verde-néon** emissivo. O jogador deve entender *como derrotar
 | **GAIVÍRUS** | Gaivota-drone, rasante em linha reta | 1 tiro de patch |
 | **SIRI-SCRIPT** | Anda de lado, atira colchetes `{ }` | 2 tiros, por trás ou de cima |
 | **JANELA POP-UP** | Cobre parte da tela | Tiro no “X” |
-| **EMPILHADEIRA ZUMBI** | Avança reto, ergue garfos ao ver o jogador | Esquivar / patch |
+| **EMPILHADEIRA ZUMBI** | Patrulha, ergue os garfos ao ver o jogador e investe em linha reta | 3 de vida (ver `InimigosPorto.ts`) |
 | **ÁGUA-VÍRUS** | Água-viva de sacolas | Espuma prende, depois 1 tiro |
 | **MANCHA VIVA** | Poça de óleo que se ergue e pega fogo | Espuma seca e vira plataforma |
 | **FUMACÊ** | Nuvem com olhos, reduz a visão | Espuma ou ventiladores |
 | **BARRIL BUGADO** | Rola e explode no fogo | Manter longe do fogo |
 | **GARRA DE GUINDASTE** | Desce para agarrar | Tiro no cabo |
 
-Dano de contato padrão: `2`. Inimigos ilegítimos de tiro mostram texto flutuante cinza (`bloquear`) em vez de ficarem “mudos”.
+Dano de contato padrão: `2`. Quando um tiro não surte efeito (ex.: patch num inimigo que só cai com espuma), o inimigo faz faísca + som `tink` e pode mostrar um texto flutuante cinza (`bloquear`): o jogo explica por que não funcionou em vez de ficar “mudo”.
 
 ### 11.3 Chefes
-- **Miniboss BORRACHÃO.EXE** (Área 4): espuma o esfria e o paralisa por 3 s mostrando o núcleo verde.
+- **Miniboss BORRACHÃO.EXE** (Área 4): um jato de espuma esfria os pneus e o faz parar por 3 s, mostrando o núcleo verde (alvo do patch).
 - **Boss KRAKEN.EXE** (Área 6): barra de vida com marcas em **60%** e **30%** = mudança de etapa, sempre com um diálogo.
 
 ### 11.4 Áreas e desafios
@@ -369,7 +369,7 @@ Dano de contato padrão: `2`. Inimigos ilegítimos de tiro mostram texto flutuan
 | 1 | Portaria Travada | Introdução | leve | `entardecer` |
 | 2 | Pátio das Pilhas | **Pilha** (LIFO) | leve | `entardecer` |
 | 3 | Cais da Fila | **Fila** (FIFO) | média | `entardecer` |
-| 4 | Depósito de Pneus | **Vetores e índices** | densa | (interior) |
+| 4 | Depósito de Pneus | **Vetores e índices** | densa | parede de galpão (degradê `#140C0C`→`#3A1A14`) |
 | 5 | Terminal de Combustível | **Ordenação** | densa | `fumacento` |
 | 6 | Torre do Servidor Central | KRAKEN.EXE | densa | `noite` |
 

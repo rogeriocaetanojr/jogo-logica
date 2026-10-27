@@ -1,3 +1,6 @@
+import { FICHAS, barraNivel, quebrarTexto, textoNivel } from './FichaDesafio';
+import type { IdFicha } from './FichaDesafio';
+
 /**
  * Conteúdo da ajuda da fase 2. É a fonte única do painel [H] e do comando "ajuda" do terminal,
  * então toda sintaxe listada aqui precisa ser aceita pelo InterpretadorFase2.
@@ -18,6 +21,10 @@ export interface SecaoAjuda {
   aba: string;
   /** Explica o conceito de programação e o objetivo do desafio. */
   conceito: string;
+  /** Nível do desafio, como "NÍVEL 2 DE 4 · FÁCIL [■■□□]" (só nas seções de desafio). */
+  nivel?: string;
+  /** Passo a passo para resolver, vindo da ficha do desafio. */
+  comoResolver?: string[];
   itens: ItemAjuda[];
   /** Erros comuns e o que eles significam. */
   cuidados: string[];
@@ -25,7 +32,7 @@ export interface SecaoAjuda {
 
 /** Comandos que existem em todos os desafios; ficam numa linha só para a ajuda não precisar rolar. */
 const COMANDOS_TERMINAL: ItemAjuda[] = [
-  { codigo: 'status  dica  limpar', explicacao: 'ver o estado do desafio, pedir uma dica da BOIA e apagar o texto do terminal' },
+  { codigo: 'status  dica  solucao  limpar', explicacao: 'ver o estado do desafio, pedir uma dica da BOIA, ver a resposta completa passo a passo e apagar o texto do terminal' },
 ];
 
 export const AJUDA: SecaoAjuda[] = [
@@ -105,8 +112,7 @@ export const AJUDA: SecaoAjuda[] = [
       ...COMANDOS_TERMINAL,
     ],
     cuidados: [
-      'Placa 3 = valvula[2]. Para achar o índice, subtraia 1 do número da placa.',
-      'Índice fora de 0 a 7 causa um glitch e solta um inimigo no depósito.',
+      'Índice fora de 0 a 7 solta um inimigo no depósito.',
       'Vetor usa colchetes: valvula[3], e não valvula(3).',
     ],
   },
@@ -148,36 +154,36 @@ export const AJUDA: SecaoAjuda[] = [
   },
 ];
 
+/** Liga a ficha de cada desafio na sua seção da ajuda: nível e passo a passo. */
+for (const secao of AJUDA) {
+  const ficha = FICHAS[secao.id as IdFicha];
+  if (!ficha) continue;
+  secao.nivel = `${textoNivel(ficha)}  [${barraNivel(ficha.nivel)}]`;
+  secao.comoResolver = ficha.comoResolver;
+}
+
 export function obterAjuda(id: IdAjuda): SecaoAjuda {
   return AJUDA.find((s) => s.id === id) ?? AJUDA[0];
 }
 
 const LARGURA_TERMINAL = 96;
 
-/** Quebra o texto em linhas de no máximo `max` caracteres, sem cortar palavras. */
-function quebrar(texto: string, max: number): string[] {
-  const linhas: string[] = [];
-  let atual = '';
-  for (const palavra of texto.split(' ')) {
-    if (atual && atual.length + 1 + palavra.length > max) {
-      linhas.push(atual);
-      atual = palavra;
-    } else {
-      atual = atual ? `${atual} ${palavra}` : palavra;
-    }
-  }
-  if (atual) linhas.push(atual);
-  return linhas;
-}
-
 /** Texto do comando "ajuda" dentro do terminal (monoespaçado, sem formatação). */
 export function textoAjudaTerminal(id: IdAjuda): string {
   const s = obterAjuda(id);
   const largura = Math.max(...s.itens.map((i) => i.codigo.length));
   const recuo = ' '.repeat(largura + 6);
-  const linhas = [`[${s.titulo.toUpperCase()}]`, s.conceito, ''];
+  const linhas = [`[${s.titulo.toUpperCase()}]`, ...(s.nivel ? [s.nivel] : []), s.conceito, ''];
+  if (s.comoResolver) {
+    linhas.push('Como resolver:');
+    s.comoResolver.forEach((p, i) => {
+      const [primeira, ...resto] = quebrarTexto(p, LARGURA_TERMINAL - 5);
+      linhas.push(`  ${i + 1}. ${primeira}`, ...resto.map((r) => `     ${r}`));
+    });
+    linhas.push('');
+  }
   for (const item of s.itens) {
-    const [primeira, ...resto] = quebrar(item.explicacao, LARGURA_TERMINAL - largura - 6);
+    const [primeira, ...resto] = quebrarTexto(item.explicacao, LARGURA_TERMINAL - largura - 6);
     linhas.push(`  ${item.codigo.padEnd(largura)}  ${primeira}`, ...resto.map((r) => recuo + r));
   }
   if (s.cuidados.length > 0) {

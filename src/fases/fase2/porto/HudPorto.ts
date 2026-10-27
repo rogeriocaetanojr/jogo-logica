@@ -79,7 +79,7 @@ export class HudPorto {
       backgroundColor: 'rgba(14,10,10,0.88)',
       padding: { x: 12, y: 6 },
     });
-    this.textoControles.setOrigin(0.5, 1).setAlpha(0);
+    this.textoControles.setOrigin(0.5, 1).setAlpha(0).setAlign('center').setLineSpacing(6);
 
     texturaPixel(cena, 'pb-hud-lacre', 5, 8, (p) => {
       p.px(0, 0, 5, 7, COR.advertencia);
@@ -238,10 +238,11 @@ export class HudPorto {
     this.cena.tweens.add({ targets: this.textoAviso, alpha: 0, y: 140, delay: duracao, duration: 500 });
   }
 
-  mostrarControles(texto: string, duracao = 9000): void {
+  /** Faixa de controles no rodapé. Sem `duracao` ela fica fixa até a cena acabar. */
+  mostrarControles(texto: string, duracao?: number): void {
     this.textoControles.setText(texto).setAlpha(1);
     this.cena.tweens.killTweensOf(this.textoControles);
-    this.cena.tweens.add({ targets: this.textoControles, alpha: 0, delay: duracao, duration: 1200 });
+    if (duracao !== undefined) this.cena.tweens.add({ targets: this.textoControles, alpha: 0, delay: duracao, duration: 1200 });
   }
 
   /** Cartão de título da área (letras em pixel art). */

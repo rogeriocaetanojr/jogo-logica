@@ -215,17 +215,8 @@ export class Area2Patio extends AreaPorto {
   private abrirPainel(): void {
     const cena = this.cena;
     cena.abrirDesafio('pilha', this.modelo, 'PAINEL DO GUINDASTE // PÁTIO DAS PILHAS // DESAFIO 1: PILHA', [
-      '=== PAINEL DO GUINDASTE PORTUS-03 ===',
-      '> O contêiner com o CANHÃO DE ESPUMA [ESP] está no FUNDO da pilhaA.',
-      '> O guindaste só pega o contêiner do TOPO e só coloca no TOPO de outra pilha.',
-      '> Limite de 4 contêineres por pilha por causa do vento (a pilhaA está com 5!).',
-      '>',
-      '>   pilhaA.pop()            // tira o contêiner do topo de A',
-      '>   pilhaB.push(conteiner)  // coloca no topo de B',
-      '>',
-      this.modelo.desenhar(),
-      '>',
-      '> Digite "ajuda" para o manual ou "dica" para a dica da BOIA.',
+      'O guindaste só pega o contêiner do TOPO e só coloca no TOPO de outra pilha.',
+      'Limite de 4 contêineres por pilha por causa do vento (a pilhaA está com 5!).',
     ]);
   }
 

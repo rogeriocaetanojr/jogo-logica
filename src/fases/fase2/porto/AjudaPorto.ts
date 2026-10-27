@@ -118,7 +118,14 @@ export class AjudaPorto {
     const secao = obterAjuda(id);
     this.painel.replaceChildren();
     this.painel.scrollTop = 0;
-    this.painel.append(criar('h3', undefined, secao.titulo), criar('p', 'ajuda-conceito', secao.conceito));
+    this.painel.append(criar('h3', undefined, secao.titulo));
+    if (secao.nivel) this.painel.append(criar('p', 'ajuda-nivel', secao.nivel));
+    this.painel.append(criar('p', 'ajuda-conceito', secao.conceito));
+    if (secao.comoResolver) {
+      const passos = criar('ol', 'ajuda-passos');
+      for (const passo of secao.comoResolver) passos.append(criar('li', undefined, passo));
+      this.painel.append(criar('p', 'ajuda-cuidados-titulo', 'Como resolver'), passos);
+    }
 
     const itens = criar('dl', 'ajuda-itens');
     for (const item of secao.itens) {

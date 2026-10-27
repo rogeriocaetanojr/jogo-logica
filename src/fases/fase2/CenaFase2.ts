@@ -12,6 +12,7 @@ import type { AguaPorto } from './porto/AguaPorto';
 import { ArmasPorto } from './porto/ArmasPorto';
 import { ModeloLoja } from './porto/DesafiosPorto';
 import { FALAS, roteiro } from './porto/DialogosPorto';
+import { FICHAS, linhasAbertura, textoNivel } from './porto/FichaDesafio';
 import type { Falante } from './porto/DialogosPorto';
 import { EfeitosPorto, PROF } from './porto/EfeitosPorto';
 import { GerenciadorFogo } from './porto/FogoPorto';
@@ -310,14 +311,21 @@ export class CenaFase2 extends CenaBase {
     });
   }
 
-  abrirDesafio(desafio: DesafioPorto, modelo: unknown, titulo: string, linhasIniciais: string[]): void {
+  /**
+   * Abre o terminal de um desafio. Nos 4 desafios de programação o texto de abertura sai da ficha
+   * (nível, objetivo, como resolver) e `linhasIniciais` traz só o contexto da cena; na loja vale como veio.
+   */
+  abrirDesafio(desafio: DesafioPorto, modelo: { desenhar(): string }, titulo: string, linhasIniciais: string[]): void {
     this.desafioAberto = desafio;
     this.jogador.body.setVelocityX(0);
+    const ficha = desafio === 'loja' ? null : FICHAS[desafio];
     this.terminal.abrir({
       titulo,
       contexto: { cena: 'fase2', desafio, modelo },
-      linhasIniciais,
+      linhasIniciais: ficha ? linhasAbertura(ficha, linhasIniciais, modelo.desenhar()) : linhasIniciais,
     });
+    // O nível fica no cabeçalho do terminal, que não rola junto com o texto
+    this.terminal.definirTitulo(titulo, ficha ? `[${textoNivel(ficha)}]` : undefined);
   }
 
   abrirLoja(): void {

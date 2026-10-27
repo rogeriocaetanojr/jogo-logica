@@ -284,15 +284,8 @@ export class Area4Deposito extends AreaPorto {
 
   private abrirPainel(): void {
     this.cena.abrirDesafio('vetor', this.modelo, 'PAINEL DE SPRINKLERS // DEPÓSITO DE PNEUS // DESAFIO 3: VETORES E ÍNDICES', [
-      '=== PAINEL DE SPRINKLERS DO DEPÓSITO ===',
-      '> 8 válvulas: valvula[0] até valvula[7], uma para cada prateleira.',
-      '> As prateleiras têm PLACAS de 1 a 8, mas o sistema conta a partir do ZERO.',
-      '> Exemplo: para molhar a prateleira 4, abra valvula[3].',
-      '>',
-      '>   valvula[3].abrir()   // molha a prateleira 4',
-      '>',
-      '> Sensores de calor cegos pela fumaça: leia as placas das prateleiras em chamas.',
-      '> Digite "ajuda" para o manual ou "dica" para a dica da BOIA.',
+      '8 válvulas: valvula[0] até valvula[7], uma para cada prateleira. As placas vão de 1 a 8.',
+      'Sensores de calor cegos pela fumaça: leia as placas das prateleiras em chamas.',
     ]);
   }
 
