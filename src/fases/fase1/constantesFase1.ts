@@ -1,10 +1,18 @@
+import type { BlocoNivelFase1 } from './tiposFase1';
+
 /**
  * Constantes e configurações do level design, física e puzzles da Fase 1: Céu Partido.
  * Centraliza todos os números mágicos e coordenadas. Textos e diálogos ficam em DialogosFase1.ts.
+ *
+ * Convenções de coordenadas (gravidade 600, pulo 490 → sobe ~200 px):
+ * - Plataforma de mármore (240x36): y = topo + 18 × scaleY.
+ * - Nuvem (200x44): y = topo + 22. Mármore rachado (180x32): y = topo + 16.
+ * - Jogador: pés em y + 58. Ponto de spawn ≈ topo - 88 (nasce 30 px acima do chão).
+ * - Totem (52x70): y = topo - 35.
  */
 
 export const MUNDO_FASE1 = {
-  LARGURA: 5400,
+  LARGURA: 10178,
   ALTURA: 720,
   PADDING_INFERIOR: 200,
   COR_FUNDO: '#a855f7',
@@ -114,30 +122,20 @@ export const VENTO_FASE1 = {
       COR_SEGMENTO_A: 0xf59e0b,
       COR_SEGMENTO_B: 0xf8fafc,
     },
-
-    // Posições provisórias para teste do vento; o layout final é definido junto com o level design
-    ZONAS: [
-      { x: 1530, y: 400, largura: 380, altura: 400, forca: 75 },
-      { x: 3210, y: 380, largura: 620, altura: 400, forca: 75 },
-    ],
   },
 
-  // Colunas do Bloco 1 (Tutorial de Vento)
-  COLUNA_1: {
-    x: 720,
-    y: 360,
-    largura: 90,
-    altura: 360,
-    forca: 380,
-    ativa: true,
-  },
-  COLUNA_2: {
-    x: 1260,
-    y: 280,
-    largura: 90,
-    altura: 420,
-    forca: 420,
-    ativa: true,
+  // Gêiser de vento: impulso único para cima, em ciclo, com aviso de bolhas antes da erupção
+  GEISER: {
+    COR_BOCA: 0x1e293b,
+    COR_AVISO: 0x7dd3fc,
+    COR_ERUPCAO: 0xe0f2fe,
+    ALFA_ERUPCAO: 0.35,
+    LARGURA_BOCA: 70,
+    ALTURA_BOCA: 14,
+    BOLHAS_QUANTIDADE: 10,
+    BOLHAS_VEL_Y: 70,
+    JATOS_QUANTIDADE: 14,
+    JATOS_VEL_Y: 900,
   },
 } as const;
 
@@ -149,14 +147,19 @@ export const MARMORE_RACHADO_FASE1 = {
   TREMOR_AMPLITUDE: 2,
 } as const;
 
+export const NUVEM_EFEMERA_FASE1 = {
+  TEMPO_DISSIPAR_MS: 800, // Tempo entre pisar e a nuvem sumir
+  TEMPO_RESPAWN_MS: 2500,
+  ALFA_MINIMO: 0.2, // Transparência no fim da dissipação, logo antes de sumir
+  DURACAO_FADE_IN_MS: 350,
+} as const;
+
 export const SENTINELAS_FASE1 = {
   ALCANCE_VISAO_PADRAO: 220,
   ABERTURA_CONE_PADRAO: 38,
   OSCILACAO_Y_VEL: 0.004,
   OSCILACAO_Y_AMP: 6,
   OFFSET_PONTA_CONE_X: 18,
-  HACKEADA_LIMITE_X: 3500,
-  HACKEADA_VELOCIDADE: 120,
   COR_CONE_ALERTA: 0xef4444,
   COR_CONE_HACKEADA: 0x10b981,
   ALFA_CONE_FUNDO: 0.2,
@@ -174,54 +177,51 @@ export const SENTINELAS_FASE1 = {
   COR_CARGA_PULSO: 0x38bdf8,
   COR_DISPARO_PULSO: 0xa5f3fc,
 
-  // Sentinelas do Level Design
-  SENTINELA_1: {
-    x: 2120,
-    y: 430,
-    minX: 2040,
-    maxX: 2260,
-    velocidade: 80,
-    podeDispararPulso: true,
-  },
-  SENTINELA_3: {
-    x: 3940,
-    y: 340,
-    minX: 3870,
-    maxX: 4040,
-    velocidade: 90,
-    podeDispararPulso: true,
-  },
+  // Rajada lateral: ao ver o jogador, mira (cone piscando) e sopra para longe em vez de matar
+  TEMPO_MIRA_MS: 600,
+  TEMPO_RAJADA_MS: 300,
+  RECARGA_RAJADA_MS: 1400,
+  COR_MIRA: 0xffffff,
+  INTERVALO_PISCAR_MIRA_MS: 80,
+  ALCANCE_RAJADA: 320,
+  ALTURA_RAJADA: 160, // Distância vertical máxima para a rajada atingir o jogador
+  EMPURRAO_X: 420,
+  EMPURRAO_Y: -160,
+  DURACAO_EMPURRAO_MS: 300,
+
+  // Sentinela hackeada que vira balsa: fica pousada em cima do deck
+  ALTURA_SOBRE_PLATAFORMA: 44,
 } as const;
 
 export const CHECKPOINTS_FASE1 = {
-  INICIAL: { x: 120, y: 520 }, // Chão inicial em y=640 (topo ≈ 618.4), pés do jogador em 520 + 58 = 578 (40.4px acima)
+  INICIAL: { x: 120, y: 530 },
   CP1: {
-    ID: 'cp1_central',
-    GATILHO_X: 1680,
-    GATILHO_Y_MAX: 520,
-    PONTO: { x: 1740, y: 390 }, // Platô Bloco 1 em y=500 (topo ≈ 478.4), pés em 390 + 58 = 448 (30.4px acima)
-    NOME: 'CHECKPOINT 1 // SETOR CENTRAL',
+    ID: 'cp1_plato_alto',
+    GATILHO_X: 1500,
+    GATILHO_Y_MAX: 210,
+    PONTO: { x: 1540, y: 152 },
+    NOME: 'CHECKPOINT 1 // PLATÔ DOS VENTOS',
   },
   CP2: {
-    ID: 'cp2_elevador',
-    GATILHO_X: 2750,
-    GATILHO_Y_MAX: 420,
-    PONTO: { x: 2820, y: 280 }, // Platô do Elevador em y=390 (topo = 372.0), pés em 280 + 58 = 338 (34px acima)
-    NOME: 'CHECKPOINT 2 // PLATÔ DO ELEVADOR',
+    ID: 'cp2_mirante',
+    GATILHO_X: 5498,
+    GATILHO_Y_MAX: 160,
+    PONTO: { x: 5538, y: 102 },
+    NOME: 'CHECKPOINT 2 // MIRANTE DO ELEVADOR',
   },
   CP3: {
-    ID: 'cp3_portao',
-    GATILHO_X: 3550,
-    GATILHO_Y_MAX: 490,
-    PONTO: { x: 3600, y: 355 }, // Platô do Portão em y=470 (topo ≈ 448.4), pés em 355 + 58 = 413 (35.4px acima)
-    NOME: 'CHECKPOINT 3 // PORTÃO MILENAR',
+    ID: 'cp3_topo_escada',
+    GATILHO_X: 8238,
+    GATILHO_Y_MAX: 100,
+    PONTO: { x: 8268, y: 40 },
+    NOME: 'CHECKPOINT 3 // TOPO DA ESCADA DE RAJADAS',
   },
   CP4: {
-    ID: 'cp4_ante_camara',
-    GATILHO_X: 4720,
-    GATILHO_Y_MAX: 370,
-    PONTO: { x: 4760, y: 230 }, // Platô da Antecâmara em y=340 (topo = 322.0), pés em 230 + 58 = 288 (34px acima)
-    NOME: 'CHECKPOINT 4 // ENTRADA DA ANTECÂMARA',
+    ID: 'cp4_arena',
+    GATILHO_X: 9098,
+    GATILHO_Y_MAX: 540,
+    PONTO: { x: 9138, y: 472 },
+    NOME: 'CHECKPOINT 4 // ARENA DO HELIO',
   },
   LIMITE_QUEDA_Y: 690,
   MARGEM_ALTURA_SEGURA: 120, // Só salva checkpoint se o jogador estiver acima de LIMITE_QUEDA_Y - margem
@@ -233,20 +233,9 @@ export const OFFSET_PROMPT_TOTEM_Y = 50;
 export const ERROS_PARA_ESQUELETO = 3; // Erros no mesmo totem até o help mostrar o esqueleto da resposta
 
 export const NPCS_FASE1 = {
-  SUCATINHA: {
-    ID: 'npc_sucatinha',
-    X: 1200,
-    Y: 390,
-    TEXTURA: 'npc-sucatinha',
-    OFFSET_NUVEM_Y: 40,
-  },
-  MAGO_NUVEM: {
-    ID: 'npc_mago_nuvem',
-    X: 3400,
-    Y: 390,
-    TEXTURA: 'npc-mago-nuvem',
-    OFFSET_NUVEM_Y: 45,
-  },
+  SUCATINHA: { ID: 'npc_sucatinha', X: 1240, Y: 440, TEXTURA: 'npc-sucatinha' },
+  MAGO_NUVEM: { ID: 'npc_mago_nuvem', X: 6648, Y: 264, TEXTURA: 'npc-mago-nuvem' },
+  POMBO: { ID: 'npc_pombo', X: 8998, Y: 534, TEXTURA: 'npc-pombo' },
 } as const;
 
 // =============================================================================
@@ -255,18 +244,30 @@ export const NPCS_FASE1 = {
 
 export const TOTEM_1_ALCOOLEMIA = {
   ID: 'totem_1_sentinela_escudo',
-  X: 1880,
-  Y: 480,
-  BARREIRA: { x: 2160, y: 430, scaleX: 0.2, scaleY: 3.5 },
-  ESCUDO_VISUAL: { x: 2150, y: 330, largura: 20, altura: 200 },
+  X: 3628,
+  Y: 325,
+  // Parede de vento que bloqueia o fim do platô até o escudo cair
+  BARREIRA: { x: 3898, y: 210, scaleX: 0.2, scaleY: 8.4 },
+  ESCUDO_VISUAL: { x: 3888, y: 60, largura: 20, altura: 300 },
+  // A sentinela patrulha sobre o vão; hackeada, vira a balsa que atravessa o mesmo vão
+  SENTINELA: {
+    x: 3988,
+    y: 328,
+    minX: 3988,
+    maxX: 4928,
+    velocidade: 90,
+    podeDispararPulso: false,
+    deteccao: 'rajada',
+  },
+  BALSA: { y: 372, minX: 3988, maxX: 4928, velocidade: 150, pausaMs: 700 },
 } as const;
 
 export const TOTEM_2_BALANCA = {
   ID: 'totem_2_balanca_nuvens',
-  X: 2480,
-  Y: 534,
+  X: 5058,
+  Y: 365,
   ALTITUDE_ALVO: 350,
-  ELEVADOR_X: 2620,
+  ELEVADOR_X: 5348,
   ELEVADOR_Y_INICIAL: 540,
   PLACA_OFFSET: { x: 65, y: -45 },
   // Altitudes simuladas para validar o if/elif/else (inclui as fronteiras 349, 350 e 351)
@@ -275,18 +276,19 @@ export const TOTEM_2_BALANCA = {
 
 export const TOTEM_3_PORTAO = {
   ID: 'totem_3_portao_existencial',
-  X: 3620,
-  Y: 450,
-  X_PORTAO: 3720,
-  Y_PORTAO: 390,
-  DESLOCAMENTO_ABERTO_Y: 160,
+  X: 7408,
+  Y: 385,
+  X_PORTAO: 7608,
+  Y_PORTAO: 290,
+  ESCALA_Y_PORTAO: 1.3, // 260 px de altura: alto demais para pular por cima
+  DESLOCAMENTO_ABERTO_Y: 240,
   ALFA_ABERTO: 0.15,
 } as const;
 
 export const TOTEM_4_SEQUENCIADOR = {
   ID: 'totem_4_sequenciador_rajadas',
-  X: 4100,
-  Y: 434,
+  X: 7818,
+  Y: 385,
   PERIODO_PADRAO_MS: 1500,
   FORCA_PADRAO: 450,
   ORDEM_CORRETA: 'crescente',
@@ -297,79 +299,122 @@ export const TOTEM_4_SEQUENCIADOR = {
   // Valores errados rodam a escada por alguns segundos para o jogador ver o problema
   SIMULACAO_ATRASO_MS: 900,
   SIMULACAO_MS: 2600,
-  COLUNA_ESCADA_1: {
-    x: 4260,
-    y: 290,
-    largura: 80,
-    altura: 420,
-    forca: 450,
-    ativa: false,
-  },
-  COLUNA_ESCADA_2: {
-    x: 4440,
-    y: 230,
-    largura: 80,
-    altura: 480,
-    forca: 450,
-    ativa: false,
-  },
-  COLUNA_ESCADA_3: {
-    x: 4620,
-    y: 170,
-    largura: 80,
-    altura: 540,
-    forca: 450,
-    ativa: false,
-  },
+  // Três colunas encostadas, cada uma mais alta: o jogador "surfa" de uma para a outra
+  // conforme elas ligam em ordem. O topo da escada fica 310 px acima do platô do totem.
+  COLUNA_ESCADA_1: { x: 7988, y: 500, largura: 80, altura: 400, forca: 450, ativa: false },
+  COLUNA_ESCADA_2: { x: 8068, y: 440, largura: 80, altura: 520, forca: 450, ativa: false },
+  COLUNA_ESCADA_3: { x: 8148, y: 380, largura: 80, altura: 640, forca: 450, ativa: false },
 } as const;
 
-export const SANTUARIO_FASE1 = {
+export const ARENA_FASE1 = {
+  // Porta que sobe atrás do jogador ao entrar na arena (mesmo gatilho do checkpoint 4)
+  PORTA: { x: 8913, y: 430, escalaY: 1.3, deslocamentoAbertaY: 260, gatilhoX: 9098 },
+  PORTAL: { x: 9938, y: 480 },
   DISTANCIA_PORTAL: 60,
-  CHAO: { x: 5260, yOffset: 60, scaleX: 3.0, scaleY: 1.4 },
-  COLUNAS_DOURADAS_X: [5120, 5240, 5340],
-  COLUNAS_DOURADAS_Y_OFFSET: 210,
-  PORTAL: { x: 5300, yOffset: 140 },
+  COLUNAS_DOURADAS: [
+    { x: 9818, y: 400 },
+    { x: 10058, y: 400 },
+  ],
   FEIXES_LUZ: [
-    { topoX: 5020, baseX1: 4940, baseX2: 5100, baseY: 660 },
-    { topoX: 5280, baseX1: 5180, baseX2: 5380, baseY: 660 },
+    { topoX: 9818, baseX1: 9738, baseX2: 9898, baseY: 560 },
+    { topoX: 10058, baseX1: 9978, baseX2: 10138, baseY: 560 },
   ],
 } as const;
 
 // =============================================================================
-// LEVEL DESIGN POR BLOCO
+// LEVEL DESIGN POR BLOCO (~4 min de jogo sem o boss)
 // =============================================================================
 
+/**
+ * BLOCO 1: Introdução (x 0 → 2918). Andar, pular, mármore rachado,
+ * coluna de vento obrigatória e o primeiro vão que só se atravessa planando.
+ */
 export const BLOCO_1_LEVEL_DESIGN = {
-  CHAO_INICIAL: { x: 280, y: 640, scaleX: 2.5, scaleY: 1.2 },
-  COLUNAS_DECORATIVAS: [
-    { x: 100, y: 510 },
-    { x: 420, y: 510 },
+  PLATAFORMAS: [
+    { x: 300, y: 638, scaleX: 2.5, scaleY: 1 }, // Chão inicial, topo 620
+    { x: 760, y: 578, scaleX: 1, scaleY: 1 }, // Degrau, topo 560
+    { x: 1640, y: 258, scaleX: 1.4, scaleY: 1 }, // Platô alto (CP1), topo 240: só pela coluna
+    { x: 2738, y: 418, scaleX: 1.5, scaleY: 1 }, // Pouso depois do vão de 750 px, topo 400 (a corrida perfeita alcança ~860 px: o teto do mundo corta o pulo)
   ],
-  NUVEM_1: { x: 560, y: 560 },
-  MARMORE_RACHADO_1: { x: 890, y: 500 },
-  NUVEM_2: { x: 1100, y: 440 },
-  MARMORE_RACHADO_2: { x: 1400, y: 380 },
-  MARMORE_RACHADO_3: { x: 1560, y: 320 },
-  PLATO_CHEGADA: { x: 1740, y: 500, scaleX: 1.8, scaleY: 1.2 },
-  OBELISCO_CP1: { x: 1700, y: 420, scaleX: 0.8, scaleY: 0.6 },
-} as const;
+  RACHADOS: [{ x: 1010, y: 536 }], // topo 520
+  NUVENS: [{ x: 1240, y: 492 }], // topo 470, onde fica a Sucatinha
+  COLUNAS_VENTO: [{ x: 1420, y: 410, largura: 90, altura: 500, forca: 400, ativa: true }],
+  DECORACAO: [
+    { x: 100, y: 490, scaleX: 1, scaleY: 1 },
+    { x: 420, y: 490, scaleX: 1, scaleY: 1 },
+    { x: 1490, y: 162, scaleX: 0.8, scaleY: 0.6 }, // Obelisco do CP1
+  ],
+} as const satisfies BlocoNivelFase1;
 
+/**
+ * BLOCO 2: Vento contrário e Desafios 1 e 2 (x 2918 → 5728).
+ * Nuvens efêmeras contra o vento, o escudo da Sentinela A-01, a balsa
+ * em que ela se transforma e o elevador de nuvem.
+ */
 export const BLOCO_2_LEVEL_DESIGN = {
-  PLATO_TOTEM_1: { x: 1880, y: 540, scaleX: 1.2, scaleY: 1.0 },
-  PLATO_SOB_SENTINELA: { x: 2140, y: 590, scaleX: 1.0, scaleY: 1.0 },
-  PLATO_TOTEM_2: { x: 2480, y: 590, scaleX: 1.0, scaleY: 1.0 },
-  PLATO_APOS_ELEVADOR: { x: 2820, y: 390, scaleX: 1.2, scaleY: 1.0 },
-  PLATO_INTERMEDIARIO: { x: 3000, y: 470, scaleX: 1.0, scaleY: 1.0 },
-  CORREDOR: { x: 3200, y: 450, scaleX: 1.6, scaleY: 1.0 },
-  MARMORE_RACHADO_1: { x: 3480, y: 440 },
-  PLATO_CHEGADA: { x: 3600, y: 470, scaleX: 1.4, scaleY: 1.2 },
-  OBELISCO_CP3: { x: 3560, y: 390, scaleX: 0.8, scaleY: 0.6 },
-} as const;
+  PLATAFORMAS: [
+    { x: 3738, y: 378, scaleX: 1.5, scaleY: 1 }, // Platô do Totem 1, topo 360
+    { x: 5118, y: 418, scaleX: 1, scaleY: 1 }, // Platô do Totem 2, topo 400
+    { x: 5608, y: 208, scaleX: 1, scaleY: 1 }, // Mirante (CP2), topo 190: só pelo elevador
+  ],
+  EFEMERAS: [
+    { x: 3098, y: 402 }, // topo 380
+    { x: 3378, y: 382 }, // topo 360
+  ],
+  ZONAS_CONTRARIAS: [{ x: 3238, y: 380, largura: 600, altura: 360, forca: 75 }],
+  DECORACAO: [{ x: 5508, y: 112, scaleX: 0.8, scaleY: 0.6 }], // Obelisco do CP2
+} as const satisfies BlocoNivelFase1;
 
+/**
+ * BLOCO 3: Ruínas e Desafios 3 e 4 (x 5728 → 8828).
+ * Cânion com gêiser, plataforma em trilho sob a sentinela de pulso,
+ * o portão milenar, a escada de rajadas e a sentinela de alerta máximo no topo.
+ */
 export const BLOCO_3_LEVEL_DESIGN = {
-  NUVEM_TOTEM_4: { x: 4100, y: 490 },
-  MARMORE_RACHADO_1: { x: 4350, y: 420 },
-  MARMORE_RACHADO_2: { x: 4530, y: 360 },
-  PLATO_APOS_ESCADA: { x: 4760, y: 340, scaleX: 1.2, scaleY: 1.0 },
-  PLATO_ANTECAMARA: { x: 4860, y: 330, scaleX: 0.8, scaleY: 1.0 },
-} as const;
+  PLATAFORMAS: [
+    { x: 6098, y: 618, scaleX: 2.1, scaleY: 1 }, // Fundo do cânion, topo 600
+    { x: 6608, y: 318, scaleX: 1, scaleY: 1 }, // Platô do Mago, topo 300: só pelo gêiser
+    { x: 7648, y: 438, scaleX: 2.5, scaleY: 1 }, // Platô do portão e do Totem 4, topo 420
+    { x: 8528, y: 128, scaleX: 2.5, scaleY: 1 }, // Topo da escada (CP3), topo 110
+  ],
+  GEISERES: [
+    {
+      x: 6308,
+      yBase: 600,
+      largura: 80,
+      altura: 400,
+      forca: 650,
+      periodoMs: 2800,
+      duracaoMs: 500,
+      avisoMs: 900,
+      defasagemMs: 0,
+    },
+  ],
+  TRILHOS: [
+    { x: 6828, y: 312, deslocamentoX: 360, deslocamentoY: 0, velocidade: 110, pausaMs: 500 }, // topo 300
+  ],
+  ZONAS_CONTRARIAS: [{ x: 7018, y: 300, largura: 560, altura: 300, forca: 75 }],
+  SENTINELAS: [
+    // S-02: patrulha sobre o trilho, solta pulso eólico e sopra quem ela vê
+    { x: 6828, y: 180, minX: 6828, maxX: 7188, velocidade: 80, podeDispararPulso: true, deteccao: 'rajada' },
+    // S-03: alerta máximo no topo da escada; quem for visto volta ao checkpoint
+    { x: 8538, y: 40, minX: 8538, maxX: 8758, velocidade: 90, podeDispararPulso: false, deteccao: 'respawn' },
+  ],
+  DECORACAO: [{ x: 8243, y: 58, scaleX: 0.6, scaleY: 0.4 }], // Obelisco do CP3
+} as const satisfies BlocoNivelFase1;
+
+/**
+ * BLOCO 4: Arena do boss (x 8828 → 10178). Por enquanto termina no portal;
+ * o Helio entra na Onda 5.
+ */
+export const BLOCO_4_LEVEL_DESIGN = {
+  PLATAFORMAS: [{ x: 9498, y: 578, scaleX: 5, scaleY: 1 }], // Chão da arena, topo 560
+  DECORACAO: [{ x: 9128, y: 482, scaleX: 0.8, scaleY: 0.6 }], // Obelisco do CP4
+} as const satisfies BlocoNivelFase1;
+
+export const BLOCOS_NIVEL_FASE1: readonly BlocoNivelFase1[] = [
+  BLOCO_1_LEVEL_DESIGN,
+  BLOCO_2_LEVEL_DESIGN,
+  BLOCO_3_LEVEL_DESIGN,
+  BLOCO_4_LEVEL_DESIGN,
+];

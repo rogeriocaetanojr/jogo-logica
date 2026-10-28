@@ -39,6 +39,10 @@ export class JogadorFase1 {
   // Verdadeiro entre o início de um pulo normal e o momento em que ele pode ser cortado
   private puloCurtoPendente: boolean = false;
 
+  // Empurrões (rajada das sentinelas) tiram o controle horizontal por um instante
+  private tempoAtual: number = 0;
+  private controleTravadoAte: number = 0;
+
   // Rastro visual do planeio
   private readonly graficoRastro: Phaser.GameObjects.Graphics;
   private fiapos: FiapoPlaneio[] = [];
@@ -90,9 +94,20 @@ export class JogadorFase1 {
     return Boolean(this.teclaInteragir && Phaser.Input.Keyboard.JustDown(this.teclaInteragir));
   }
 
+  /**
+   * Arremessa o jogador e ignora as setas por um instante, para o empurrão não ser anulado.
+   */
+  public aplicarEmpurrao(velocidadeX: number, velocidadeY: number, duracaoMs: number): void {
+    this.sprite.setVelocity(velocidadeX, velocidadeY);
+    this.controleTravadoAte = this.tempoAtual + duracaoMs;
+    this.puloCurtoPendente = false;
+  }
+
   public update(tempo: number, delta: number, vento: VentoFase1): void {
     const corpo = this.corpo;
     const dt = delta / 1000;
+    this.tempoAtual = tempo;
+    const controleLivre = tempo >= this.controleTravadoAte;
 
     const esquerda = (this.cursores?.left.isDown || this.teclasWASD?.a.isDown) ?? false;
     const direita = (this.cursores?.right.isDown || this.teclasWASD?.d.isDown) ?? false;
@@ -119,10 +134,10 @@ export class JogadorFase1 {
 
     // Movimento horizontal: a entrada do jogador decide a direção; o vento contrário só soma um arraste
     let velX = 0;
-    if (esquerda) {
+    if (controleLivre && esquerda) {
       velX = -JOGADOR_FASE1.VELOCIDADE_X;
       this.sprite.setFlipX(true);
-    } else if (direita) {
+    } else if (controleLivre && direita) {
       velX = JOGADOR_FASE1.VELOCIDADE_X;
       this.sprite.setFlipX(false);
     }
@@ -133,16 +148,18 @@ export class JogadorFase1 {
     }
 
     // A velocidade acompanha o alvo em rampa: acelera ao andar e desliza até parar ao soltar
-    const aceleracao = andando
-      ? noChao
-        ? JOGADOR_FASE1.ACELERACAO_CHAO
-        : JOGADOR_FASE1.ACELERACAO_AR
-      : noChao
-        ? JOGADOR_FASE1.FRENAGEM_CHAO
-        : JOGADOR_FASE1.FRENAGEM_AR;
-    const velAtualX = corpo.velocity.x;
-    const passoX = aceleracao * dt;
-    this.sprite.setVelocityX(velAtualX + Phaser.Math.Clamp(velX - velAtualX, -passoX, passoX));
+    if (controleLivre) {
+      const aceleracao = andando
+        ? noChao
+          ? JOGADOR_FASE1.ACELERACAO_CHAO
+          : JOGADOR_FASE1.ACELERACAO_AR
+        : noChao
+          ? JOGADOR_FASE1.FRENAGEM_CHAO
+          : JOGADOR_FASE1.FRENAGEM_AR;
+      const velAtualX = corpo.velocity.x;
+      const passoX = aceleracao * dt;
+      this.sprite.setVelocityX(velAtualX + Phaser.Math.Clamp(velX - velAtualX, -passoX, passoX));
+    }
 
     const podePularCoyote = tempo - this.tempoUltimaVezNoChao <= JOGADOR_FASE1.TEMPO_COYOTE_MS;
     const bufferPuloAtivo = tempo - this.tempoUltimoPressionarPulo <= JOGADOR_FASE1.TEMPO_JUMP_BUFFER_MS;
@@ -152,6 +169,13 @@ export class JogadorFase1 {
       this.tempoUltimoPressionarPulo = -9999;
       this.tempoUltimaVezNoChao = -9999;
       this.puloCurtoPendente = true;
+    }
+
+    // Gêiser em erupção: um impulso único para cima, que não é cortado ao soltar o pulo
+    const impulsoGeiser = vento.consumirImpulsoGeiser(this.sprite.x, this.sprite.y);
+    if (impulsoGeiser !== undefined) {
+      this.sprite.setVelocityY(-impulsoGeiser);
+      this.puloCurtoPendente = false;
     }
 
     let planando = false;
@@ -233,6 +257,7 @@ export class JogadorFase1 {
     this.tempoUltimaVezNoChao = -9999;
     this.tempoUltimoPressionarPulo = -9999;
     this.puloCurtoPendente = false;
+    this.controleTravadoAte = 0;
 
     this.fiapos = [];
     this.acumuladorRastroMs = 0;

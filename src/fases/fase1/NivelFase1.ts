@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { SentinelaFase1 } from './SentinelaFase1';
 import { NpcFase1 } from './NpcFase1';
 import type { VentoFase1 } from './VentoFase1';
-import type { PlataformasRachadasFase1 } from './PlataformasFase1';
+import { PlataformaMovelFase1, type PlataformasInstaveisFase1 } from './PlataformasFase1';
 import type { ConfigPlataforma, ConfigSentinela, TotemFase1 } from './tiposFase1';
 import {
   TEXTOS_NPCS_FASE1,
@@ -14,18 +14,14 @@ import {
 } from './DialogosFase1';
 import {
   MUNDO_FASE1,
-  VENTO_FASE1,
-  SENTINELAS_FASE1,
   NPCS_FASE1,
   OFFSET_PROMPT_TOTEM_Y,
   TOTEM_1_ALCOOLEMIA,
   TOTEM_2_BALANCA,
   TOTEM_3_PORTAO,
   TOTEM_4_SEQUENCIADOR,
-  SANTUARIO_FASE1,
-  BLOCO_1_LEVEL_DESIGN,
-  BLOCO_2_LEVEL_DESIGN,
-  BLOCO_3_LEVEL_DESIGN,
+  ARENA_FASE1,
+  BLOCOS_NIVEL_FASE1,
 } from './constantesFase1';
 
 /**
@@ -34,15 +30,19 @@ import {
 export interface ElementosNivelFase1 {
   plataformasEstaticas: Phaser.Physics.Arcade.StaticGroup;
   nuvensSolidas: Phaser.Physics.Arcade.StaticGroup;
+  plataformasMoveis: PlataformaMovelFase1[];
   sentinelas: SentinelaFase1[];
   npcs: NpcFase1[];
   totens: TotemFase1[];
   sentinela1: SentinelaFase1;
+  balsaSentinela: PlataformaMovelFase1;
   barreiraEscudo: Phaser.Physics.Arcade.Sprite;
   graficoEscudo: Phaser.GameObjects.Graphics;
   elevadorNuvem: Phaser.Physics.Arcade.Sprite;
   portaoMilenar: Phaser.Physics.Arcade.Sprite;
   colisorPortao: Phaser.Physics.Arcade.Collider;
+  portaArena: Phaser.Physics.Arcade.Sprite;
+  colisorPortaArena: Phaser.Physics.Arcade.Collider;
   portalFinal: Phaser.GameObjects.Sprite;
 }
 
@@ -115,17 +115,19 @@ export function desenharEscudoSentinela(grafico: Phaser.GameObjects.Graphics, te
 }
 
 /**
- * Monta os 3 blocos de level design, o santuário final, os 4 totens, sentinelas e NPCs.
+ * Monta o nível a partir das tabelas de cada bloco (constantesFase1.ts) e depois os elementos
+ * com comportamento próprio: os 4 totens, a balsa da sentinela, o elevador, o portão e a arena.
  * O jogador já deve existir para que os colisores individuais sejam registrados.
  */
 export function construirNivelFase1(
   cena: Phaser.Scene,
   jogador: Phaser.Physics.Arcade.Sprite,
   vento: VentoFase1,
-  rachados: PlataformasRachadasFase1
+  instaveis: PlataformasInstaveisFase1
 ): ElementosNivelFase1 {
   const plataformasEstaticas = cena.physics.add.staticGroup();
   const nuvensSolidas = cena.physics.add.staticGroup();
+  const plataformasMoveis: PlataformaMovelFase1[] = [];
   const sentinelas: SentinelaFase1[] = [];
   const npcs: NpcFase1[] = [];
   const totens: TotemFase1[] = [];
@@ -133,11 +135,8 @@ export function construirNivelFase1(
   const plataforma = (cfg: ConfigPlataforma) => {
     plataformasEstaticas.create(cfg.x, cfg.y, 'marmore-bloco').setScale(cfg.scaleX, cfg.scaleY).refreshBody();
   };
-  const nuvem = (x: number, y: number) => {
-    nuvensSolidas.create(x, y, 'nuvem-solida').refreshBody();
-  };
   const sentinela = (id: string, cfg: ConfigSentinela) => {
-    const s = new SentinelaFase1(cena, id, cfg.x, cfg.y, cfg.minX, cfg.maxX, cfg.velocidade, cfg.podeDispararPulso);
+    const s = new SentinelaFase1(cena, id, cfg);
     sentinelas.push(s);
     return s;
   };
@@ -146,57 +145,46 @@ export function construirNivelFase1(
     const prompt = criarPromptTexto(cena, x, y - OFFSET_PROMPT_TOTEM_Y, textos.PROMPT);
     totens.push({ id, imagem, prompt, textos, reabrivel });
   };
-  const npc = (cfg: (typeof NPCS_FASE1)[keyof typeof NPCS_FASE1], textos: (typeof TEXTOS_NPCS_FASE1)[keyof typeof TEXTOS_NPCS_FASE1]) => {
-    nuvem(cfg.X, cfg.Y + cfg.OFFSET_NUVEM_Y);
+
+  // ===========================================================================
+  // GEOMETRIA DOS BLOCOS (dados em constantesFase1.ts)
+  // ===========================================================================
+  for (const bloco of BLOCOS_NIVEL_FASE1) {
+    for (const cfg of bloco.DECORACAO ?? []) {
+      cena.add.image(cfg.x, cfg.y, 'coluna-marmore').setScale(cfg.scaleX, cfg.scaleY).setDepth(2);
+    }
+    for (const cfg of bloco.PLATAFORMAS ?? []) plataforma(cfg);
+    for (const pos of bloco.NUVENS ?? []) nuvensSolidas.create(pos.x, pos.y, 'nuvem-solida').refreshBody();
+    for (const pos of bloco.RACHADOS ?? []) instaveis.criar(pos.x, pos.y, 'rachado');
+    for (const pos of bloco.EFEMERAS ?? []) instaveis.criar(pos.x, pos.y, 'efemera');
+    for (const cfg of bloco.TRILHOS ?? []) {
+      plataformasMoveis.push(new PlataformaMovelFase1(cena, cfg, 'plataforma-trilho'));
+    }
+    for (const cfg of bloco.COLUNAS_VENTO ?? []) vento.criarColuna(cfg);
+    for (const cfg of bloco.ZONAS_CONTRARIAS ?? []) vento.criarZonaContraria(cfg);
+    for (const cfg of bloco.GEISERES ?? []) vento.criarGeiser(cfg);
+    for (const cfg of bloco.SENTINELAS ?? []) sentinela(`sentinela_${sentinelas.length + 1}`, cfg);
+  }
+
+  // NPCs (ficam sobre plataformas definidas nos blocos)
+  for (const chave of ['SUCATINHA', 'MAGO_NUVEM', 'POMBO'] as const) {
+    const cfg = NPCS_FASE1[chave];
+    const textos = TEXTOS_NPCS_FASE1[chave];
     npcs.push(new NpcFase1(cena, cfg.ID, textos.NOME, cfg.X, cfg.Y, cfg.TEXTURA, textos.PROMPT, [...textos.DIALOGO]));
-  };
-
-  // ===========================================================================
-  // BLOCO 1: Introdução ao Ar (x: 0 a 1740)
-  // Nuvens + mármore rachado intercalados, 2 colunas de vento e NPC Sucatinha.
-  // ===========================================================================
-  const b1 = BLOCO_1_LEVEL_DESIGN;
-  plataforma(b1.CHAO_INICIAL);
-
-  for (const pos of b1.COLUNAS_DECORATIVAS) {
-    cena.add.image(pos.x, pos.y, 'coluna-marmore').setDepth(2);
   }
 
-  nuvem(b1.NUVEM_1.x, b1.NUVEM_1.y);
-  vento.criarColuna(VENTO_FASE1.COLUNA_1);
-  rachados.criar(b1.MARMORE_RACHADO_1.x, b1.MARMORE_RACHADO_1.y);
-  npc(NPCS_FASE1.SUCATINHA, TEXTOS_NPCS_FASE1.SUCATINHA);
-  nuvem(b1.NUVEM_2.x, b1.NUVEM_2.y);
-  vento.criarColuna(VENTO_FASE1.COLUNA_2);
-
-  // Zonas de vento contrário: empurram o jogador devagar para a esquerda
-  for (const zona of VENTO_FASE1.CONTRARIO.ZONAS) {
-    vento.criarZonaContraria(zona);
-  }
-  rachados.criar(b1.MARMORE_RACHADO_2.x, b1.MARMORE_RACHADO_2.y);
-  rachados.criar(b1.MARMORE_RACHADO_3.x, b1.MARMORE_RACHADO_3.y);
-
-  // Platô de Chegada do Bloco 1 / Checkpoint 1
-  plataforma(b1.PLATO_CHEGADA);
-  cena.add.image(b1.OBELISCO_CP1.x, b1.OBELISCO_CP1.y, 'coluna-marmore').setScale(b1.OBELISCO_CP1.scaleX, b1.OBELISCO_CP1.scaleY);
-
   // ===========================================================================
-  // BLOCO 2: Desafios 1 e 2 + NPC Mago da Nuvem (x: 1740 a 3600)
+  // DESAFIO 1: escudo da Sentinela A-01, que vira balsa quando hackeada
   // ===========================================================================
-  const b2 = BLOCO_2_LEVEL_DESIGN;
+  const t1 = TOTEM_1_ALCOOLEMIA;
+  totem(t1.ID, t1.X, t1.Y, TEXTOS_TOTEM_1_ALCOOLEMIA);
 
-  // Desafio 1: "O Teste de Alcoolemia da Sentinela"
-  plataforma(b2.PLATO_TOTEM_1);
-  totem(TOTEM_1_ALCOOLEMIA.ID, TOTEM_1_ALCOOLEMIA.X, TOTEM_1_ALCOOLEMIA.Y, TEXTOS_TOTEM_1_ALCOOLEMIA);
-
-  const sentinela1 = sentinela('sentinela_1', SENTINELAS_FASE1.SENTINELA_1);
+  const sentinela1 = sentinela('sentinela_a01', t1.SENTINELA);
   sentinela1.escudoAtivo = true;
 
-  // Barreira física do escudo da Sentinela A-01
-  const cfgBarreira = TOTEM_1_ALCOOLEMIA.BARREIRA;
-  const barreiraEscudo = cena.physics.add.sprite(cfgBarreira.x, cfgBarreira.y, 'marmore-bloco');
+  const barreiraEscudo = cena.physics.add.sprite(t1.BARREIRA.x, t1.BARREIRA.y, 'marmore-bloco');
   barreiraEscudo.setVisible(false);
-  barreiraEscudo.setScale(cfgBarreira.scaleX, cfgBarreira.scaleY);
+  barreiraEscudo.setScale(t1.BARREIRA.scaleX, t1.BARREIRA.scaleY);
   barreiraEscudo.setImmovable(true);
   (barreiraEscudo.body as Phaser.Physics.Arcade.Body).setAllowGravity(false);
   cena.physics.add.collider(jogador, barreiraEscudo);
@@ -204,17 +192,32 @@ export function construirNivelFase1(
   const graficoEscudo = cena.add.graphics();
   graficoEscudo.setDepth(8);
 
-  plataforma(b2.PLATO_SOB_SENTINELA);
+  const balsaSentinela = new PlataformaMovelFase1(
+    cena,
+    {
+      x: t1.BALSA.minX,
+      y: t1.BALSA.y,
+      deslocamentoX: t1.BALSA.maxX - t1.BALSA.minX,
+      deslocamentoY: 0,
+      velocidade: t1.BALSA.velocidade,
+      pausaMs: t1.BALSA.pausaMs,
+    },
+    'plataforma-sentinela',
+    false
+  );
+  plataformasMoveis.push(balsaSentinela);
 
-  // Desafio 2: "A Balança Hipócrita de Nuvens"
-  plataforma(b2.PLATO_TOTEM_2);
-  totem(TOTEM_2_BALANCA.ID, TOTEM_2_BALANCA.X, TOTEM_2_BALANCA.Y, TEXTOS_TOTEM_2_BALANCA);
+  // ===========================================================================
+  // DESAFIO 2: balança de nuvens (elevador até a altitude da placa)
+  // ===========================================================================
+  const t2 = TOTEM_2_BALANCA;
+  totem(t2.ID, t2.X, t2.Y, TEXTOS_TOTEM_2_BALANCA);
 
-  const placaX = TOTEM_2_BALANCA.X + TOTEM_2_BALANCA.PLACA_OFFSET.x;
-  const placaY = TOTEM_2_BALANCA.Y + TOTEM_2_BALANCA.PLACA_OFFSET.y;
+  const placaX = t2.X + t2.PLACA_OFFSET.x;
+  const placaY = t2.Y + t2.PLACA_OFFSET.y;
   cena.add.image(placaX, placaY, 'placa-runica').setDepth(2);
   cena.add
-    .text(placaX, placaY, `ALTITUDE ALVO: ${TOTEM_2_BALANCA.ALTITUDE_ALVO}`, {
+    .text(placaX, placaY, `ALTITUDE ALVO: ${t2.ALTITUDE_ALVO}`, {
       ...ESTILO_TEXTO_MONO,
       fontSize: '11px',
       color: '#fbbf24',
@@ -222,75 +225,59 @@ export function construirNivelFase1(
     .setOrigin(0.5)
     .setDepth(3);
 
-  const elevadorNuvem = cena.physics.add.sprite(
-    TOTEM_2_BALANCA.ELEVADOR_X,
-    TOTEM_2_BALANCA.ELEVADOR_Y_INICIAL,
-    'nuvem-solida'
-  );
+  const elevadorNuvem = cena.physics.add.sprite(t2.ELEVADOR_X, t2.ELEVADOR_Y_INICIAL, 'nuvem-solida');
   elevadorNuvem.setImmovable(true);
   (elevadorNuvem.body as Phaser.Physics.Arcade.Body).setAllowGravity(false);
   cena.physics.add.collider(jogador, elevadorNuvem);
 
-  // Platô de Recepção do Elevador / Checkpoint 2
-  plataforma(b2.PLATO_APOS_ELEVADOR);
-  plataforma(b2.PLATO_INTERMEDIARIO);
-  plataforma(b2.CORREDOR);
-
-  npc(NPCS_FASE1.MAGO_NUVEM, TEXTOS_NPCS_FASE1.MAGO_NUVEM);
-  rachados.criar(b2.MARMORE_RACHADO_1.x, b2.MARMORE_RACHADO_1.y);
-
-  // Platô de Chegada do Bloco 2 / Checkpoint 3
-  plataforma(b2.PLATO_CHEGADA);
-  cena.add.image(b2.OBELISCO_CP3.x, b2.OBELISCO_CP3.y, 'coluna-marmore').setScale(b2.OBELISCO_CP3.scaleX, b2.OBELISCO_CP3.scaleY);
-
   // ===========================================================================
-  // BLOCO 3: Desafios 3 e 4 + Santuário Final (x: 3600 a 5400)
+  // DESAFIO 3: portão milenar
   // ===========================================================================
-  const b3 = BLOCO_3_LEVEL_DESIGN;
+  const t3 = TOTEM_3_PORTAO;
+  totem(t3.ID, t3.X, t3.Y, TEXTOS_TOTEM_3_PORTAO);
 
-  // Desafio 3: "O Portão com Crise Existencial"
-  totem(TOTEM_3_PORTAO.ID, TOTEM_3_PORTAO.X, TOTEM_3_PORTAO.Y, TEXTOS_TOTEM_3_PORTAO);
-
-  const portaoMilenar = cena.physics.add.sprite(TOTEM_3_PORTAO.X_PORTAO, TOTEM_3_PORTAO.Y_PORTAO, 'portao-milenar');
+  const portaoMilenar = cena.physics.add.sprite(t3.X_PORTAO, t3.Y_PORTAO, 'portao-milenar');
+  portaoMilenar.setScale(1, t3.ESCALA_Y_PORTAO);
   portaoMilenar.setImmovable(true);
   (portaoMilenar.body as Phaser.Physics.Arcade.Body).setAllowGravity(false);
   const colisorPortao = cena.physics.add.collider(jogador, portaoMilenar);
 
-  sentinela('sentinela_3', SENTINELAS_FASE1.SENTINELA_3);
-
-  // Desafio 4: "O Sequenciador de Rajadas" (reabrível para recalibrar)
-  nuvem(b3.NUVEM_TOTEM_4.x, b3.NUVEM_TOTEM_4.y);
-  totem(TOTEM_4_SEQUENCIADOR.ID, TOTEM_4_SEQUENCIADOR.X, TOTEM_4_SEQUENCIADOR.Y, TEXTOS_TOTEM_4_SEQUENCIADOR, true);
-
+  // ===========================================================================
+  // DESAFIO 4: sequenciador da escada de rajadas (reabrível para recalibrar)
+  // ===========================================================================
+  const t4 = TOTEM_4_SEQUENCIADOR;
+  totem(t4.ID, t4.X, t4.Y, TEXTOS_TOTEM_4_SEQUENCIADOR, true);
   vento.definirEscada([
-    vento.criarColuna(TOTEM_4_SEQUENCIADOR.COLUNA_ESCADA_1),
-    vento.criarColuna(TOTEM_4_SEQUENCIADOR.COLUNA_ESCADA_2),
-    vento.criarColuna(TOTEM_4_SEQUENCIADOR.COLUNA_ESCADA_3),
+    vento.criarColuna(t4.COLUNA_ESCADA_1),
+    vento.criarColuna(t4.COLUNA_ESCADA_2),
+    vento.criarColuna(t4.COLUNA_ESCADA_3),
   ]);
 
-  rachados.criar(b3.MARMORE_RACHADO_1.x, b3.MARMORE_RACHADO_1.y);
-  rachados.criar(b3.MARMORE_RACHADO_2.x, b3.MARMORE_RACHADO_2.y);
+  // ===========================================================================
+  // ARENA: porta que sela a entrada e o portal de saída
+  // ===========================================================================
+  const a = ARENA_FASE1;
+  const portaArena = cena.physics.add.sprite(a.PORTA.x, a.PORTA.y + a.PORTA.deslocamentoAbertaY, 'portao-milenar');
+  portaArena.setScale(1, a.PORTA.escalaY);
+  portaArena.setImmovable(true);
+  portaArena.setAlpha(0);
+  const corpoPorta = portaArena.body as Phaser.Physics.Arcade.Body;
+  corpoPorta.setAllowGravity(false);
+  corpoPorta.enable = false;
+  const colisorPortaArena = cena.physics.add.collider(jogador, portaArena);
+  colisorPortaArena.active = false;
 
-  // Platô Pós-Escada / Checkpoint 4 e Antecâmara
-  plataforma(b3.PLATO_APOS_ESCADA);
-  plataforma(b3.PLATO_ANTECAMARA);
-
-  // Santuário Final
-  const alturaMundo = MUNDO_FASE1.ALTURA;
-  const s = SANTUARIO_FASE1;
-  plataforma({ x: s.CHAO.x, y: alturaMundo - s.CHAO.yOffset, scaleX: s.CHAO.scaleX, scaleY: s.CHAO.scaleY });
-
-  for (const xCol of s.COLUNAS_DOURADAS_X) {
-    cena.add.image(xCol, alturaMundo - s.COLUNAS_DOURADAS_Y_OFFSET, 'coluna-dourada').setDepth(2);
+  for (const coluna of a.COLUNAS_DOURADAS) {
+    cena.add.image(coluna.x, coluna.y, 'coluna-dourada').setDepth(2);
   }
 
   const luzSantuario = cena.add.graphics();
   luzSantuario.fillStyle(0xfef08a, 0.18);
-  for (const feixe of s.FEIXES_LUZ) {
+  for (const feixe of a.FEIXES_LUZ) {
     luzSantuario.fillTriangle(feixe.topoX, 0, feixe.baseX1, feixe.baseY, feixe.baseX2, feixe.baseY);
   }
 
-  const portalFinal = cena.add.sprite(s.PORTAL.x, alturaMundo - s.PORTAL.yOffset, 'portal-santuario');
+  const portalFinal = cena.add.sprite(a.PORTAL.x, a.PORTAL.y, 'portal-santuario');
   portalFinal.setDepth(3);
   cena.tweens.add({
     targets: portalFinal,
@@ -305,15 +292,19 @@ export function construirNivelFase1(
   return {
     plataformasEstaticas,
     nuvensSolidas,
+    plataformasMoveis,
     sentinelas,
     npcs,
     totens,
     sentinela1,
+    balsaSentinela,
     barreiraEscudo,
     graficoEscudo,
     elevadorNuvem,
     portaoMilenar,
     colisorPortao,
+    portaArena,
+    colisorPortaArena,
     portalFinal,
   };
 }

@@ -2,9 +2,17 @@ import type Phaser from 'phaser';
 import type { TextosTotemFase1 } from './DialogosFase1';
 
 /**
- * Representa uma plataforma de mármore com comportamento de rachadura e quebra temporária.
+ * Plataformas que somem ao serem pisadas e voltam depois:
+ * - rachado: mármore que treme em vermelho e quebra;
+ * - efemera: nuvem que se dissipa aos poucos.
  */
-export interface PlataformaRachada {
+export type TipoPlataformaInstavel = 'rachado' | 'efemera';
+
+/**
+ * Plataforma que some temporariamente depois de pisada.
+ */
+export interface PlataformaInstavel {
+  tipo: TipoPlataformaInstavel;
   sprite: Phaser.Physics.Arcade.Sprite;
   rachando: boolean;
   quebrada: boolean;
@@ -38,13 +46,28 @@ export interface ColunaVento {
 }
 
 /**
- * Estados operacionais da sentinela com alternância entre busca e rajada eólica.
+ * Estados operacionais da sentinela:
+ * - scanner: patrulha com cone de visão;
+ * - carregando_pulso / disparando_pulso: pulso eólico descendente;
+ * - mirando / rajando: viu o jogador e sopra uma rajada lateral;
+ * - plataforma: hackeada, pousada sobre a balsa que ela virou;
+ * - desativada: fora de combate.
  */
 export type EstadoSentinela =
   | 'scanner'
   | 'carregando_pulso'
   | 'disparando_pulso'
+  | 'mirando'
+  | 'rajando'
+  | 'plataforma'
   | 'desativada';
+
+/**
+ * O que a sentinela faz ao ver o jogador:
+ * - respawn: alerta máximo, dispara o laser e manda o jogador ao checkpoint;
+ * - rajada: mira e sopra o jogador para longe.
+ */
+export type TipoDeteccaoSentinela = 'respawn' | 'rajada';
 
 /**
  * Ponto 2D de coordenadas.
@@ -55,7 +78,7 @@ export interface Coordenada2D {
 }
 
 /**
- * Posição e escala de uma plataforma estática do level design.
+ * Posição e escala de uma plataforma estática ou decoração do level design.
  */
 export interface ConfigPlataforma {
   x: number;
@@ -85,7 +108,66 @@ export interface ConfigSentinela {
   minX: number;
   maxX: number;
   velocidade: number;
-  podeDispararPulso?: boolean;
+  podeDispararPulso: boolean;
+  deteccao: TipoDeteccaoSentinela;
+}
+
+/**
+ * Plataforma que vai e volta entre a posição inicial e a deslocada, pausando nas pontas.
+ */
+export interface ConfigPlataformaMovel {
+  x: number;
+  y: number;
+  deslocamentoX: number;
+  deslocamentoY: number;
+  velocidade: number;
+  pausaMs: number;
+}
+
+/**
+ * Gêiser de vento: a cada ciclo avisa com bolhas e depois lança para cima quem estiver na área.
+ */
+export interface ConfigGeiser {
+  x: number;
+  /** Altura do chão onde fica a boca do gêiser; a área sobe a partir daqui. */
+  yBase: number;
+  largura: number;
+  altura: number;
+  /** Velocidade vertical do impulso, em px/s. */
+  forca: number;
+  periodoMs: number;
+  duracaoMs: number;
+  avisoMs: number;
+  /** Atraso inicial do ciclo, para gêiseres vizinhos não estourarem juntos. */
+  defasagemMs: number;
+}
+
+/**
+ * Configuração imutável para criação de zonas de vento contrário.
+ */
+export interface ConfigZonaVentoContrario {
+  x: number;
+  y: number;
+  largura: number;
+  altura: number;
+  forca: number;
+}
+
+/**
+ * Tabela de dados de um bloco do nível. Tudo é opcional: cada bloco usa o que precisa.
+ */
+export interface BlocoNivelFase1 {
+  PLATAFORMAS?: readonly ConfigPlataforma[];
+  NUVENS?: readonly Coordenada2D[];
+  RACHADOS?: readonly Coordenada2D[];
+  EFEMERAS?: readonly Coordenada2D[];
+  TRILHOS?: readonly ConfigPlataformaMovel[];
+  COLUNAS_VENTO?: readonly ConfigColunaVento[];
+  ZONAS_CONTRARIAS?: readonly ConfigZonaVentoContrario[];
+  GEISERES?: readonly ConfigGeiser[];
+  SENTINELAS?: readonly ConfigSentinela[];
+  /** Colunas de mármore e obeliscos de checkpoint, sem colisão. */
+  DECORACAO?: readonly ConfigPlataforma[];
 }
 
 /**
@@ -124,12 +206,11 @@ export interface TotemFase1 {
 }
 
 /**
- * Snapshot de progresso e estado para reset limpo ao morrer / respawnar.
+ * Ponto de retorno ao morrer. Desafios resolvidos continuam resolvidos depois do respawn.
  */
 export interface SnapshotCheckpointFase1 {
   idCheckpoint: string;
   pontoSpawn: Coordenada2D;
-  totensResolvidos: readonly string[];
 }
 
 /**
@@ -141,17 +222,6 @@ export interface ParticulaVentoHorizontal {
   velX: number;
   comprimento: number;
   alfa: number;
-}
-
-/**
- * Configuração imutável para criação de zonas de vento contrário.
- */
-export interface ConfigZonaVentoContrario {
-  x: number;
-  y: number;
-  largura: number;
-  altura: number;
-  forca: number;
 }
 
 /**

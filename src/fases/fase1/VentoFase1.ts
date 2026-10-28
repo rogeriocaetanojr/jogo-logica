@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import type {
   ColunaVento,
   ConfigColunaVento,
+  ConfigGeiser,
   ConfigZonaVentoContrario,
   OrdemEscada,
   ParametrosEscadaVento,
@@ -15,6 +16,14 @@ interface AreaRetangular {
   y: number;
   largura: number;
   altura: number;
+}
+
+interface GeiserVento extends ConfigGeiser {
+  grafico: Phaser.GameObjects.Graphics;
+  tempoCiclo: number;
+  lancouNestaErupcao: boolean;
+  bolhas: { x: number; y: number }[];
+  jatos: { x: number; y: number; comprimento: number }[];
 }
 
 function areaContemPonto(area: AreaRetangular, px: number, py: number): boolean {
@@ -61,11 +70,13 @@ export function lerParametrosEscada(valor: unknown): Partial<ParametrosEscadaVen
  * Ventos da Fase 1:
  * - colunas verticais, que erguem o jogador enquanto ele segura o pulo;
  * - zonas de vento contrário, que o empurram devagar para a esquerda;
+ * - gêiseres, que lançam o jogador para cima uma vez a cada erupção;
  * - o ciclo da escada de rajadas (Desafio 4), que liga uma coluna por vez.
  */
 export class VentoFase1 {
   public readonly colunas: ColunaVento[] = [];
   public readonly zonasContrarias: ZonaVentoContrario[] = [];
+  private readonly geiseres: GeiserVento[] = [];
   public intervaloEscadaSegundos: number = TOTEM_4_SEQUENCIADOR.PERIODO_PADRAO_MS / 1000;
   public forcaEscadaPixels: number = TOTEM_4_SEQUENCIADOR.FORCA_PADRAO;
 
@@ -122,6 +133,53 @@ export class VentoFase1 {
 
     this.zonasContrarias.push(zona);
     return zona;
+  }
+
+  public criarGeiser(cfg: ConfigGeiser): void {
+    const g = VENTO_FASE1.GEISER;
+    const grafico = this.cena.add.graphics();
+    grafico.setDepth(VENTO_FASE1.PROFUNDIDADE_GRAFICO);
+
+    const bolhas = Array.from({ length: g.BOLHAS_QUANTIDADE }, () => ({
+      x: cfg.x - g.LARGURA_BOCA / 2 + Math.random() * g.LARGURA_BOCA,
+      y: cfg.yBase - Math.random() * 80,
+    }));
+    const jatos = Array.from({ length: g.JATOS_QUANTIDADE }, () => ({
+      x: cfg.x - cfg.largura / 2 + Math.random() * cfg.largura,
+      y: cfg.yBase - Math.random() * cfg.altura,
+      comprimento: 20 + Math.random() * 40,
+    }));
+
+    // O ciclo começa logo depois de uma erupção, para a primeira vir com aviso completo
+    this.geiseres.push({
+      ...cfg,
+      grafico,
+      tempoCiclo: cfg.duracaoMs + cfg.defasagemMs,
+      lancouNestaErupcao: false,
+      bolhas,
+      jatos,
+    });
+  }
+
+  /**
+   * Se o ponto está num gêiser em erupção que ainda não lançou ninguém nesta erupção,
+   * marca o lançamento e devolve a força do impulso. Um impulso por erupção.
+   */
+  public consumirImpulsoGeiser(x: number, y: number): number | undefined {
+    for (const geiser of this.geiseres) {
+      if (!this.emErupcao(geiser) || geiser.lancouNestaErupcao) continue;
+      const area = {
+        x: geiser.x,
+        y: geiser.yBase - geiser.altura / 2,
+        largura: geiser.largura,
+        altura: geiser.altura,
+      };
+      if (areaContemPonto(area, x, y)) {
+        geiser.lancouNestaErupcao = true;
+        return geiser.forca;
+      }
+    }
+    return undefined;
   }
 
   /**
@@ -202,7 +260,57 @@ export class VentoFase1 {
   public update(tempo: number, delta: number): void {
     this.renderizarColunas(delta);
     this.renderizarZonasContrarias(tempo, delta);
+    this.atualizarGeiseres(tempo, delta);
     this.atualizarCicloEscada(delta);
+  }
+
+  private emErupcao(geiser: GeiserVento): boolean {
+    return geiser.tempoCiclo % geiser.periodoMs < geiser.duracaoMs;
+  }
+
+  private atualizarGeiseres(tempo: number, delta: number): void {
+    const g = VENTO_FASE1.GEISER;
+    const dt = delta / 1000;
+
+    for (const geiser of this.geiseres) {
+      geiser.tempoCiclo += delta;
+      const fase = geiser.tempoCiclo % geiser.periodoMs;
+      const erupcao = fase < geiser.duracaoMs;
+      const aviso = fase >= geiser.periodoMs - geiser.avisoMs;
+      if (!erupcao) geiser.lancouNestaErupcao = false;
+
+      const desenho = geiser.grafico;
+      const topo = geiser.yBase - geiser.altura;
+      desenho.clear();
+
+      // Boca do gêiser no chão
+      desenho.fillStyle(g.COR_BOCA, 1);
+      desenho.fillEllipse(geiser.x, geiser.yBase - 2, g.LARGURA_BOCA, g.ALTURA_BOCA);
+
+      // Aviso: a boca brilha e solta bolhas antes de estourar
+      if (aviso) {
+        desenho.fillStyle(g.COR_AVISO, 0.35 + Math.sin(tempo * 0.02) * 0.25);
+        desenho.fillEllipse(geiser.x, geiser.yBase - 2, g.LARGURA_BOCA * 0.8, g.ALTURA_BOCA * 0.7);
+        desenho.fillStyle(g.COR_AVISO, 0.8);
+        for (const bolha of geiser.bolhas) {
+          bolha.y -= g.BOLHAS_VEL_Y * dt;
+          if (bolha.y < geiser.yBase - 80) bolha.y = geiser.yBase;
+          desenho.fillCircle(bolha.x, bolha.y, 3);
+        }
+      }
+
+      // Erupção: coluna clara com jatos subindo rápido por toda a área
+      if (erupcao) {
+        desenho.fillStyle(g.COR_ERUPCAO, g.ALFA_ERUPCAO);
+        desenho.fillRect(geiser.x - geiser.largura / 2, topo, geiser.largura, geiser.altura);
+        desenho.lineStyle(2, 0xffffff, 0.85);
+        for (const jato of geiser.jatos) {
+          jato.y -= g.JATOS_VEL_Y * dt;
+          if (jato.y < topo) jato.y = geiser.yBase;
+          desenho.lineBetween(jato.x, jato.y, jato.x, jato.y + jato.comprimento);
+        }
+      }
+    }
   }
 
   private renderizarColunas(delta: number): void {

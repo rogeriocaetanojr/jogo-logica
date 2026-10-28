@@ -5,7 +5,7 @@ import { interpretarComandoFase1 } from './InterpretadorFase1';
 import type { SentinelaFase1 } from './SentinelaFase1';
 import { JogadorFase1 } from './JogadorFase1';
 import { VentoFase1, lerParametrosEscada } from './VentoFase1';
-import { PlataformasRachadasFase1 } from './PlataformasFase1';
+import { PlataformasInstaveisFase1 } from './PlataformasFase1';
 import { gerarTexturasFase1 } from './TexturasFase1';
 import {
   construirNivelFase1,
@@ -27,11 +27,12 @@ import {
   CHECKPOINTS_FASE1,
   DISTANCIA_INTERACAO_TOTEM_PADRAO,
   ERROS_PARA_ESQUELETO,
+  SENTINELAS_FASE1,
   TOTEM_1_ALCOOLEMIA,
   TOTEM_2_BALANCA,
   TOTEM_3_PORTAO,
   TOTEM_4_SEQUENCIADOR,
-  SANTUARIO_FASE1,
+  ARENA_FASE1,
 } from './constantesFase1';
 
 const CHECKPOINTS_EM_ORDEM = [
@@ -43,19 +44,20 @@ const CHECKPOINTS_EM_ORDEM = [
 
 /**
  * CenaFase1: Céu Partido.
- * Orquestra os módulos da fase (jogador, vento, mármore rachado, nível, sentinelas e NPCs),
- * os 4 desafios lógicos do terminal e o sistema de snapshot com reset limpo no respawn.
+ * Orquestra os módulos da fase (jogador, vento, plataformas, nível, sentinelas e NPCs),
+ * os 4 desafios lógicos do terminal e o sistema de checkpoint com reset limpo no respawn.
  */
 export class CenaFase1 extends CenaBase {
   private jogador!: JogadorFase1;
   private vento!: VentoFase1;
-  private rachados!: PlataformasRachadasFase1;
+  private instaveis!: PlataformasInstaveisFase1;
   private nivel!: ElementosNivelFase1;
 
-  // Estado dos desafios e do respawn
+  // Estado dos desafios e do respawn (desafios resolvidos continuam resolvidos ao morrer)
   private totensResolvidos = new Set<string>();
   private snapshotAtual!: SnapshotCheckpointFase1;
   private textoNotificacaoCheckpoint?: Phaser.GameObjects.Text;
+  private portaArenaFechada: boolean = false;
   private faseConcluida: boolean = false;
 
   // Terminal: totem conectado, erros por totem (liberam o esqueleto no help) e simulação do Desafio 4
@@ -75,6 +77,7 @@ export class CenaFase1 extends CenaBase {
 
     // Reinicia o estado (a instância da cena é reaproveitada entre visitas)
     this.totensResolvidos = new Set<string>();
+    this.portaArenaFechada = false;
     this.faseConcluida = false;
     this.totemAberto = undefined;
     this.errosPorTotem = new Map<string, number>();
@@ -85,7 +88,6 @@ export class CenaFase1 extends CenaBase {
     this.snapshotAtual = {
       idCheckpoint: 'cp0_inicial',
       pontoSpawn: { ...CHECKPOINTS_FASE1.INICIAL },
-      totensResolvidos: [],
     };
 
     // 2. Limites do Mundo e Câmera com fundo lilás celestial
@@ -104,19 +106,22 @@ export class CenaFase1 extends CenaBase {
 
     // 5. Sistemas da fase e jogador (criado antes de registrar colisores)
     this.vento = new VentoFase1(this);
-    this.rachados = new PlataformasRachadasFase1(this);
+    this.instaveis = new PlataformasInstaveisFase1(this);
     this.jogador = new JogadorFase1(this, this.snapshotAtual.pontoSpawn);
 
-    // 6. Construção dos 3 Blocos de Level Design com os 4 Desafios, Sentinelas e NPCs
-    this.nivel = construirNivelFase1(this, this.jogador.sprite, this.vento, this.rachados);
+    // 6. Construção dos 4 blocos de level design com os 4 desafios, sentinelas e NPCs
+    this.nivel = construirNivelFase1(this, this.jogador.sprite, this.vento, this.instaveis);
 
     // 7. Colisões com o Jogador
     const spriteJogador = this.jogador.sprite;
     this.physics.add.collider(spriteJogador, this.nivel.plataformasEstaticas);
     this.physics.add.collider(spriteJogador, this.nivel.nuvensSolidas);
-    this.physics.add.collider(spriteJogador, this.rachados.grupo, (_jog, plat) => {
-      this.rachados.aoPisar(plat as Phaser.Physics.Arcade.Sprite);
+    this.physics.add.collider(spriteJogador, this.instaveis.grupo, (_jog, plat) => {
+      this.instaveis.aoPisar(plat as Phaser.Physics.Arcade.Sprite);
     });
+    for (const movel of this.nivel.plataformasMoveis) {
+      this.physics.add.collider(spriteJogador, movel.sprite);
+    }
 
     // 8. Integração com o Terminal
     this.configurarTerminal();
@@ -186,8 +191,8 @@ export class CenaFase1 extends CenaBase {
         s.congelar();
       }
 
-      // Evita que plataformas que estavam rachando quebrem durante a digitação
-      this.rachados.adiarRachaduras(delta);
+      // Evita que plataformas que estavam sendo pisadas sumam durante a digitação
+      this.instaveis.adiarRachaduras(delta);
 
       // Durante a simulação do Desafio 4, só a escada de vento se move
       if (this.simulacaoRajadas === 'rodando') {
@@ -201,16 +206,22 @@ export class CenaFase1 extends CenaBase {
       this.descongelarJogo();
     }
 
-    // 2. Checkpoints e queda no abismo
+    // 2. Checkpoints, queda no abismo e a porta da arena
     this.verificarLimitesECheckpoints();
+    if (!this.portaArenaFechada && this.jogador.x >= ARENA_FASE1.PORTA.gatilhoX) {
+      this.fecharPortaArena();
+    }
 
     // 3. Movimentação, Coyote Time, Jump Buffer e Mecânica de Planar no Vento
     this.jogador.update(tempo, delta, this.vento);
 
-    // 4. Mármore rachado
-    this.rachados.update(tempo);
+    // 4. Plataformas que somem e plataformas móveis
+    this.instaveis.update(tempo);
+    for (const movel of this.nivel.plataformasMoveis) {
+      movel.update(delta);
+    }
 
-    // 5. Colunas de vento e ciclo da Escada de Rajadas (Desafio 4)
+    // 5. Colunas, zonas de vento contrário, gêiseres e a Escada de Rajadas (Desafio 4)
     this.vento.update(tempo, delta);
 
     // 6. Escudo da Sentinela A-01 (Desafio 1)
@@ -220,17 +231,18 @@ export class CenaFase1 extends CenaBase {
       desenharEscudoSentinela(this.nivel.graficoEscudo, tempo);
     }
 
-    // 7. Sentinelas (FPS independente + Pulso Eólico)
+    // 7. Sentinelas (patrulha, pulso eólico, rajada lateral e alerta máximo)
     for (const s of this.nivel.sentinelas) {
-      s.update(tempo, delta, this.jogador.sprite, emMenuOuDialogo, (sentinela) => {
-        this.dispararAlarmeSentinela(sentinela);
+      s.update(tempo, delta, this.jogador.sprite, emMenuOuDialogo, {
+        aoDetectar: (sentinela) => this.dispararAlarmeSentinela(sentinela),
+        aoRajar: (sentinela) => this.aplicarRajadaSentinela(sentinela),
       });
     }
 
     // 8. Interação com NPCs e com os 4 Totens (sem conflito)
     this.tratarInteracoes();
 
-    // 9. Chegada ao Santuário Final
+    // 9. Chegada ao portal da arena
     this.verificarFinalizacaoFase();
   }
 
@@ -245,6 +257,20 @@ export class CenaFase1 extends CenaBase {
       laser.destroy();
       this.restaurarSnapshot('SENTINELA DISPAROU: DETECTADO NO ESPAÇO AÉREO!');
     });
+  }
+
+  /**
+   * A rajada só atinge o jogador se ele estiver na frente da sentinela e perto o bastante.
+   */
+  private aplicarRajadaSentinela(sentinela: SentinelaFase1): void {
+    const s = SENTINELAS_FASE1;
+    const dx = this.jogador.x - sentinela.sprite.x;
+    const dy = this.jogador.y - sentinela.sprite.y;
+    const naFrente = dx * sentinela.direcao >= 0;
+    if (!naFrente || Math.abs(dx) > s.ALCANCE_RAJADA || Math.abs(dy) > s.ALTURA_RAJADA) return;
+
+    this.jogador.aplicarEmpurrao(sentinela.direcao * s.EMPURRAO_X, s.EMPURRAO_Y, s.DURACAO_EMPURRAO_MS);
+    this.cameras.main.shake(150, 0.004);
   }
 
   /**
@@ -411,8 +437,13 @@ export class CenaFase1 extends CenaBase {
 
   private executarDesativarEscudoSentinela(): void {
     this.totensResolvidos.add(TOTEM_1_ALCOOLEMIA.ID);
-    this.nivel.sentinela1.hackear();
     this.nivel.barreiraEscudo.destroy();
+
+    // A sentinela que patrulhava o vão vira a balsa que atravessa o mesmo vão
+    const sentinela = this.nivel.sentinela1;
+    const balsa = this.nivel.balsaSentinela;
+    balsa.ativarEm(sentinela.sprite.x, TOTEM_1_ALCOOLEMIA.BALSA.y, sentinela.direcao);
+    sentinela.transformarEmPlataforma(balsa.sprite);
 
     this.tweens.add({
       targets: this.nivel.graficoEscudo,
@@ -421,7 +452,7 @@ export class CenaFase1 extends CenaBase {
       onComplete: () => this.nivel.graficoEscudo.clear(),
     });
 
-    this.fecharTerminalComFeedback('SENTINELA HACKEADA // CORREDOR LIVRE!', () =>
+    this.fecharTerminalComFeedback('SENTINELA HACKEADA // ELA AGORA É SUA BALSA!', () =>
       this.cameras.main.flash(200, 255, 255, 255)
     );
   }
@@ -457,7 +488,7 @@ export class CenaFase1 extends CenaBase {
       ease: 'Quad.easeInOut',
     });
 
-    this.fecharTerminalComFeedback('PORTÃO MILENAR ABERTO // BLOCO 3 LIBERADO!', () =>
+    this.fecharTerminalComFeedback('PORTÃO MILENAR ABERTO // ESCADA À VISTA!', () =>
       this.cameras.main.shake(300, 0.005)
     );
   }
@@ -472,8 +503,32 @@ export class CenaFase1 extends CenaBase {
     );
   }
 
+  /**
+   * A porta sobe atrás do jogador ao entrar na arena: dali não tem volta.
+   */
+  private fecharPortaArena(): void {
+    this.portaArenaFechada = true;
+    const porta = this.nivel.portaArena;
+    (porta.body as Phaser.Physics.Arcade.Body).enable = true;
+    this.nivel.colisorPortaArena.active = true;
+
+    this.tweens.add({
+      targets: porta,
+      y: ARENA_FASE1.PORTA.y,
+      alpha: 1,
+      duration: 700,
+      ease: 'Cubic.easeOut',
+      onUpdate: () => {
+        (porta.body as Phaser.Physics.Arcade.Body).updateFromGameObject();
+      },
+    });
+
+    this.cameras.main.shake(300, 0.006);
+    this.mostrarNotificacaoCurta('PORTA SELADA // AGORA É VOCÊ E O VENTO');
+  }
+
   // =========================================================================
-  // SISTEMA DE SNAPSHOT E RESPAWN LIMPO
+  // CHECKPOINTS E RESPAWN LIMPO
   // =========================================================================
 
   private verificarLimitesECheckpoints(): void {
@@ -499,24 +554,16 @@ export class CenaFase1 extends CenaBase {
     }
   }
 
-  /**
-   * Salva o snapshot com o progresso do jogador ao alcançar um novo checkpoint.
-   */
   private salvarSnapshotCheckpoint(idCheckpoint: string, ponto: Coordenada2D, nomeNotificacao: string): void {
-    this.snapshotAtual = {
-      idCheckpoint,
-      pontoSpawn: { ...ponto },
-      totensResolvidos: [...this.totensResolvidos],
-    };
-
+    this.snapshotAtual = { idCheckpoint, pontoSpawn: { ...ponto } };
     this.exibirAnimacaoCheckpoint(nomeNotificacao);
   }
 
   /**
-   * Restaura o mundo e o jogador para um estado limpo baseado no último snapshot salvo.
-   * - Plataformas rachadas retornam intactas.
-   * - Sentinelas ativas retornam às rotas iniciais.
-   * - Puzzles concluídos até o checkpoint permanecem abertos/resolvidos.
+   * Devolve o jogador ao último checkpoint com o mundo em estado limpo.
+   * - Plataformas que somem voltam intactas.
+   * - Sentinelas não hackeadas voltam às rotas iniciais.
+   * - Desafios resolvidos continuam resolvidos (escudo, elevador, portão e escada não voltam atrás).
    */
   private restaurarSnapshot(motivo: string): void {
     const ponto = this.snapshotAtual.pontoSpawn;
@@ -526,36 +573,9 @@ export class CenaFase1 extends CenaBase {
     // Centraliza câmera instantaneamente no ponto de spawn seguro
     this.cameras.main.centerOn(ponto.x, ponto.y);
 
-    // 1. Reset instantâneo de todas as plataformas de mármore rachado
-    this.rachados.resetar();
-
-    // 2. Reset de Sentinelas ativas às posições iniciais
+    this.instaveis.resetar();
     for (const s of this.nivel.sentinelas) {
       s.resetarPosicao();
-    }
-
-    // 3. Reconciliação dos puzzles concluídos no snapshot
-    this.totensResolvidos = new Set(this.snapshotAtual.totensResolvidos);
-
-    if (this.totensResolvidos.has(TOTEM_1_ALCOOLEMIA.ID)) {
-      this.nivel.barreiraEscudo.destroy();
-      this.nivel.graficoEscudo.clear();
-      this.nivel.sentinela1.hackear();
-    }
-
-    const elevador = this.nivel.elevadorNuvem;
-    if (elevador.body) {
-      const elevadorY = this.totensResolvidos.has(TOTEM_2_BALANCA.ID)
-        ? TOTEM_2_BALANCA.ALTITUDE_ALVO
-        : TOTEM_2_BALANCA.ELEVADOR_Y_INICIAL;
-      elevador.y = elevadorY;
-      (elevador.body as Phaser.Physics.Arcade.Body).reset(TOTEM_2_BALANCA.ELEVADOR_X, elevadorY);
-    }
-
-    if (this.totensResolvidos.has(TOTEM_3_PORTAO.ID)) {
-      this.nivel.portaoMilenar.y = TOTEM_3_PORTAO.Y_PORTAO + TOTEM_3_PORTAO.DESLOCAMENTO_ABERTO_Y;
-      this.nivel.portaoMilenar.setAlpha(TOTEM_3_PORTAO.ALFA_ABERTO);
-      this.nivel.colisorPortao.destroy();
     }
 
     if (this.jogoCongeladoPorMenu) {
@@ -638,7 +658,7 @@ export class CenaFase1 extends CenaBase {
 
     const portal = this.nivel.portalFinal;
     const distPortal = Phaser.Math.Distance.Between(this.jogador.x, this.jogador.y, portal.x, portal.y);
-    if (distPortal >= SANTUARIO_FASE1.DISTANCIA_PORTAL) return;
+    if (distPortal >= ARENA_FASE1.DISTANCIA_PORTAL) return;
 
     this.faseConcluida = true;
     this.jogador.sprite.setVelocity(0, 0);

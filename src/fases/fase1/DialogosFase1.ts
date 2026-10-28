@@ -82,6 +82,22 @@ export const TEXTOS_NPCS_FASE1 = {
       },
     ] as LinhaDialogo[],
   },
+  POMBO: {
+    NOME: 'Pombo-Correio Sindicalizado',
+    PROMPT: '[E] FALAR COM O POMBO',
+    DIALOGO: [
+      {
+        falante: '> POMBO-CORREIO // SINDICATO DOS ENTREGADORES ALADOS',
+        texto:
+          'Entrega pra você: um aviso do Helio. Diz que vai te soprar daqui até o rodapé da tela. Eu só entrego, não leio. Mas li.',
+      },
+      {
+        falante: '> POMBO-CORREIO // SINDICATO DOS ENTREGADORES ALADOS',
+        texto:
+          'Conselho de quem tá em greve: passou da porta, ela fecha e não tem volta. E o chefão ainda tá sendo programado, então por enquanto lá dentro só tem o portal. Aproveita a folga.',
+      },
+    ] as LinhaDialogo[],
+  },
 } as const;
 
 // =============================================================================

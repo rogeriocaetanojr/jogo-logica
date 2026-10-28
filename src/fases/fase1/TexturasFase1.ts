@@ -234,4 +234,71 @@ export function gerarTexturasFase1(cena: Phaser.Scene): void {
     g.fillStyle(0xfbbf24, 1);
     g.fillRect(10, 18, w - 20, 3);
   });
+
+  // 13. Nuvem Efêmera: mais transparente e com a base tracejada, para avisar que não é firme
+  gerar(cena, 'nuvem-efemera', 200, 44, (g) => {
+    const w = 200;
+    const h = 44;
+    g.fillStyle(0xf5f3ff, 0.75);
+    g.fillRoundedRect(10, 10, w - 20, h - 10, 15);
+    g.fillStyle(0xffffff, 0.8);
+    g.fillCircle(40, 20, 18);
+    g.fillCircle(85, 16, 22);
+    g.fillCircle(135, 18, 20);
+    g.fillCircle(170, 22, 16);
+    g.fillStyle(0xc4b5fd, 0.9);
+    for (let x = 20; x < w - 20; x += 18) {
+      g.fillRect(x, h - 8, 10, 3);
+    }
+  });
+
+  // 14. Plataforma em Trilho: mármore fino com trilhos dourados nas pontas
+  gerar(cena, 'plataforma-trilho', 160, 24, (g) => {
+    const w = 160;
+    const h = 24;
+    g.fillStyle(0xf8fafc, 1);
+    g.fillRoundedRect(0, 0, w, h, 4);
+    g.fillStyle(0xf59e0b, 1);
+    g.fillRect(0, 0, w, 4);
+    g.fillStyle(0x94a3b8, 1);
+    g.fillRect(6, h - 6, 14, 4);
+    g.fillRect(w - 20, h - 6, 14, 4);
+    g.fillStyle(0xfbbf24, 1);
+    g.fillCircle(13, h - 4, 3);
+    g.fillCircle(w - 13, h - 4, 3);
+  });
+
+  // 15. Balsa da Sentinela: deck escuro com faixa verde de "hackeado"
+  gerar(cena, 'plataforma-sentinela', 120, 24, (g) => {
+    const w = 120;
+    const h = 24;
+    g.fillStyle(0x18181b, 1);
+    g.fillRoundedRect(0, 0, w, h, 6);
+    g.fillStyle(0x10b981, 1);
+    g.fillRect(4, 2, w - 8, 4);
+    g.fillStyle(0x34d399, 0.6);
+    g.fillRect(10, h - 7, w - 20, 3);
+    g.fillStyle(0x52525b, 1);
+    g.fillRect(0, 8, 6, 10);
+    g.fillRect(w - 6, 8, 6, 10);
+  });
+
+  // 16. NPC 3: Pombo-Correio Sindicalizado (com crachá do sindicato)
+  gerar(cena, 'npc-pombo', 48, 40, (g) => {
+    g.fillStyle(0x94a3b8, 1);
+    g.fillEllipse(22, 26, 32, 22);
+    g.fillStyle(0x64748b, 1);
+    g.fillEllipse(16, 27, 18, 12);
+    g.fillStyle(0xa5b4fc, 1);
+    g.fillCircle(34, 14, 9);
+    g.fillStyle(0xf59e0b, 1);
+    g.fillTriangle(42, 13, 48, 15, 42, 17);
+    g.fillStyle(0x000000, 1);
+    g.fillCircle(36, 12, 2);
+    g.fillStyle(0xef4444, 1);
+    g.fillRect(24, 22, 8, 6);
+    g.fillStyle(0xf59e0b, 1);
+    g.fillRect(18, 36, 2, 4);
+    g.fillRect(26, 36, 2, 4);
+  });
 }

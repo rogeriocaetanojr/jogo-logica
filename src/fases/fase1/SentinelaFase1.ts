@@ -1,11 +1,21 @@
 import Phaser from 'phaser';
-import type { EstadoSentinela } from './tiposFase1';
+import type { ConfigSentinela, EstadoSentinela, TipoDeteccaoSentinela } from './tiposFase1';
 import { SENTINELAS_FASE1 } from './constantesFase1';
+
+/**
+ * Avisos da sentinela para a cena, que decide o que acontece com o jogador.
+ */
+export interface EventosSentinela {
+  /** Alerta máximo: o jogador foi visto e deve voltar ao checkpoint. */
+  aoDetectar: (sentinela: SentinelaFase1) => void;
+  /** A rajada lateral saiu na direção em que a sentinela olha. */
+  aoRajar: (sentinela: SentinelaFase1) => void;
+}
 
 /**
  * Entidade modularizada de Drone Sentinela da Fase 1: Céu Partido.
  * Encapsula física Arcade independente de FPS (delta-time), cone de visão triangular,
- * estados de patrulha e rajada eólica descendente, e rotina conclusiva de sobrecarga ao ser hackeada.
+ * pulso eólico descendente, rajada lateral telegrafada e o modo balsa depois de hackeada.
  */
 export class SentinelaFase1 {
   public cena: Phaser.Scene;
@@ -22,6 +32,7 @@ export class SentinelaFase1 {
   public direcao: number = 1; // 1 = direita, -1 = esquerda
   public alcanceVisao: number;
   public aberturaCone: number;
+  public deteccao: TipoDeteccaoSentinela;
 
   public emAlerta: boolean = false;
   public hackeada: boolean = false;
@@ -31,29 +42,28 @@ export class SentinelaFase1 {
   public estado: EstadoSentinela = 'scanner';
   public timerEstadoMs: number = 0;
 
-  constructor(
-    cena: Phaser.Scene,
-    id: string,
-    x: number,
-    y: number,
-    minX: number,
-    maxX: number,
-    velocidade: number,
-    podeDispararPulso: boolean = true
-  ) {
+  // Rajada lateral: tempo dentro de mirando/rajando e recarga até poder mirar de novo
+  private timerAcaoMs: number = 0;
+  private recargaRajadaAte: number = 0;
+
+  // Balsa sobre a qual a sentinela fica pousada depois de hackeada
+  private plataformaAlvo?: { readonly x: number; readonly y: number };
+
+  constructor(cena: Phaser.Scene, id: string, cfg: ConfigSentinela) {
     this.cena = cena;
     this.id = id;
-    this.xInicial = x;
-    this.yInicial = y;
-    this.minX = minX;
-    this.maxX = maxX;
-    this.velocidade = velocidade;
-    this.podeDispararPulso = podeDispararPulso;
+    this.xInicial = cfg.x;
+    this.yInicial = cfg.y;
+    this.minX = cfg.minX;
+    this.maxX = cfg.maxX;
+    this.velocidade = cfg.velocidade;
+    this.podeDispararPulso = cfg.podeDispararPulso;
+    this.deteccao = cfg.deteccao;
     this.alcanceVisao = SENTINELAS_FASE1.ALCANCE_VISAO_PADRAO;
     this.aberturaCone = SENTINELAS_FASE1.ABERTURA_CONE_PADRAO;
 
     // Sprite físico Arcade
-    this.sprite = this.cena.physics.add.sprite(x, y, 'sentinela-drone');
+    this.sprite = this.cena.physics.add.sprite(cfg.x, cfg.y, 'sentinela-drone');
     this.sprite.setDepth(SENTINELAS_FASE1.PROFUNDIDADE_SPRITE);
     (this.sprite.body as Phaser.Physics.Arcade.Body).setAllowGravity(false);
     this.sprite.setVelocityX(this.velocidade);
@@ -74,8 +84,13 @@ export class SentinelaFase1 {
     delta: number,
     jogador: Phaser.Physics.Arcade.Sprite,
     emCongelamento: boolean,
-    aoDetectar: (sentinela: SentinelaFase1) => void
+    eventos: EventosSentinela
   ): void {
+    if (this.estado === 'plataforma') {
+      this.seguirPlataforma();
+      return;
+    }
+
     if (this.hackeada || this.estado === 'desativada') {
       this.coneGrafico.clear();
       this.graficoPulso.clear();
@@ -93,7 +108,32 @@ export class SentinelaFase1 {
       Math.sin(tempo * SENTINELAS_FASE1.OSCILACAO_Y_VEL) *
         SENTINELAS_FASE1.OSCILACAO_Y_AMP;
 
-    // 2. Máquina de estados: Scanner vs Pulso Eólico
+    // 2. Rajada lateral: a mira e o sopro têm prioridade sobre patrulha e pulso
+    if (this.estado === 'mirando') {
+      this.timerAcaoMs += delta;
+      this.renderizarConeVisao();
+      if (this.timerAcaoMs >= SENTINELAS_FASE1.TEMPO_MIRA_MS) {
+        this.estado = 'rajando';
+        this.timerAcaoMs = 0;
+        this.coneGrafico.clear();
+        eventos.aoRajar(this);
+      }
+      return;
+    }
+    if (this.estado === 'rajando') {
+      this.timerAcaoMs += delta;
+      this.renderizarRajada();
+      if (this.timerAcaoMs >= SENTINELAS_FASE1.TEMPO_RAJADA_MS) {
+        this.estado = 'scanner';
+        this.timerAcaoMs = 0;
+        this.recargaRajadaAte = tempo + SENTINELAS_FASE1.RECARGA_RAJADA_MS;
+        this.graficoPulso.clear();
+        this.sprite.setVelocityX(this.direcao * this.velocidade);
+      }
+      return;
+    }
+
+    // 3. Máquina de estados: Scanner vs Pulso Eólico
     if (this.podeDispararPulso) {
       this.timerEstadoMs += delta;
 
@@ -116,7 +156,7 @@ export class SentinelaFase1 {
       }
     }
 
-    // 3. Patrulha horizontal independente de FPS
+    // 4. Patrulha horizontal independente de FPS
     if (this.direcao === 1) {
       if (this.sprite.x >= this.maxX) {
         this.sprite.x = this.maxX;
@@ -150,9 +190,9 @@ export class SentinelaFase1 {
       this.sprite.setVelocityX(this.velocidade);
     }
 
-    // 4. Renderização do cone de visão e detecção óptica
+    // 5. Renderização do cone de visão e detecção óptica
     this.renderizarConeVisao();
-    this.verificarDeteccaoJogador(jogador, aoDetectar);
+    this.verificarDeteccaoJogador(jogador, tempo, eventos);
   }
 
   private transicionarParaCarregandoPulso(): void {
@@ -233,6 +273,22 @@ export class SentinelaFase1 {
     }
   }
 
+  /**
+   * Linhas de vento saindo da sentinela na direção em que ela olha.
+   */
+  private renderizarRajada(): void {
+    this.graficoPulso.clear();
+    const progresso = Math.min(1, this.timerAcaoMs / SENTINELAS_FASE1.TEMPO_RAJADA_MS);
+    const inicioX = this.sprite.x + this.direcao * 20;
+    const fimX = inicioX + this.direcao * SENTINELAS_FASE1.ALCANCE_RAJADA * progresso;
+
+    this.graficoPulso.lineStyle(3, 0xffffff, 1 - progresso * 0.6);
+    for (let i = -2; i <= 2; i++) {
+      const y = this.sprite.y + i * 14;
+      this.graficoPulso.lineBetween(inicioX, y, fimX - this.direcao * Math.abs(i) * 30, y);
+    }
+  }
+
   private transicionarParaScanner(): void {
     this.estado = 'scanner';
     this.timerEstadoMs = 0;
@@ -256,11 +312,16 @@ export class SentinelaFase1 {
     const p2x = pontaX + Math.cos(rad2) * dist;
     const p2y = pontaY + Math.sin(rad2) * dist;
 
-    const corCone = this.emAlerta
-      ? 0xff0055
-      : SENTINELAS_FASE1.COR_CONE_ALERTA;
+    // Mirando, o cone pisca em branco: é o aviso de que a rajada vai sair
+    let corCone: number = this.emAlerta ? 0xff0055 : SENTINELAS_FASE1.COR_CONE_ALERTA;
+    let alfaFundo: number = SENTINELAS_FASE1.ALFA_CONE_FUNDO;
+    if (this.estado === 'mirando') {
+      const piscada = Math.floor(this.timerAcaoMs / SENTINELAS_FASE1.INTERVALO_PISCAR_MIRA_MS) % 2 === 0;
+      corCone = piscada ? SENTINELAS_FASE1.COR_MIRA : SENTINELAS_FASE1.COR_CONE_ALERTA;
+      alfaFundo = 0.35;
+    }
 
-    this.coneGrafico.fillStyle(corCone, SENTINELAS_FASE1.ALFA_CONE_FUNDO);
+    this.coneGrafico.fillStyle(corCone, alfaFundo);
     this.coneGrafico.fillTriangle(pontaX, pontaY, p1x, p1y, p2x, p2y);
 
     this.coneGrafico.lineStyle(1.5, corCone, SENTINELAS_FASE1.ALFA_CONE_BORDA);
@@ -269,9 +330,11 @@ export class SentinelaFase1 {
 
   private verificarDeteccaoJogador(
     jogador: Phaser.Physics.Arcade.Sprite,
-    aoDetectar: (sentinela: SentinelaFase1) => void
+    tempo: number,
+    eventos: EventosSentinela
   ): void {
     if (this.emAlerta) return;
+    if (this.deteccao === 'rajada' && tempo < this.recargaRajadaAte) return;
 
     const distAoDrone = Phaser.Math.Distance.Between(
       jogador.x,
@@ -305,9 +368,15 @@ export class SentinelaFase1 {
       p2y
     );
 
-    if (dentroDoCone) {
+    if (!dentroDoCone) return;
+
+    if (this.deteccao === 'respawn') {
       this.emAlerta = true;
-      aoDetectar(this);
+      eventos.aoDetectar(this);
+    } else {
+      this.estado = 'mirando';
+      this.timerAcaoMs = 0;
+      this.sprite.setVelocityX(0);
     }
   }
 
@@ -330,17 +399,17 @@ export class SentinelaFase1 {
   }
 
   /**
-   * Comportamento conclusivo de sobrecarga e neutralização ao ser hackeada.
-   * A sentinela desliga o cone de visão, solta faíscas procedurais em amarelo/cinza
-   * e despenca no abismo, liberando o corredor de forma limpa e inequívoca.
+   * Hackeada, a sentinela entra em sobrecarga, fica verde e pousa sobre a balsa,
+   * acompanhando-a dali em diante. O jogador vê que o drone que bloqueava agora o carrega.
    */
-  public hackear(): void {
+  public transformarEmPlataforma(plataforma: { readonly x: number; readonly y: number }): void {
     if (this.hackeada) return;
 
     this.hackeada = true;
-    this.estado = 'desativada';
+    this.estado = 'plataforma';
     this.emAlerta = false;
     this.escudoAtivo = false;
+    this.plataformaAlvo = plataforma;
 
     this.coneGrafico.clear();
     this.graficoPulso.clear();
@@ -348,50 +417,44 @@ export class SentinelaFase1 {
     const corpo = this.sprite.body as Phaser.Physics.Arcade.Body | null;
     if (corpo) {
       corpo.setVelocity(0, 0);
-      corpo.checkCollision.none = true;
+      corpo.enable = false;
     }
 
-    // Efeito de sobrecarga piscando em amarelo/cinza com faíscas procedurais
+    // Sobrecarga piscando em amarelo/cinza com faíscas procedurais, terminando em verde
     let piscadas = 0;
-    const timerSobrecarga = this.cena.time.addEvent({
+    this.cena.time.addEvent({
       delay: 80,
       repeat: 6,
       callback: () => {
         piscadas++;
         this.sprite.setTint(piscadas % 2 === 0 ? 0xfbbf24 : 0x64748b);
 
-        // Faíscas elétricas procedurais
         const faisca = this.cena.add.graphics();
         faisca.setDepth(10);
         faisca.lineStyle(2, 0xfef08a, 1);
         const fx = this.sprite.x + (Math.random() - 0.5) * 40;
         const fy = this.sprite.y + (Math.random() - 0.5) * 40;
         faisca.lineBetween(fx, fy, fx + (Math.random() - 0.5) * 30, fy + (Math.random() - 0.5) * 30);
-
         this.cena.time.delayedCall(120, () => faisca.destroy());
+
+        if (piscadas === 7) this.sprite.setTint(SENTINELAS_FASE1.COR_CONE_HACKEADA);
       },
     });
 
-    // Despenca girando no abismo celestial
-    this.cena.time.delayedCall(500, () => {
-      this.cena.tweens.add({
-        targets: this.sprite,
-        y: this.sprite.y + 400,
-        rotation: this.direcao * 2.5,
-        alpha: 0,
-        duration: 1200,
-        ease: 'Cubic.easeIn',
-        onComplete: () => {
-          this.sprite.setVisible(false);
-          timerSobrecarga.destroy();
-        },
-      });
-    });
+    this.seguirPlataforma();
+  }
+
+  private seguirPlataforma(): void {
+    if (!this.plataformaAlvo) return;
+    this.sprite.setPosition(
+      this.plataformaAlvo.x,
+      this.plataformaAlvo.y - SENTINELAS_FASE1.ALTURA_SOBRE_PLATAFORMA
+    );
   }
 
   /**
    * Restaura a sentinela à posição e rota inicial de patrulha no respawn de checkpoint.
-   * Se já estiver hackeada/neutralizada, mantém seu estado inativo.
+   * Se já estiver hackeada, mantém seu estado.
    */
   public resetarPosicao(): void {
     if (this.hackeada) return;
@@ -413,6 +476,8 @@ export class SentinelaFase1 {
     this.emAlerta = false;
     this.estado = 'scanner';
     this.timerEstadoMs = 0;
+    this.timerAcaoMs = 0;
+    this.recargaRajadaAte = 0;
     this.coneGrafico.clear();
     this.graficoPulso.clear();
   }
