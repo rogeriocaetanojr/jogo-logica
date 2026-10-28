@@ -1,57 +1,33 @@
 import type { ContextoInterpretador, ResultadoComando } from '../../compartilhado/tipos';
 
 /**
- * Interpretador de comandos da Fase 3: Registradores e Barramentos de Lista (Integrante 3).
+ * Interpretador de comandos da Fase 3 (Lixão Eletrônico).
+ * Provisório: só trata "ajuda" e "limpar". Os 6 exercícios em Python ficam para o fim
+ * do desenvolvimento (ver docs/fase3/PLANO_FASE3.md, "Em aberto").
  */
 export function interpretarComandoFase3(
   entrada: string,
   _contexto?: ContextoInterpretador
 ): ResultadoComando {
-  const bruto = entrada.trim();
-  if (!bruto) {
-    return { sucesso: false, mensagem: '[AVISO] Digite uma instrução de lista para processar.' };
+  const comando = entrada.trim().toLowerCase();
+
+  if (!comando) {
+    return { sucesso: false, mensagem: 'Nada digitado. Até a sucata aqui tem mais iniciativa.' };
   }
 
-  const normalizado = bruto.replace(/;+$/, '').trim().toLowerCase();
-
-  if (normalizado === 'cls' || normalizado === 'clear' || normalizado === 'limpar') {
+  if (comando === 'cls' || comando === 'clear' || comando === 'limpar') {
     return { sucesso: true, mensagem: '', acao: 'CLEAR_TERMINAL' };
   }
 
-  if (normalizado === 'help' || normalizado === 'ajuda') {
+  if (comando === 'ajuda' || comando === 'help') {
     return {
       sucesso: true,
-      mensagem:
-        '[MANUAL DE REGISTRADORES // SETOR 3]\n' +
-        '  dados.append(item)    - Insere item no fim da lista\n' +
-        '  dados.pop()           - Remove o último item\n' +
-        '  dados[indice]         - Acessa elemento pelo índice (0 a N-1)\n' +
-        "  Exemplo: chave = setor[0] + setor[2]",
-    };
-  }
-
-  const semEspacos = normalizado.replace(/\s+/g, '');
-
-  // Desafio: Montar a chave pegando o primeiro e o terceiro elemento de registradores = ["Alfa", "Beta", "Gamma"]
-  // Ex: chave = registradores[0] + registradores[2] ou "AlfaGamma"
-  const solucaoAcesso =
-    semEspacos.includes('registradores[0]+registradores[2]') ||
-    semEspacos.includes('dados[0]+dados[2]') ||
-    semEspacos.includes('"alfagamma"') ||
-    semEspacos.includes("'alfagamma'");
-
-  if (solucaoAcesso) {
-    return {
-      sucesso: true,
-      mensagem:
-        "[REGISTRADORES SINCRONIZADOS] Chave 'AlfaGamma' montada com sucesso a partir dos índices da lista!",
-      acao: 'CONCLUIR_FASE3',
+      mensagem: 'Comandos: ajuda, limpar, enunciado. Os exercícios desta área ainda não foram instalados.',
     };
   }
 
   return {
     sucesso: false,
-    mensagem:
-      "[ERRO DE ÍNDICE] Mega Brain: 'Acesse os elementos corretos da lista com [0] e [2]: chave = registradores[0] + registradores[2]'",
+    mensagem: 'Comando não reconhecido. A máquina desta área ainda está desligada.',
   };
 }
