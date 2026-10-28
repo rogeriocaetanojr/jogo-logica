@@ -137,6 +137,29 @@ export abstract class AreaLixao {
     return this.tingir(img);
   }
 
+  /**
+   * Obstáculo sólido em pixel art: textura do tamanho exato do corpo de colisão, alinhada
+   * à grade. x e y são o canto superior esquerdo, em coordenadas de mundo.
+   */
+  protected solido(
+    nome: string,
+    x: number,
+    y: number,
+    largura: number,
+    altura: number,
+    desenhar: (p: Pincel, w: number, h: number) => void
+  ): Phaser.GameObjects.Image {
+    const gx = grade(x);
+    const gy = grade(y);
+    const w = Math.round(largura / ESCALA);
+    const h = Math.round(altura / ESCALA);
+    texturaPixel(this.cena, this.chave(nome), w, h, (p) => desenhar(p, w, h));
+    const img = this.cena.add.image(gx, gy, this.chave(nome)).setOrigin(0, 0).setScale(ESCALA).setDepth(PROF.objetos);
+    const corpo = this.cena.add.rectangle(gx + (w * ESCALA) / 2, gy + (h * ESCALA) / 2, w * ESCALA, h * ESCALA, 0, 0);
+    this.solidos.add(corpo);
+    return this.tingir(img);
+  }
+
   /** Camada 1 do céu (fixa): degradê pontilhado com sol ou lua. */
   private criarCeu(): void {
     const { ceu, astro } = this.tema;

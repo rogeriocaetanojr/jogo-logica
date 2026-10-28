@@ -387,6 +387,62 @@ export function desenharChao(p: Pincel, w: number, h: number, rnd: () => number)
 }
 
 /* =========================================================================
+ * OBSTÁCULOS SÓLIDOS
+ * Desenhados no tamanho exato do corpo de colisão (em pixels de arte).
+ * ========================================================================= */
+
+/** Bloco de sucata prensada: chapas empilhadas com rebites e frestas. */
+export function desenharBlocoSucata(p: Pincel, w: number, h: number, rnd: () => number): void {
+  p.caixa(0, 0, w, h, COR.sucata);
+  p.px(1, 1, w - 2, 1, COR.sucataClara);
+  for (let y = 4 + Math.floor(rnd() * 3); y < h - 2; y += 4 + Math.floor(rnd() * 3)) {
+    p.px(1, y, w - 2, 1, COR.sombraSucata);
+    p.px(1, y + 1, w - 2, 1, COR.sucataClara);
+    const x = 2 + Math.floor(rnd() * (w - 5));
+    p.ponto(x, y - 2, COR.contorno);
+    if (rnd() < 0.4) p.linha(x + 2, y - 1, x + 4, y - 2, COR.cobreEscuro);
+  }
+  p.px(1, h - 2, w - 2, 1, COR.sombraSucata);
+}
+
+/** Viga de metal fina usada como plataforma suspensa. */
+export function desenharViga(p: Pincel, w: number, h: number): void {
+  p.caixa(0, 0, w, h, COR.sucataClara);
+  p.px(1, h - 2, w - 2, 1, COR.sucata);
+  for (let x = 3; x < w - 2; x += 6) p.ponto(x, Math.floor(h / 2), COR.contorno);
+}
+
+/** Cano horizontal com anéis de junção; o vão embaixo dele é a passagem abaixada. */
+export function desenharCano(p: Pincel, w: number, h: number): void {
+  p.px(0, 0, w, h, COR.contorno);
+  p.px(0, 1, w, h - 2, COR.sucata);
+  p.px(0, 2, w, 1, COR.sucataClara);
+  p.px(0, h - 3, w, 1, COR.sombraSucata);
+  for (let x = 4; x < w - 3; x += 14) {
+    p.px(x, 0, 3, h, COR.contorno);
+    p.px(x + 1, 1, 1, h - 2, COR.cobreEscuro);
+  }
+}
+
+/** Muralha de entulho que vai do cano até o alto da tela (impede pular por cima). */
+export function desenharMuralha(p: Pincel, w: number, h: number, rnd: () => number): void {
+  p.px(0, 0, w, h, COR.sombraSucata);
+  for (let i = 0; i < (w * h) / 40; i++) {
+    const x = Math.floor(rnd() * (w - 4));
+    const y = Math.floor(rnd() * (h - 3));
+    const r = rnd();
+    if (r < 0.45) p.caixa(x, y, 5 + Math.floor(rnd() * 5), 3 + Math.floor(rnd() * 3), COR.sucata);
+    else if (r < 0.6) {
+      p.px(x, y, 5, 2, COR.verdePlaca);
+      p.ponto(x + 1, y, COR.cobre);
+    } else if (r < 0.75) p.linha(x, y, x + 4, y + 2, COR.contorno);
+    else p.ponto(x, y, COR.cobreEscuro);
+  }
+  p.px(0, 0, 1, h, COR.contorno);
+  p.px(w - 1, 0, 1, h, COR.contorno);
+}
+
+/* =========================================================================
  * TEXTURAS COMUNS
  * ========================================================================= */
 

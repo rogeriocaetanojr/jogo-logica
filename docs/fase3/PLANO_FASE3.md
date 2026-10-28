@@ -14,7 +14,8 @@ Um lixão gigante de lixo eletrônico, inspirado em Wall-E. O jogador controla m
 ## Perigos
 - Drones andam e atiram sucata. Dá para desviar ou derrubá-los arremessando lixo. Eles mudam com o clima (por exemplo, na chuva soltam faíscas).
 - Lixo cai das pilhas, com sombra e tremor de aviso.
-- Pulos e trechos em que é preciso se abaixar.
+- Pulos e trechos em que é preciso se abaixar. Abaixado (S ou seta para baixo), o jogador anda mais devagar, não pula e só levanta se houver espaço acima. Como os personagens não têm quadro de abaixar, o sprite é achatado pelos pés.
+- Parâmetros de movimento ficam em `MOVIMENTO_LIXAO` (lixao/JogadorLixao.ts). Cada jogador tem uma cópia em `parametros` para o clima alterar, por exemplo a frenagem na chuva.
 - Ao morrer, o jogador volta ao último ponto de exercício.
 
 ## Arremesso

@@ -1,17 +1,15 @@
 import Phaser from 'phaser';
 import { CenaBase } from '../../compartilhado/CenaBase';
 import type { ResultadoComando } from '../../compartilhado/tipos';
-import { GerenciadorEstado, type TipoPersonagem } from '../../nucleo/GerenciadorEstado';
 import { interpretarComandoFase3 } from './InterpretadorFase3';
 import { PROF } from './areas/AreaLixao';
 import type { AreaLixao } from './areas/AreaLixao';
 import { criarArea } from './areas/FabricaAreas';
 import { COR, gerarTexturasLixao } from './lixao/ArteLixao';
+import { JogadorLixao } from './lixao/JogadorLixao';
 import { AREAS, DEBUG } from './lixao/TiposLixao';
 import type { DadosCenaLixao } from './lixao/TiposLixao';
 
-const VELOCIDADE_JOGADOR = 240;
-const IMPULSO_PULO = 520;
 /** Distância horizontal para interagir com o ponto de exercício ou a saída. */
 const ALCANCE_INTERACAO = 80;
 
@@ -22,10 +20,9 @@ const ALCANCE_INTERACAO = 80;
  */
 export class CenaFase3 extends CenaBase {
   public area!: AreaLixao;
-  public jogador!: Phaser.Physics.Arcade.Sprite;
+  public jogador!: JogadorLixao;
 
   private indiceArea = 0;
-  private tipoPersonagem: TipoPersonagem = 'alvares';
   private teclas!: Record<string, Phaser.Input.Keyboard.Key>;
   private textoPrompt!: Phaser.GameObjects.Text;
   private fisicaPausada = false;
@@ -74,34 +71,17 @@ export class CenaFase3 extends CenaBase {
   }
 
   private criarJogador(): void {
-    this.tipoPersonagem = GerenciadorEstado.obterPersonagem();
-    const chaveTextura = this.tipoPersonagem === 'reis' ? 'reis' : 'alvares';
-
-    this.jogador = this.physics.add.sprite(this.area.inicio.x, this.area.inicio.y, chaveTextura);
-    this.jogador.setCollideWorldBounds(true).setDepth(PROF.jogador);
-    const corpo = this.jogador.body as Phaser.Physics.Arcade.Body;
-    corpo.setSize(44, 96);
-    corpo.setOffset(42, 26);
-
-    this.physics.add.collider(this.jogador, this.area.solidos);
-    this.cameras.main.startFollow(this.jogador, true, 0.08, 0.08);
-    this.jogador.anims.play(`${this.tipoPersonagem}_idle`, true);
+    this.jogador = new JogadorLixao(this, this.area.inicio.x, this.area.inicio.y);
+    this.physics.add.collider(this.jogador.sprite, this.area.solidos);
+    this.cameras.main.startFollow(this.jogador.sprite, true, 0.08, 0.08);
   }
 
   private configurarTeclas(): void {
     const kb = this.input.keyboard;
     if (!kb) return;
     const K = Phaser.Input.Keyboard.KeyCodes;
-    const nomes: Record<string, number> = {
-      A: K.A,
-      D: K.D,
-      W: K.W,
-      ESQ: K.LEFT,
-      DIR: K.RIGHT,
-      CIMA: K.UP,
-      ESPACO: K.SPACE,
-      E: K.E,
-    };
+    // Movimento fica no JogadorLixao; aqui só interação e atalhos de depuração
+    const nomes: Record<string, number> = { E: K.E };
     if (DEBUG) {
       const numeros = [K.ONE, K.TWO, K.THREE, K.FOUR, K.FIVE, K.SIX];
       numeros.forEach((codigo, i) => (nomes[`AREA${i}`] = codigo));
@@ -141,6 +121,7 @@ export class CenaFase3 extends CenaBase {
     const pausado = this.terminal.estaAberto || this.transicionando;
     if (pausado !== this.fisicaPausada) {
       this.fisicaPausada = pausado;
+      if (pausado) this.jogador.parar();
       if (pausado) this.physics.world.pause();
       else this.physics.world.resume();
     }
@@ -149,27 +130,8 @@ export class CenaFase3 extends CenaBase {
     if (pausado) return;
 
     if (DEBUG) this.atualizarAtalhosDebug();
-    this.atualizarJogador();
+    this.jogador.atualizar(tempo, delta);
     this.atualizarInteracoes();
-  }
-
-  private atualizarJogador(): void {
-    const corpo = this.jogador.body as Phaser.Physics.Arcade.Body;
-    const down = (n: string) => this.teclas[n]?.isDown ?? false;
-    const esquerda = down('A') || down('ESQ');
-    const direita = down('D') || down('DIR');
-    const pulo = down('W') || down('CIMA') || down('ESPACO');
-    const noChao = corpo.blocked.down || corpo.touching.down;
-
-    if (esquerda === direita) this.jogador.setVelocityX(0);
-    else {
-      this.jogador.setVelocityX(esquerda ? -VELOCIDADE_JOGADOR : VELOCIDADE_JOGADOR);
-      this.jogador.setFlipX(esquerda);
-    }
-    if (pulo && noChao) this.jogador.setVelocityY(-IMPULSO_PULO);
-
-    const anim = !noChao ? 'jump' : esquerda !== direita ? 'run' : 'idle';
-    this.jogador.anims.play(`${this.tipoPersonagem}_${anim}`, true);
   }
 
   private atualizarInteracoes(): void {
