@@ -3,6 +3,7 @@ import type {
   ColunaVento,
   ConfigColunaVento,
   ConfigZonaVentoContrario,
+  OrdemEscada,
   ParametrosEscadaVento,
   ParticulaVentoHorizontal,
   ZonaVentoContrario,
@@ -22,6 +23,12 @@ function areaContemPonto(area: AreaRetangular, px: number, py: number): boolean 
   return (
     px >= area.x - metadeL && px <= area.x + metadeL && py >= area.y - metadeA && py <= area.y + metadeA
   );
+}
+
+function normalizarOrdem(ordem: string): OrdemEscada {
+  const texto = ordem.trim().toLowerCase();
+  if (texto === 'crescente' || texto === 'decrescente') return texto;
+  return 'simultanea';
 }
 
 /**
@@ -66,6 +73,16 @@ export class VentoFase1 {
   private colunasEscada: ColunaVento[] = [];
   private escadaAtiva: boolean = false;
   private tempoCicloEscada: number = 0;
+  private ordemEscada: OrdemEscada = 'crescente';
+
+  // Estado salvo enquanto a escada roda uma simulação com valores errados
+  private estadoAntesSimulacao?: {
+    ativa: boolean;
+    intervalo: number;
+    forca: number;
+    tempoCiclo: number;
+    ordem: OrdemEscada;
+  };
 
   constructor(cena: Phaser.Scene) {
     this.cena = cena;
@@ -132,11 +149,50 @@ export class VentoFase1 {
    * Liga a escada de rajadas aplicando o intervalo e a força digitados no terminal.
    */
   public ativarEscada(parametros: Partial<ParametrosEscadaVento>): void {
-    if (parametros.intervalo !== undefined) this.intervaloEscadaSegundos = parametros.intervalo;
-    if (parametros.forca !== undefined) this.forcaEscadaPixels = parametros.forca;
+    this.aplicarEscada(
+      parametros.intervalo ?? this.intervaloEscadaSegundos,
+      parametros.forca ?? this.forcaEscadaPixels,
+      'crescente'
+    );
+  }
+
+  /**
+   * Roda a escada temporariamente com os valores errados digitados, guardando o estado atual.
+   */
+  public iniciarSimulacaoEscada(parametros: ParametrosEscadaVento): void {
+    this.estadoAntesSimulacao = {
+      ativa: this.escadaAtiva,
+      intervalo: this.intervaloEscadaSegundos,
+      forca: this.forcaEscadaPixels,
+      tempoCiclo: this.tempoCicloEscada,
+      ordem: this.ordemEscada,
+    };
+    this.aplicarEscada(parametros.intervalo, parametros.forca, normalizarOrdem(parametros.ordem));
+  }
+
+  /**
+   * Devolve a escada exatamente ao estado de antes da simulação (desligada ou já calibrada).
+   */
+  public encerrarSimulacaoEscada(): void {
+    const anterior = this.estadoAntesSimulacao;
+    if (!anterior) return;
+    this.estadoAntesSimulacao = undefined;
+
+    this.aplicarEscada(anterior.intervalo, anterior.forca, anterior.ordem);
+    this.escadaAtiva = anterior.ativa;
+    this.tempoCicloEscada = anterior.tempoCiclo;
+    if (!anterior.ativa) {
+      for (const col of this.colunasEscada) col.ativa = false;
+    }
+  }
+
+  private aplicarEscada(intervalo: number, forca: number, ordem: OrdemEscada): void {
+    this.intervaloEscadaSegundos = intervalo;
+    this.forcaEscadaPixels = forca;
+    this.ordemEscada = ordem;
 
     for (const col of this.colunasEscada) {
-      col.forca = this.forcaEscadaPixels;
+      col.forca = forca;
     }
 
     this.escadaAtiva = true;
@@ -171,9 +227,16 @@ export class VentoFase1 {
       col.grafico.lineBetween(col.x - metadeL, topoY, col.x - metadeL, baseColY);
       col.grafico.lineBetween(col.x + metadeL, topoY, col.x + metadeL, baseColY);
 
+      // Partículas mais rápidas quanto mais forte o vento: força fraca se vê fraca
+      const fatorForca = Phaser.Math.Clamp(
+        col.forca / VENTO_FASE1.FORCA_REFERENCIA_PARTICULAS,
+        VENTO_FASE1.FATOR_PARTICULAS_MIN,
+        VENTO_FASE1.FATOR_PARTICULAS_MAX
+      );
+
       col.grafico.fillStyle(0xffffff, 0.7);
       for (const p of col.particulas) {
-        p.y -= p.velY * dt;
+        p.y -= p.velY * fatorForca * dt;
         if (p.y < topoY) {
           p.y = baseColY;
           p.x = this.sortearXParticula(col.x, col.largura);
@@ -243,12 +306,19 @@ export class VentoFase1 {
   private atualizarCicloEscada(delta: number): void {
     if (!this.escadaAtiva || this.colunasEscada.length === 0) return;
 
-    this.tempoCicloEscada += delta;
-    const periodoMs = this.intervaloEscadaSegundos * 1000;
-    const tempoNoCiclo = this.tempoCicloEscada % (periodoMs * this.colunasEscada.length);
-    const colunaAtivaIndex = Math.floor(tempoNoCiclo / periodoMs);
+    if (this.ordemEscada === 'simultanea') {
+      for (const col of this.colunasEscada) col.ativa = true;
+      return;
+    }
 
-    for (let i = 0; i < this.colunasEscada.length; i++) {
+    const quantidade = this.colunasEscada.length;
+    this.tempoCicloEscada += delta;
+    const periodoMs = Math.max(VENTO_FASE1.PERIODO_MIN_ESCADA_MS, this.intervaloEscadaSegundos * 1000);
+    const tempoNoCiclo = this.tempoCicloEscada % (periodoMs * quantidade);
+    const passo = Math.floor(tempoNoCiclo / periodoMs);
+    const colunaAtivaIndex = this.ordemEscada === 'decrescente' ? quantidade - 1 - passo : passo;
+
+    for (let i = 0; i < quantidade; i++) {
       this.colunasEscada[i].ativa = i === colunaAtivaIndex;
     }
   }

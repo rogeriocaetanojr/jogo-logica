@@ -74,6 +74,11 @@ export const VENTO_FASE1 = {
   ALFA_BORDA_COLUNA: 0.6,
   ESPESSURA_BORDA_COLUNA: 1.5,
   PROFUNDIDADE_GRAFICO: 1,
+  // A velocidade das partículas acompanha a força da coluna (força fraca = partículas lentas)
+  FORCA_REFERENCIA_PARTICULAS: 450,
+  FATOR_PARTICULAS_MIN: 0.15,
+  FATOR_PARTICULAS_MAX: 4,
+  PERIODO_MIN_ESCADA_MS: 100,
 
   // Zonas de vento contrário: empurram o jogador devagar para a esquerda (andar e planar continuam possíveis)
   CONTRARIO: {
@@ -225,6 +230,7 @@ export const CHECKPOINTS_FASE1 = {
 export const DISTANCIA_INTERACAO_TOTEM_PADRAO = 80;
 export const DISTANCIA_INTERACAO_NPC_PADRAO = 90;
 export const OFFSET_PROMPT_TOTEM_Y = 50;
+export const ERROS_PARA_ESQUELETO = 3; // Erros no mesmo totem até o help mostrar o esqueleto da resposta
 
 export const NPCS_FASE1 = {
   SUCATINHA: {
@@ -263,6 +269,8 @@ export const TOTEM_2_BALANCA = {
   ELEVADOR_X: 2620,
   ELEVADOR_Y_INICIAL: 540,
   PLACA_OFFSET: { x: 65, y: -45 },
+  // Altitudes simuladas para validar o if/elif/else (inclui as fronteiras 349, 350 e 351)
+  ALTITUDES_TESTE: [540, 300, 350, 349, 351, 0, 1000],
 } as const;
 
 export const TOTEM_3_PORTAO = {
@@ -281,6 +289,14 @@ export const TOTEM_4_SEQUENCIADOR = {
   Y: 434,
   PERIODO_PADRAO_MS: 1500,
   FORCA_PADRAO: 450,
+  ORDEM_CORRETA: 'crescente',
+  INTERVALO_MIN: 1.2,
+  INTERVALO_MAX: 1.8,
+  FORCA_MIN: 400,
+  FORCA_MAX: 650,
+  // Valores errados rodam a escada por alguns segundos para o jogador ver o problema
+  SIMULACAO_ATRASO_MS: 900,
+  SIMULACAO_MS: 2600,
   COLUNA_ESCADA_1: {
     x: 4260,
     y: 290,

@@ -13,13 +13,20 @@ import {
   desenharEscudoSentinela,
   type ElementosNivelFase1,
 } from './NivelFase1';
-import { DIALOGO_RADIO_ABERTURA, DIALOGO_RADIO_VITORIA } from './DialogosFase1';
-import type { Coordenada2D, SnapshotCheckpointFase1, TotemFase1 } from './tiposFase1';
+import { DIALOGO_RADIO_ABERTURA, DIALOGO_RADIO_VITORIA, TEXTOS_TERMINAL_FASE1 } from './DialogosFase1';
+import type {
+  Coordenada2D,
+  FeedbackErroFase1,
+  ParametrosEscadaVento,
+  SnapshotCheckpointFase1,
+  TotemFase1,
+} from './tiposFase1';
 import {
   MUNDO_FASE1,
   CAMERA_FASE1,
   CHECKPOINTS_FASE1,
   DISTANCIA_INTERACAO_TOTEM_PADRAO,
+  ERROS_PARA_ESQUELETO,
   TOTEM_1_ALCOOLEMIA,
   TOTEM_2_BALANCA,
   TOTEM_3_PORTAO,
@@ -51,6 +58,11 @@ export class CenaFase1 extends CenaBase {
   private textoNotificacaoCheckpoint?: Phaser.GameObjects.Text;
   private faseConcluida: boolean = false;
 
+  // Terminal: totem conectado, erros por totem (liberam o esqueleto no help) e simulação do Desafio 4
+  private totemAberto?: TotemFase1;
+  private errosPorTotem = new Map<string, number>();
+  private simulacaoRajadas: 'nenhuma' | 'agendada' | 'rodando' = 'nenhuma';
+
   // Flag de congelamento seguro do mundo durante terminal ou diálogos
   private jogoCongeladoPorMenu: boolean = false;
 
@@ -64,6 +76,9 @@ export class CenaFase1 extends CenaBase {
     // Reinicia o estado (a instância da cena é reaproveitada entre visitas)
     this.totensResolvidos = new Set<string>();
     this.faseConcluida = false;
+    this.totemAberto = undefined;
+    this.errosPorTotem = new Map<string, number>();
+    this.simulacaoRajadas = 'nenhuma';
     this.jogoCongeladoPorMenu = false;
 
     // 1. Inicializa o Snapshot com o Checkpoint 0
@@ -144,6 +159,9 @@ export class CenaFase1 extends CenaBase {
         case 'ATIVAR_ESCADA_RAJADAS':
           this.executarAtivacaoEscadaRajadas(resultado.valor);
           break;
+        case 'FEEDBACK_ERRO':
+          this.tratarFeedbackErro(resultado.valor);
+          break;
       }
     });
   }
@@ -154,7 +172,9 @@ export class CenaFase1 extends CenaBase {
     if (!this.jogador?.sprite.body) return;
 
     // 1. Congelamento Seguro no Terminal e Diálogos
-    const emMenuOuDialogo = Boolean(this.terminal?.estaAberto || this.comunicador?.estaAtivo);
+    const emMenuOuDialogo = Boolean(
+      this.terminal?.estaAberto || this.comunicador?.estaAtivo || this.simulacaoRajadas !== 'nenhuma'
+    );
     if (emMenuOuDialogo) {
       if (!this.jogoCongeladoPorMenu) {
         this.jogoCongeladoPorMenu = true;
@@ -168,6 +188,11 @@ export class CenaFase1 extends CenaBase {
 
       // Evita que plataformas que estavam rachando quebrem durante a digitação
       this.rachados.adiarRachaduras(delta);
+
+      // Durante a simulação do Desafio 4, só a escada de vento se move
+      if (this.simulacaoRajadas === 'rodando') {
+        this.vento.update(tempo, delta);
+      }
       return;
     }
 
@@ -254,14 +279,30 @@ export class CenaFase1 extends CenaBase {
     }
   }
 
-  private abrirTerminalTotem(totem: TotemFase1): void {
+  private abrirTerminalTotem(totem: TotemFase1, linhasExtras: string[] = []): void {
     this.congelarJogo();
     this.jogoCongeladoPorMenu = true;
+    this.totemAberto = totem;
 
-    this.terminal.definirContexto({ totemAtivo: totem.id });
+    this.terminal.definirContexto({
+      totemAtivo: totem.id,
+      errosNoTotem: this.errosPorTotem.get(totem.id) ?? 0,
+    });
 
+    this.terminal.abrir({ titulo: totem.textos.TITULO, linhasIniciais: this.linhasEnunciado(totem) });
+
+    // Avisos extras ficam fora do enunciado, que o comando "enunciado" reimprime
+    for (const linha of linhasExtras) {
+      this.terminal.imprimirLinha(linha, 'info');
+    }
+  }
+
+  /**
+   * Enunciado do totem: fala de abertura, sensores e funções disponíveis.
+   */
+  private linhasEnunciado(totem: TotemFase1): string[] {
     const { TITULO, DIALOGO_INICIAL, VARIAVEIS_DISPONIVEIS, FUNCOES_DISPONIVEIS } = totem.textos;
-    const linhasIniciais: string[] = [
+    return [
       `=== ${TITULO} ===`,
       '',
       `"${DIALOGO_INICIAL}"`,
@@ -275,8 +316,82 @@ export class CenaFase1 extends CenaBase {
       '-------------------------------------------------------',
       '> Digite sua lógica em Python:',
     ];
+  }
 
-    this.terminal.abrir({ titulo: TITULO, linhasIniciais });
+  // =========================================================================
+  // FEEDBACK DE ERRO E SIMULAÇÃO DO DESAFIO 4
+  // =========================================================================
+
+  /**
+   * Imprime a dica objetiva, conta o erro do totem aberto e dispara a simulação quando houver.
+   */
+  private tratarFeedbackErro(valor: unknown): void {
+    let feedback: FeedbackErroFase1 = {};
+    if (typeof valor === 'string') {
+      try {
+        feedback = JSON.parse(valor) as FeedbackErroFase1;
+      } catch {
+        feedback = {};
+      }
+    }
+
+    if (feedback.dica) {
+      this.terminal.imprimirLinha(feedback.dica, 'info');
+    }
+
+    const totem = this.totemAberto;
+    if (!totem) return;
+
+    const erros = (this.errosPorTotem.get(totem.id) ?? 0) + 1;
+    this.errosPorTotem.set(totem.id, erros);
+    this.terminal.definirContexto({ totemAtivo: totem.id, errosNoTotem: erros });
+    if (erros === ERROS_PARA_ESQUELETO) {
+      this.terminal.imprimirLinha(TEXTOS_TERMINAL_FASE1.AVISO_ESQUELETO, 'info');
+    }
+
+    if (feedback.simulacao) {
+      this.simularRajadasErradas(totem, feedback.simulacao);
+    }
+  }
+
+  /**
+   * Fecha o terminal, roda a escada com os valores errados por alguns segundos
+   * (com o jogador congelado, para não poder usá-la) e reabre o terminal.
+   */
+  private simularRajadasErradas(totem: TotemFase1, parametros: ParametrosEscadaVento): void {
+    if (this.simulacaoRajadas !== 'nenhuma') return;
+    this.simulacaoRajadas = 'agendada';
+
+    this.time.delayedCall(TOTEM_4_SEQUENCIADOR.SIMULACAO_ATRASO_MS, () => {
+      this.simulacaoRajadas = 'rodando';
+      this.terminal.fechar();
+      this.vento.iniciarSimulacaoEscada(parametros);
+      const faixa = this.criarFaixaFixa(TEXTOS_TERMINAL_FASE1.FAIXA_SIMULACAO);
+
+      this.time.delayedCall(TOTEM_4_SEQUENCIADOR.SIMULACAO_MS, () => {
+        faixa.destroy();
+        this.vento.encerrarSimulacaoEscada();
+        this.simulacaoRajadas = 'nenhuma';
+        this.abrirTerminalTotem(totem, [TEXTOS_TERMINAL_FASE1.SIMULACAO_ENCERRADA]);
+      });
+    });
+  }
+
+  /**
+   * Faixa de texto presa à tela. Não usa tween, porque os tweens ficam pausados com o mundo congelado.
+   */
+  private criarFaixaFixa(texto: string): Phaser.GameObjects.Text {
+    const faixa = this.add.text(640, 160, texto, {
+      fontFamily: 'Consolas, Courier New, monospace',
+      fontSize: '15px',
+      color: '#38bdf8',
+      backgroundColor: 'rgba(15, 23, 42, 0.85)',
+      padding: { x: 10, y: 5 },
+    });
+    faixa.setOrigin(0.5);
+    faixa.setScrollFactor(0);
+    faixa.setDepth(9990);
+    return faixa;
   }
 
   // =========================================================================

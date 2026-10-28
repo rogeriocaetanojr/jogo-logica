@@ -98,6 +98,20 @@ export interface ParametrosEscadaVento {
 }
 
 /**
+ * Ordem em que a escada de rajadas liga as colunas. Qualquer ordem desconhecida liga todas juntas.
+ */
+export type OrdemEscada = 'crescente' | 'decrescente' | 'simultanea';
+
+/**
+ * Dados extras de uma resposta errada, enviados em ResultadoComando.valor (JSON).
+ * A dica é impressa em cor neutra; a simulação roda a escada com os valores errados.
+ */
+export interface FeedbackErroFase1 {
+  dica?: string;
+  simulacao?: ParametrosEscadaVento;
+}
+
+/**
  * Totem interativo no cenário: imagem, prompt [E] e textos do terminal.
  * Totens reabríveis continuam disponíveis depois de resolvidos (ex.: recalibrar rajadas).
  */

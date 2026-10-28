@@ -1,4 +1,5 @@
 import type { LinhaDialogo } from '../../compartilhado/tipos';
+import { TOTEM_2_BALANCA, TOTEM_4_SEQUENCIADOR } from './constantesFase1';
 
 /**
  * Fonte única de textos da Fase 1: Céu Partido.
@@ -16,7 +17,12 @@ export interface TextosTotemFase1 {
   DIALOGO_INICIAL: string;
   VARIAVEIS_DISPONIVEIS: readonly string[];
   FUNCOES_DISPONIVEIS: readonly string[];
+  /** Deboches para lógica errada, sorteados sem repetir o anterior. */
   MENSAGENS_ERRO: readonly string[];
+  /** Deboches para diagnósticos específicos deste totem (ex.: PRECEDENCIA, INVERTIDA). */
+  ERROS_ESPECIFICOS?: Readonly<Record<string, string>>;
+  /** Resposta com lacunas, liberada no help depois de alguns erros. */
+  ESQUELETO: string;
   AJUDA: string;
   STATUS: string;
 }
@@ -82,6 +88,9 @@ export const TEXTOS_NPCS_FASE1 = {
 // OS 4 DESAFIOS LÓGICOS DA FASE 1
 // =============================================================================
 
+const FORMATO_UMA_LINHA =
+  'Escreva tudo numa linha só. Formato: if condição: funcao()';
+
 export const TEXTOS_TOTEM_1_ALCOOLEMIA: TextosTotemFase1 = {
   TITULO: 'SENTINELA A-01 // TESTE DE ALCOOLEMIA',
   PROMPT: '[E] CONECTAR AO TESTE DE ALCOOLEMIA',
@@ -99,12 +108,18 @@ export const TEXTOS_TOTEM_1_ALCOOLEMIA: TextosTotemFase1 = {
     "Operador errado. O alarme tá berrando no teto e você achou que um 'and' solto ia te camuflar? Desligue o interruptor primeiro ou aprenda o que 'not' faz.",
     'A sentinela nem se mexeu. Ela tá olhando para a tela do seu terminal e sentindo pena de quem te ensinou lógica booleana.',
   ],
+  ERROS_ESPECIFICOS: {
+    INVERTIDA:
+      'Você inverteu tudo: agora a sentinela baixa o escudo justamente quando você é uma ameaça. É o tipo de lógica que faz porteiro abrir a porta pro ladrão e trancar o morador.',
+  },
+  ESQUELETO: 'if not ___ and not ___: desativar_escudo()',
   AJUDA:
     '=== AJUDA // TESTE DE ALCOOLEMIA ===\n' +
     'A sentinela só baixa a guarda se você NÃO for uma ameaça.\n' +
     'Variáveis: alarme_ligado, jogador_armado\n' +
     'Função: desativar_escudo()\n' +
-    'Lembre-se: use operadores de negação e conjunção (not / and).',
+    'Lembre-se: use operadores de negação e conjunção (not / and).\n' +
+    FORMATO_UMA_LINHA,
   STATUS:
     '[TELEMETRIA DA SENTINELA A-01]\n' +
     '  - alarme_ligado: False\n' +
@@ -119,7 +134,7 @@ export const TEXTOS_TOTEM_2_BALANCA: TextosTotemFase1 = {
     'Parabéns por chegar até aqui sem cair no precipício vinte vezes — ou você já caiu e eu finjo que não vi? Esta plataforma possui três pesos. Se você colocar vento demais, vai virar purê no teto de mármore. Se colocar de menos, vai fazer companhia aos pássaros lá embaixo. Ajuste a válvula condicional de acordo com a altitude indicada na placa.',
   VARIAVEIS_DISPONIVEIS: [
     'altitude_atual (inteiro): altitude atual da plataforma móvel',
-    'altitude_alvo: indicada na placa comemorativa de mármore (350)',
+    `altitude_alvo: indicada na placa comemorativa de mármore (${TOTEM_2_BALANCA.ALTITUDE_ALVO})`,
   ],
   FUNCOES_DISPONIVEIS: [
     'aumentar_pressao(): impulsiona a plataforma para cima caso esteja abaixo da meta',
@@ -131,14 +146,22 @@ export const TEXTOS_TOTEM_2_BALANCA: TextosTotemFase1 = {
     "Caiu feito pedra no abismo. Faltou um 'elif' ou você achou que a gravidade ia ignorar esse número ridículo?",
     'Você estabilizou a plataforma na altura errada. Agora ela serve de mesa de centro para urubus. Leia a placa de altitude antes de chutar código, gênio.',
   ],
+  ERROS_ESPECIFICOS: {
+    NADA_ACONTECE:
+      "Tem altitude em que seu código simplesmente não faz nada. A plataforma fica parada, você fica parado, e a gravidade fica feliz. Faltou um elif ou um else.",
+    FRONTEIRA:
+      'Errou justo na altitude exata da placa. É como errar o próprio aniversário: dá pra perdoar, mas todo mundo vai lembrar.',
+  },
+  ESQUELETO: `if altitude_atual ___ ${TOTEM_2_BALANCA.ALTITUDE_ALVO}: ___() elif altitude_atual ___ ${TOTEM_2_BALANCA.ALTITUDE_ALVO}: ___() else: ___()`,
   AJUDA:
     '=== AJUDA // BALANÇA HIPÓCRITA ===\n' +
-    'Calibre a pressão com if/elif/else comparando altitude_atual com 350.\n' +
-    'Funções: aumentar_pressao(), aliviar_pressao(), estabilizar()',
+    `Calibre a pressão com if/elif/else comparando altitude_atual com ${TOTEM_2_BALANCA.ALTITUDE_ALVO}.\n` +
+    'Funções: aumentar_pressao(), aliviar_pressao(), estabilizar()\n' +
+    'Tudo numa linha só, ex.: if x > 0: a() elif x < 0: b() else: c()',
   STATUS:
     '[TELEMETRIA DA PLATAFORMA MÓVEL]\n' +
     '  - altitude_atual: 540\n' +
-    '  - altitude_alvo (placa): 350\n' +
+    `  - altitude_alvo (placa): ${TOTEM_2_BALANCA.ALTITUDE_ALVO}\n` +
     '  - estado: DESALINHADO',
 };
 
@@ -160,10 +183,18 @@ export const TEXTOS_TOTEM_3_PORTAO: TextosTotemFase1 = {
     'Esqueceu de checar a placa de pressão no chão? Achar que só acender a luz resolvia a vida é puro privilégio de protagonista.',
     'A porta analisou sua expressão booleana e entrou em crise existencial. Ela só quer que você agrupe as condições direito.',
   ],
+  ERROS_ESPECIFICOS: {
+    PRECEDENCIA:
+      'Faltaram os parênteses e a porta tentou explodir em vez de abrir. Volte para as aulas de matemática básica do ensino fundamental, por favor.',
+    INVERTIDA:
+      'Parabéns, você criou um portão que só abre quando não devia. Isso não é segurança, é pegadinha de programa de auditório.',
+  },
+  ESQUELETO: 'if (___ or ___) and ___: abrir_portao()',
   AJUDA:
     '=== AJUDA // PORTÃO MILENAR ===\n' +
     'O portão requer luz solar OU vento, E a placa física pressionada.\n' +
-    'Sem parênteses (energia_sol or energia_vento), a precedência falhará!',
+    'Sem parênteses (energia_sol or energia_vento), a precedência falhará!\n' +
+    FORMATO_UMA_LINHA,
   STATUS:
     '[TELEMETRIA // PORTÃO MILENAR]\n' +
     '  - energia_sol: True\n' +
@@ -172,6 +203,8 @@ export const TEXTOS_TOTEM_3_PORTAO: TextosTotemFase1 = {
     '  - trancas: BLOQUEADAS',
 };
 
+const S = TOTEM_4_SEQUENCIADOR;
+
 export const TEXTOS_TOTEM_4_SEQUENCIADOR: TextosTotemFase1 = {
   TITULO: 'GERADOR TRIPLO // SEQUENCIADOR DE RAJADAS',
   PROMPT: '[E] SINCRONIZAR ESCADA DE RAJADAS',
@@ -179,9 +212,9 @@ export const TEXTOS_TOTEM_4_SEQUENCIADOR: TextosTotemFase1 = {
   DIALOGO_INICIAL:
     'Você realmente achou que o jogo ia deixar você passar só segurando o direcional para a frente? Isto não é um simulador de caminhada. Você tem três geradores de vento. Se dispararem juntos, eles entram em curto e você despenca. Defina a ordem, o intervalo e o impulso. E não me venha com números mágicos tirados da sua imaginação.',
   VARIAVEIS_DISPONIVEIS: [
-    'ordem (texto): padrão rítmico do fluxo ("crescente")',
-    'intervalo (número): tempo de duração em segundos de cada coluna (ideal: 1.2 a 1.8)',
-    'forca (número): empuxo vertical em pixels (mínimo: 400)',
+    `ordem (texto, entre aspas): padrão rítmico do fluxo ("${S.ORDEM_CORRETA}")`,
+    `intervalo (número): segundos de cada coluna, entre ${S.INTERVALO_MIN} e ${S.INTERVALO_MAX}`,
+    `forca (número): empuxo vertical em pixels, entre ${S.FORCA_MIN} e ${S.FORCA_MAX}`,
   ],
   FUNCOES_DISPONIVEIS: [
     'sincronizar_rajadas(ordem, intervalo, forca): calibra os canais de ar em onda contínua',
@@ -191,16 +224,87 @@ export const TEXTOS_TOTEM_4_SEQUENCIADOR: TextosTotemFase1 = {
     'Força insuficiente. O vento gerado não move nem folha seca, quem dirá seu personagem. Aumente essa potência.',
     'Todas as turbinas ligaram juntas e queimaram a fiação celeste. É uma sequência crescente, não um show de fogos de artifício.',
   ],
+  ERROS_ESPECIFICOS: {
+    ORDEM:
+      'Todas as turbinas ligaram juntas e queimaram a fiação celeste. É uma sequência crescente, não um show de fogos de artifício.',
+    INTERVALO_CURTO:
+      'Intervalo curto demais! Nem o Sonic com overclock conseguiria pular de uma nuvem para a outra nesse ritmo. Dá um respiro entre as rajadas.',
+    INTERVALO_LONGO:
+      'Intervalo longo demais. Cada coluna demora tanto que você vira estátua no ar esperando a próxima. E estátua não voa.',
+    FORCA_BAIXA:
+      'Força insuficiente. O vento gerado não move nem folha seca, quem dirá seu personagem. Aumente essa potência.',
+    FORCA_ALTA:
+      'Força demais! O vento ia te arremessar pra fora do HUD e você viraria satélite. Calma, Thor.',
+  },
+  ESQUELETO: 'sincronizar_rajadas("___", ___, ___)',
   AJUDA:
     '=== AJUDA // SEQUENCIADOR DE RAJADAS ===\n' +
     'Função: sincronizar_rajadas(ordem, intervalo, forca)\n' +
-    'ordem: "crescente" | intervalo: 1.2 a 1.8 | forca: >= 400',
+    `ordem: "${S.ORDEM_CORRETA}" | intervalo: ${S.INTERVALO_MIN} a ${S.INTERVALO_MAX} | forca: ${S.FORCA_MIN} a ${S.FORCA_MAX}\n` +
+    'Texto vai entre aspas e número decimal usa ponto (1.5).',
   STATUS:
     '[TELEMETRIA // GERADOR TRIPLO]\n' +
     '  - turbinas: 3 canais em espera\n' +
-    '  - ordem exigida: "crescente"\n' +
-    '  - janela de intervalo: 1.2s - 1.8s | empuxo: >= 400px',
+    `  - ordem exigida: "${S.ORDEM_CORRETA}"\n` +
+    `  - janela de intervalo: ${S.INTERVALO_MIN}s - ${S.INTERVALO_MAX}s | empuxo: ${S.FORCA_MIN}px - ${S.FORCA_MAX}px`,
 };
+
+// =============================================================================
+// ERROS GERAIS (valem para qualquer totem)
+// =============================================================================
+
+export const ERROS_GERAIS_FASE1 = {
+  SINTAXE: [
+    'O compilador leu isso, respirou fundo e pediu transferência para a Fase 2.',
+    'Isso não é Python. Isso é um teclado caindo da escada.',
+    'Até o autocorretor do celular teria vergonha dessa sintaxe.',
+  ],
+  LINGUAGEM_ERRADA: [
+    'Python, campeão. Não JavaScript, não C, não a língua do seu cachorro.',
+    'Copiou do Stack Overflow da linguagem errada, né? Eu vi.',
+    'O terminal tem alergia a símbolo de outra linguagem. Ele tá espirrando agora.',
+  ],
+  VARIAVEL_INEXISTENTE: [
+    'Essa variável não existe. Inventar sensor é coisa de vendedor de curso.',
+    'Você chamou uma variável imaginária. Ela não veio. Ninguém veio.',
+    'Nome errado. O totem procurou no céu inteiro e não achou nada parecido.',
+  ],
+  FUNCAO_INEXISTENTE: [
+    'Essa função não existe. Gritar comandos aleatórios não é programar, é rezar.',
+    'O totem não sabe fazer isso. Ele mal sabe fazer o que está na lista.',
+    'Função inventada detectada. Criatividade nota 10, funcionamento nota 0.',
+  ],
+  SEM_CHAMADA: [
+    'Escreveu uma condição linda e não mandou fazer nada. É tipo ligar o carro e ficar na garagem.',
+    'Muita decisão, zero ação. Você seria um ótimo gerente de projeto.',
+    'O totem esperou o comando final. Esperou. Ainda está esperando.',
+  ],
+  SEM_CONDICAO: [
+    'Chamou a função direto, sem if. Ela vai rodar até com o mundo pegando fogo.',
+    'Sem condição nenhuma? Isso não é lógica, é botão de pânico.',
+    'Você pulou a parte do if. A parte inteira do desafio. Impressionante.',
+  ],
+  CHAMADAS_DEMAIS: [
+    'Dois comandos ao mesmo tempo? A plataforma não é multitarefa, diferente das suas abas abertas.',
+    'Você mandou fazer tudo de uma vez. O hardware celeste fritou só de ler.',
+    'Uma decisão por vez, por favor. Isso aqui não é reunião de condomínio.',
+  ],
+  SOMENTE_LEITURA: [
+    'Mudar o valor do sensor? Isso não é hackear, é mentir pro termômetro.',
+    'Os sensores são só de leitura. Você não manda no alarme, só pergunta pra ele.',
+    'Tentou reescrever a realidade com um "=". Ousado. Inútil, mas ousado.',
+  ],
+  ARGUMENTOS_INDEVIDOS: [
+    'Essa função não quer isso nos parênteses. Respeite o espaço pessoal dela.',
+    'Parâmetro errado. A função devolveu com cara de nojo.',
+    'Passou argumento errado. É como pôr gasolina na geladeira.',
+  ],
+  TIPO: [
+    'Comparando texto com número? Nem o JavaScript chega a tanto. Mentira, chega.',
+    'Tipos misturados. O totem tentou somar maçã com terça-feira.',
+    'Isso é um texto e aquilo é um número. Eles não se falam desde 2009.',
+  ],
+} as const;
 
 // =============================================================================
 // TERMINAL
@@ -214,6 +318,17 @@ export const TEXTOS_TERMINAL_FASE1 = {
     'Aproxime-se de um painel e aperte [E] em vez de gritar comandos para o nada.',
   DESCONHECIDO:
     '[COMANDO DESCONHECIDO] O Mega Brain não reconhece essa instrução no setor celestial.',
-  AJUDA_GERAL: 'Comandos gerais: clear, help, status',
+  AJUDA_GERAL: 'Comandos gerais: help, status, enunciado, clear',
+  COMANDOS_TERMINAL:
+    'Comandos do terminal: help, status, enunciado, clear. Use ↑ e ↓ para repetir comandos anteriores.',
   STATUS_GERAL: '[STATUS] Totem operacional.',
+  PREFIXO_DICA: '[DICA]',
+  ESQUELETO_LIBERADO: '[ESQUELETO DE EMERGÊNCIA] Preencha as lacunas:',
+  ESQUELETO_BLOQUEADO:
+    'Errando muito? Depois de 3 tentativas este help libera um esqueleto da resposta. Não que eu esteja torcendo.',
+  AVISO_ESQUELETO:
+    '[AVISO] 3 erros neste totem. Digite help: agora ele mostra um esqueleto da resposta.',
+  FAIXA_SIMULACAO: 'SIMULAÇÃO // OLHA O QUE OS SEUS NÚMEROS FAZEM COM A ESCADA',
+  SIMULACAO_ENCERRADA:
+    '[SIMULAÇÃO ENCERRADA] Viu o estrago? Com esses valores a escada não te leva a lugar nenhum. Ajuste e tente de novo.',
 } as const;
