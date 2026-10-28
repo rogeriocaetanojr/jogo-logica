@@ -1,16 +1,28 @@
 import Phaser from 'phaser';
 import type { ResultadoComando } from '../../../compartilhado/tipos';
 import type { CenaFase3 } from '../CenaFase3';
-import { COR, ESCALA, aleatorio, hexNum, texturaPixel } from '../lixao/ArteLixao';
-import type { Pincel } from '../lixao/ArteLixao';
+import {
+  BORDA_CHAO,
+  COR,
+  ESCALA,
+  aleatorio,
+  bayer,
+  desenharChao,
+  desenharPilha,
+  grade,
+  hexNum,
+  texturaPixel,
+} from '../lixao/ArteLixao';
+import type { CorLixao, Pincel, TipoPilha } from '../lixao/ArteLixao';
 import { ALTURA_TELA, AREAS, CHAO_Y, LARGURA_TELA } from '../lixao/TiposLixao';
 import type { InfoArea } from '../lixao/TiposLixao';
 
 /** Profundidades de desenho comuns às áreas. */
 export const PROF = {
   ceu: 0,
-  fundo: 10,
-  meio: 20,
+  nuvens: 5,
+  horizonte: 10,
+  pilhas: 20,
   chao: 30,
   objetos: 40,
   jogador: 60,
@@ -18,6 +30,23 @@ export const PROF = {
   escuro: 90,
   textos: 100,
 } as const;
+
+/** Visual de uma área: céu, camadas distantes e quanto o clima esfria o cenário. */
+export interface TemaArea {
+  /** Cores do céu de cima para baixo. */
+  ceu: readonly CorLixao[];
+  /** Sol, lua ou nada atrás da poeira. */
+  astro: 'sol' | 'lua' | null;
+  /** Faixas de nuvem e poeira (camada lenta). */
+  nuvem: CorLixao;
+  /** Silhueta das montanhas de lixo no horizonte. */
+  horizonte: CorLixao;
+  /** Tinta multiplicada sobre pilhas, chão e decoração; ausente no tempo aberto. */
+  tinta?: CorLixao;
+}
+
+/** Fatores de parallax: as 3 camadas de céu e a camada de pilhas. */
+const PARALLAX = { ceu: 0, nuvens: 0.1, horizonte: 0.25, pilhas: 0.55 } as const;
 
 /**
  * Base das 6 áreas do Lixão Eletrônico. Cada área monta céu e pilhas de lixo em parallax,
@@ -37,8 +66,8 @@ export abstract class AreaLixao {
 
   protected readonly cena: CenaFase3;
   protected readonly info: InfoArea;
-  /** Cores do céu de cima para baixo. */
-  protected abstract readonly coresCeu: readonly string[];
+  /** Cores, astro e tinta do clima da área. */
+  protected abstract readonly tema: TemaArea;
   /** Semente do cenário (cada área tem pilhas diferentes, sempre iguais entre visitas). */
   protected abstract readonly semente: number;
 
@@ -51,8 +80,9 @@ export abstract class AreaLixao {
   /** Monta o mundo (chamado uma vez no create da cena). */
   construir(): void {
     this.criarCeu();
-    this.criarPilhas('fundo', 0.3, PROF.fundo, 0.55, 40);
-    this.criarPilhas('meio', 0.6, PROF.meio, 0.85, 70);
+    this.criarNuvens();
+    this.criarHorizonte();
+    this.criarPilhas();
     this.criarChao();
     this.criarMarcador();
     this.criarSaida();
@@ -90,87 +120,169 @@ export abstract class AreaLixao {
     return `lx-a${this.info.numero}-${nome}`;
   }
 
-  private criarCeu(): void {
-    const cores = this.coresCeu;
-    texturaPixel(this.cena, this.chave('ceu'), LARGURA_TELA / ESCALA, ALTURA_TELA / ESCALA, (p) =>
-      p.degradePontilhado(0, 0, LARGURA_TELA / ESCALA, ALTURA_TELA / ESCALA, cores)
-    );
-    this.cena.add.image(0, 0, this.chave('ceu')).setOrigin(0, 0).setScale(ESCALA).setScrollFactor(0).setDepth(PROF.ceu);
+  /** Aplica a tinta do clima (pilhas, chão e decoração; nunca no que é ciano). */
+  protected tingir<T extends Phaser.GameObjects.Components.Tint>(obj: T): T {
+    if (this.tema.tinta) obj.setTint(hexNum(this.tema.tinta));
+    return obj;
   }
 
-  /** Silhuetas de montanhas de sucata, com placas e fios de cobre nas mais próximas. */
-  private criarPilhas(nome: string, fator: number, profundidade: number, escuridao: number, alturaMax: number): void {
-    const rnd = aleatorio(this.semente + fator * 1000);
-    const corBase = escuridao < 0.7 ? COR.sucata : COR.sucataEscura;
-    this.camada(this.chave(nome), fator, profundidade, (p, w, h) => {
-      const base = h - 16;
-      let x = -10;
-      while (x < w) {
-        const larg = 30 + Math.floor(rnd() * 50);
-        const alt = 15 + Math.floor(rnd() * alturaMax);
-        const cx = x + larg / 2;
-        for (let xx = x; xx < x + larg; xx++) {
-          const t = 1 - Math.abs(xx - cx) / (larg / 2);
-          const topo = Math.round(base - alt * Math.sqrt(Math.max(0, t)) + rnd() * 2);
-          p.px(xx, topo, 1, h - topo, corBase);
-        }
-        if (escuridao > 0.7) {
-          for (let i = 0; i < 4; i++) {
-            const px = x + 6 + rnd() * (larg - 12);
-            const py = base - rnd() * alt * 0.6;
-            if (rnd() < 0.5) p.px(px, py, 4, 3, COR.placa);
-            else p.linha(px, py, px + 4, py - 3, COR.cobreEscuro);
+  /** Decoração de chão em pixel art, alinhada à grade e tingida pelo clima. */
+  protected decoracao(x: number, chave: string, espelhar = false, afundar = 0): Phaser.GameObjects.Image {
+    const img = this.cena.add
+      .image(grade(x), CHAO_Y + afundar * ESCALA, chave)
+      .setOrigin(0.5, 1)
+      .setScale(ESCALA)
+      .setFlipX(espelhar)
+      .setDepth(PROF.objetos);
+    return this.tingir(img);
+  }
+
+  /** Camada 1 do céu (fixa): degradê pontilhado com sol ou lua. */
+  private criarCeu(): void {
+    const { ceu, astro } = this.tema;
+    const w = LARGURA_TELA / ESCALA;
+    const h = ALTURA_TELA / ESCALA;
+    texturaPixel(this.cena, this.chave('ceu'), w, h, (p) => {
+      p.degradePontilhado(0, 0, w, h, ceu);
+      if (astro === 'sol') {
+        // Sol baixo e abafado pela poeira
+        for (let y = -16; y <= 16; y++) {
+          for (let x = -16; x <= 16; x++) {
+            const d = Math.sqrt(x * x + y * y);
+            if (d <= 9) p.ponto(236 + x, 46 + y, COR.ceuPoeiraClaro);
+            else if (d <= 16 && (16 - d) / 7 > bayer(x + 16, y + 16) * 1.6) p.ponto(236 + x, 46 + y, COR.ceuPoeiraClaro);
           }
         }
-        x += larg - 8;
+      } else if (astro === 'lua') {
+        p.disco(250, 34, 7, COR.ceuPoeiraClaro);
+        p.disco(253, 32, 6, ceu[0]);
+      }
+    });
+    this.cena.add.image(0, 0, this.chave('ceu')).setOrigin(0, 0).setScale(ESCALA).setScrollFactor(PARALLAX.ceu).setDepth(PROF.ceu);
+  }
+
+  /** Camada 2 do céu: faixas de nuvem e poeira pontilhadas. */
+  private criarNuvens(): void {
+    const rnd = aleatorio(this.semente + 11);
+    const cor = this.tema.nuvem;
+    this.camada(this.chave('nuvens'), PARALLAX.nuvens, PROF.nuvens, (p, w) => {
+      for (let x = Math.floor(rnd() * 40); x < w; x += 50 + Math.floor(rnd() * 60)) {
+        const cy = 14 + Math.floor(rnd() * 70);
+        const meio = 18 + Math.floor(rnd() * 26);
+        const espessura = 2 + Math.floor(rnd() * 3);
+        for (let dy = -espessura; dy <= espessura; dy++) {
+          for (let dx = -meio; dx <= meio; dx++) {
+            const densidade = (1 - Math.abs(dx) / meio) * (1 - Math.abs(dy) / (espessura + 1)) * 1.5;
+            if (densidade > bayer(x + dx, cy + dy)) p.ponto(x + dx, cy + dy, cor);
+          }
+        }
       }
     });
   }
 
+  /** Camada 3 do céu: montanhas de lixo distantes e guindastes em silhueta. */
+  private criarHorizonte(): void {
+    const rnd = aleatorio(this.semente + 23);
+    const cor = this.tema.horizonte;
+    const base = CHAO_Y / ESCALA + 2;
+    this.tingir(
+      this.camada(this.chave('horizonte'), PARALLAX.horizonte, PROF.horizonte, (p, w) => {
+        let x = -20;
+        while (x < w) {
+          const larg = 50 + Math.floor(rnd() * 70);
+          const alt = 14 + Math.floor(rnd() * 30);
+          const cx = x + larg / 2;
+          for (let xx = x; xx < x + larg; xx++) {
+            const t = 1 - Math.abs(xx - cx) / (larg / 2);
+            const topo = Math.round(base - alt * Math.sqrt(Math.max(0, t)) + rnd() * 2);
+            p.px(xx, topo, 1, base - topo, cor);
+          }
+          if (rnd() < 0.3) {
+            // Guindaste do lixão
+            const gx = Math.round(cx);
+            const topo = base - alt - 22;
+            p.px(gx, topo, 2, base - topo, cor);
+            p.linha(gx - 14, topo + 1, gx + 22, topo + 1, cor);
+            p.linha(gx, topo - 4, gx - 14, topo + 1, cor);
+            p.linha(gx + 1, topo - 4, gx + 22, topo + 1, cor);
+            p.px(gx + 18, topo + 2, 1, 8, cor);
+            p.px(gx + 17, topo + 10, 3, 2, cor);
+          }
+          x += larg - 14;
+        }
+      })
+    );
+  }
+
+  /** Camada de pilhas: monitores, placas e cabos alternados ao longo da área. */
+  private criarPilhas(): void {
+    const rnd = aleatorio(this.semente + 37);
+    const tipos: readonly TipoPilha[] = ['monitores', 'placas', 'cabos'];
+    const base = CHAO_Y / ESCALA + 1;
+    let anterior = -1;
+    this.tingir(
+      this.camada(this.chave('pilhas'), PARALLAX.pilhas, PROF.pilhas, (p, w) => {
+        let x = 10 + Math.floor(rnd() * 20);
+        while (x < w) {
+          const larg = 40 + Math.floor(rnd() * 40);
+          const alt = 26 + Math.floor(rnd() * 36);
+          // Nunca o mesmo tipo duas vezes seguidas
+          let i = Math.floor(rnd() * 3);
+          if (i === anterior) i = (i + 1) % 3;
+          anterior = i;
+          desenharPilha(p, tipos[i], x + larg / 2, base, larg, alt, rnd);
+          x += Math.round(larg * 0.8 + rnd() * 40);
+        }
+      })
+    );
+  }
+
+  /** Chão de sucata com colisão na linha CHAO_Y. */
   private criarChao(): void {
     const w = Math.ceil(this.largura / ESCALA);
-    const h = Math.ceil((ALTURA_TELA - CHAO_Y) / ESCALA);
+    const h = Math.ceil((ALTURA_TELA - CHAO_Y) / ESCALA) + BORDA_CHAO;
     const rnd = aleatorio(this.semente);
-    texturaPixel(this.cena, this.chave('chao'), w, h, (p) => {
-      p.px(0, 0, w, h, COR.sucataEscura);
-      p.px(0, 0, w, 1, COR.sucata);
-      for (let i = 0; i < w / 6; i++) {
-        const x = rnd() * w;
-        const y = 2 + rnd() * (h - 3);
-        const r = rnd();
-        if (r < 0.3) p.px(x, y, 3, 2, COR.placaEscura);
-        else if (r < 0.5) p.ponto(x, y, COR.cobreEscuro);
-        else p.ponto(x, y, COR.contorno);
-      }
-    });
-    this.cena.add.image(0, CHAO_Y, this.chave('chao')).setOrigin(0, 0).setScale(ESCALA).setDepth(PROF.chao);
+    texturaPixel(this.cena, this.chave('chao'), w, h, (p) => desenharChao(p, w, h, rnd));
+    this.tingir(
+      this.cena.add
+        .image(0, CHAO_Y - BORDA_CHAO * ESCALA, this.chave('chao'))
+        .setOrigin(0, 0)
+        .setScale(ESCALA)
+        .setDepth(PROF.chao)
+    );
 
     const corpo = this.cena.add.rectangle(this.largura / 2, CHAO_Y + 40, this.largura, 80, 0, 0);
     this.solidos.add(corpo);
   }
 
+  /** Ponto de exercício: terminal com LED ciano piscando e brilho neon (acima da escuridão). */
   private criarMarcador(): void {
-    this.marcador = this.cena.add
-      .sprite(this.xExercicio, CHAO_Y, 'lx-terminal', 0)
-      .setOrigin(0.5, 1)
-      .setScale(ESCALA)
-      .setDepth(PROF.objetos);
-    this.cena.add
-      .image(this.xExercicio, CHAO_Y - 56, 'lx-brilho')
-      .setTint(hexNum(COR.neon))
+    const x = grade(this.xExercicio);
+    this.marcador = this.cena.add.sprite(x, CHAO_Y, 'lx-terminal', 0).setOrigin(0.5, 1).setScale(ESCALA).setDepth(PROF.objetos);
+    const brilho = this.cena.add
+      .image(x, CHAO_Y - 64, 'lx-brilho')
+      .setTint(hexNum(COR.neonCiano))
       .setBlendMode(Phaser.BlendModes.ADD)
-      .setScale(1.6)
-      .setAlpha(0.5)
-      .setDepth(PROF.objetos);
+      .setScale(ESCALA)
+      .setAlpha(0.45)
+      .setDepth(PROF.escuro + 1);
     this.cena.time.addEvent({
-      delay: 700,
+      delay: 600,
       loop: true,
-      callback: () => this.marcador.setFrame(this.marcador.frame.name === '0' ? 1 : 0),
+      callback: () => {
+        const aceso = this.marcador.frame.name !== '0';
+        this.marcador.setFrame(aceso ? 0 : 1);
+        brilho.setAlpha(aceso ? 0.45 : 0.2);
+      },
     });
   }
 
   private criarSaida(): void {
-    this.saida = this.cena.add.image(this.xSaida, CHAO_Y, 'lx-saida').setOrigin(0.5, 1).setScale(ESCALA).setDepth(PROF.objetos);
+    this.saida = this.cena.add
+      .image(grade(this.xSaida), CHAO_Y, 'lx-saida')
+      .setOrigin(0.5, 1)
+      .setScale(ESCALA)
+      .setDepth(PROF.escuro + 1);
   }
 
   /** Efeito do clima da área: poeira, chuva ou escuridão. Ensolarado não tem efeito. */
@@ -184,16 +296,16 @@ export abstract class AreaLixao {
           lifespan: 4000,
           speedX: { min: -220, max: -120 },
           speedY: { min: -10, max: 20 },
-          scale: { min: 1, max: 3 },
-          alpha: { start: 0.6, end: 0 },
+          scale: { min: ESCALA, max: ESCALA * 2 },
+          alpha: { start: 0.7, end: 0 },
           quantity: 4,
           frequency: 40,
-          tint: [hexNum(COR.ceuAreia), hexNum(COR.ceuPo)],
+          tint: [hexNum(COR.ceuPoeira), hexNum(COR.horizonte)],
         })
         .setScrollFactor(0)
         .setDepth(PROF.clima);
       this.cena.add
-        .rectangle(0, 0, LARGURA_TELA, ALTURA_TELA, hexNum(COR.ceuPo), 0.35)
+        .rectangle(0, 0, LARGURA_TELA, ALTURA_TELA, hexNum(COR.horizonte), 0.3)
         .setOrigin(0, 0)
         .setScrollFactor(0)
         .setDepth(PROF.clima);
@@ -205,18 +317,18 @@ export abstract class AreaLixao {
           lifespan: 900,
           speedY: { min: 800, max: 1000 },
           speedX: -120,
-          scaleX: 0.5,
-          scaleY: 4,
+          scaleX: ESCALA,
+          scaleY: ESCALA * 4,
           alpha: 0.5,
           quantity: 6,
           frequency: 16,
-          tint: 0xaabbee,
+          tint: hexNum(COR.tintaChuva),
         })
         .setScrollFactor(0)
         .setDepth(PROF.clima);
     } else if (clima === 'noite') {
       this.cena.add
-        .rectangle(0, 0, LARGURA_TELA, ALTURA_TELA, hexNum(COR.ceuNoite), 0.45)
+        .rectangle(0, 0, LARGURA_TELA, ALTURA_TELA, hexNum(COR.noiteRoxoEscuro), 0.45)
         .setOrigin(0, 0)
         .setScrollFactor(0)
         .setDepth(PROF.escuro);

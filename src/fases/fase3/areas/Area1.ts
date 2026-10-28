@@ -1,11 +1,16 @@
 import { COR } from '../lixao/ArteLixao';
-import { CHAO_Y } from '../lixao/TiposLixao';
 import type { CenaFase3 } from '../CenaFase3';
-import { AreaLixao, PROF } from './AreaLixao';
+import { AreaLixao } from './AreaLixao';
+import type { TemaArea } from './AreaLixao';
 
 /** Área 1: Portão do Lixão. Ensolarado, sem efeito de clima (aprendizado). */
 export class Area1 extends AreaLixao {
-  protected readonly coresCeu = [COR.ceuBege, COR.ceuAreia, COR.ceuLaranja];
+  protected readonly tema: TemaArea = {
+    ceu: [COR.ceuPoeiraClaro, COR.ceuPoeira, COR.horizonte],
+    astro: 'sol',
+    nuvem: COR.ceuPoeiraClaro,
+    horizonte: COR.horizonteEscuro,
+  };
   protected readonly semente = 101;
 
   constructor(cena: CenaFase3) {
@@ -13,9 +18,10 @@ export class Area1 extends AreaLixao {
   }
 
   protected override decorar(): void {
-    // Engrenagens enferrujadas fincadas no chão
+    // Engrenagens enferrujadas meio enterradas e cabos rompidos
     for (let x = 300; x < this.largura - 200; x += 520) {
-      this.cena.add.image(x, CHAO_Y + 8, 'lx-engrenagem').setScale(4).setRotation(x * 0.01).setDepth(PROF.objetos);
+      this.decoracao(x, 'lx-engrenagem', Math.floor(x / 520) % 2 === 0, 5);
+      this.decoracao(x + 180, 'lx-fios', Math.floor(x / 520) % 3 === 0);
     }
   }
 }

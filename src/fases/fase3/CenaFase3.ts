@@ -6,7 +6,7 @@ import { interpretarComandoFase3 } from './InterpretadorFase3';
 import { PROF } from './areas/AreaLixao';
 import type { AreaLixao } from './areas/AreaLixao';
 import { criarArea } from './areas/FabricaAreas';
-import { gerarTexturasLixao } from './lixao/ArteLixao';
+import { COR, gerarTexturasLixao } from './lixao/ArteLixao';
 import { AREAS, DEBUG } from './lixao/TiposLixao';
 import type { DadosCenaLixao } from './lixao/TiposLixao';
 
@@ -60,8 +60,8 @@ export class CenaFase3 extends CenaBase {
       .text(0, 0, '', {
         fontFamily: 'Consolas, "Courier New", monospace',
         fontSize: '16px',
-        color: '#3FF4F0',
-        backgroundColor: 'rgba(18, 14, 16, 0.8)',
+        color: COR.neonCiano,
+        backgroundColor: COR.contorno,
         padding: { x: 6, y: 3 },
       })
       .setOrigin(0.5, 1)
