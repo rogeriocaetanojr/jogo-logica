@@ -5,9 +5,9 @@ import type { CenaFase3 } from '../CenaFase3';
 import { AreaLixao } from './AreaLixao';
 import type { TemaArea } from './AreaLixao';
 
-/** Área 1: Portão do Lixão. Ensolarado, sem efeito de clima (aprendizado). */
+/** Trecho 1: Portão do Lixão. Ensolarado, sem efeito de clima (aprendizado). */
 export class Area1 extends AreaLixao {
-  protected readonly tema: TemaArea = {
+  public readonly tema: TemaArea = {
     ceu: [COR.ceuPoeiraClaro, COR.ceuPoeira, COR.horizonte],
     astro: 'sol',
     nuvem: COR.ceuPoeiraClaro,

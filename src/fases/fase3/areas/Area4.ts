@@ -3,9 +3,9 @@ import type { CenaFase3 } from '../CenaFase3';
 import { AreaLixao } from './AreaLixao';
 import type { TemaArea } from './AreaLixao';
 
-/** Área 4: Calha de Cabos. Chuva, chão escorregadio. */
+/** Trecho 4: Calha de Cabos. Chuva, chão escorregadio. */
 export class Area4 extends AreaLixao {
-  protected readonly tema: TemaArea = {
+  public readonly tema: TemaArea = {
     ceu: [COR.chuvaAzul, COR.chuvaAzulClaro],
     astro: null,
     nuvem: COR.chuvaAzul,

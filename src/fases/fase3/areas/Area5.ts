@@ -3,9 +3,9 @@ import type { CenaFase3 } from '../CenaFase3';
 import { AreaLixao } from './AreaLixao';
 import type { TemaArea } from './AreaLixao';
 
-/** Área 5: Pilhas Encharcadas. Chuva, chão escorregadio. */
+/** Trecho 5: Pilhas Encharcadas. Chuva, chão escorregadio. */
 export class Area5 extends AreaLixao {
-  protected readonly tema: TemaArea = {
+  public readonly tema: TemaArea = {
     ceu: [COR.noiteRoxo, COR.chuvaAzul, COR.chuvaAzulClaro],
     astro: null,
     nuvem: COR.noiteRoxo,

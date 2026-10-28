@@ -4,7 +4,7 @@
 Um lixão gigante de lixo eletrônico, inspirado em Wall-E. O jogador controla máquinas pelo terminal, com comandos Python básicos (um pouco além do tutorial), para limpar o caminho. No fim, derrota o Monstro de Sucata e o empurra até o contêiner de reciclagem, salvando o mundo do lixo eletrônico.
 
 ## Estrutura
-- 6 áreas, uma por exercício, em cerca de 15 minutos no total.
+- Um mapa único e contínuo com 6 áreas em sequência, uma por exercício, em cerca de 15 minutos no total. O jogador anda direto de uma área para a outra, e o clima muda em transição suave.
 - Áreas 1 e 2: ensolarado, sem efeito (aprendizado).
 - Área 3: empoeirado, pouca visibilidade.
 - Áreas 4 e 5: chuva, chão escorregadio.

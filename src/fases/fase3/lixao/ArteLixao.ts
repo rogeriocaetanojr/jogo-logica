@@ -460,7 +460,7 @@ function desenharBrilho(p: Pincel, r: number): void {
 
 /**
  * Texturas comuns a todas as áreas: engrenagem, placa de circuito, fios de cobre, poeira,
- * brilho neon, terminal do ponto de exercício e placa de saída.
+ * brilho neon e terminal do ponto de exercício.
  */
 export function gerarTexturasLixao(cena: Phaser.Scene): void {
   // Engrenagem enferrujada meio enterrada
@@ -550,13 +550,5 @@ export function gerarTexturasLixao(cena: Phaser.Scene): void {
     p.px(3, 14, 2, 1, COR.sombraSucata);
     p.px(6, 14, 2, 1, COR.sombraSucata);
     p.px(9, 14, 2, 1, COR.sombraSucata);
-  });
-
-  // Saída: placa com seta ciano para a próxima área
-  texturaPixel(cena, 'lx-saida', 16, 22, (p) => {
-    p.px(7, 8, 2, 14, COR.contorno);
-    p.px(7, 8, 1, 14, COR.sucata);
-    p.caixa(0, 0, 16, 9, COR.neonCianoEscuro);
-    p.sprite(['....X...', '....XX..', 'XXXXXXX.', '....XX..', '....X...'], { X: COR.neonCiano }, 4, 2);
   });
 }

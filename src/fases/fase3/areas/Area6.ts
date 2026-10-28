@@ -3,9 +3,9 @@ import type { CenaFase3 } from '../CenaFase3';
 import { AreaLixao } from './AreaLixao';
 import type { TemaArea } from './AreaLixao';
 
-/** Área 6: Arena da Sucata. Noite; arena do Monstro de Sucata (chefão). */
+/** Trecho 6: Arena da Sucata. Noite; arena do Monstro de Sucata (chefão). */
 export class Area6 extends AreaLixao {
-  protected readonly tema: TemaArea = {
+  public readonly tema: TemaArea = {
     ceu: [COR.noiteRoxoEscuro, COR.noiteRoxo],
     astro: 'lua',
     nuvem: COR.noiteRoxo,
@@ -18,7 +18,6 @@ export class Area6 extends AreaLixao {
     super(cena, 5);
     // Arena mais curta: cabe em pouco mais de uma tela
     this.largura = 2560;
-    this.xExercicio = 1100;
-    this.xSaida = 2380;
+    this.xExercicioLocal = 1100;
   }
 }

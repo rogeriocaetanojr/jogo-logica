@@ -3,9 +3,9 @@ import type { CenaFase3 } from '../CenaFase3';
 import { AreaLixao } from './AreaLixao';
 import type { TemaArea } from './AreaLixao';
 
-/** Área 2: Vale dos Monitores. Ensolarado, placas de circuito espalhadas pelo chão. */
+/** Trecho 2: Vale dos Monitores. Ensolarado, placas de circuito espalhadas pelo chão. */
 export class Area2 extends AreaLixao {
-  protected readonly tema: TemaArea = {
+  public readonly tema: TemaArea = {
     ceu: [COR.ceuPoeiraClaro, COR.ceuPoeira, COR.horizonte],
     astro: 'sol',
     nuvem: COR.ceuPoeiraClaro,

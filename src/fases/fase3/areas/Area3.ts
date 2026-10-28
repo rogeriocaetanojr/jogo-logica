@@ -3,9 +3,9 @@ import type { CenaFase3 } from '../CenaFase3';
 import { AreaLixao } from './AreaLixao';
 import type { TemaArea } from './AreaLixao';
 
-/** Área 3: Tempestade de Pó. Empoeirado, pouca visibilidade. */
+/** Trecho 3: Tempestade de Pó. Empoeirado, pouca visibilidade. */
 export class Area3 extends AreaLixao {
-  protected readonly tema: TemaArea = {
+  public readonly tema: TemaArea = {
     ceu: [COR.ceuPoeira, COR.horizonte, COR.horizonteEscuro],
     astro: null,
     nuvem: COR.horizonte,

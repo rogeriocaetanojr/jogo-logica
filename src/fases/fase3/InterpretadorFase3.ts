@@ -2,7 +2,7 @@ import type { ContextoInterpretador, ResultadoComando } from '../../compartilhad
 
 /**
  * Interpretador de comandos da Fase 3 (Lixão Eletrônico).
- * Provisório: só trata "ajuda" e "limpar". Os 6 exercícios em Python ficam para o fim
+ * Provisório: só trata "ajuda", "limpar" e "ok" (resolve o exercício da área e libera a barreira). Os 6 exercícios em Python ficam para o fim
  * do desenvolvimento (ver docs/fase3/PLANO_FASE3.md, "Em aberto").
  */
 export function interpretarComandoFase3(
@@ -19,10 +19,15 @@ export function interpretarComandoFase3(
     return { sucesso: true, mensagem: '', acao: 'CLEAR_TERMINAL' };
   }
 
+  // Provisório até os exercícios existirem: libera a barreira depois do ponto de exercício
+  if (comando === 'ok') {
+    return { sucesso: true, mensagem: 'Entulho removido. Siga em frente.', acao: 'RESOLVER_EXERCICIO' };
+  }
+
   if (comando === 'ajuda' || comando === 'help') {
     return {
       sucesso: true,
-      mensagem: 'Comandos: ajuda, limpar, enunciado. Os exercícios desta área ainda não foram instalados.',
+      mensagem: 'Comandos: ajuda, limpar, ok. Os exercícios desta área ainda não foram instalados; "ok" libera a passagem.',
     };
   }
 

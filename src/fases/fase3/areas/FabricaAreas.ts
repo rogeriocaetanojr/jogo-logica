@@ -7,20 +7,13 @@ import { Area4 } from './Area4';
 import { Area5 } from './Area5';
 import { Area6 } from './Area6';
 
-/** Cria a área correspondente ao índice (0 a 5). */
-export function criarArea(cena: CenaFase3, indice: number): AreaLixao {
-  switch (indice) {
-    case 1:
-      return new Area2(cena);
-    case 2:
-      return new Area3(cena);
-    case 3:
-      return new Area4(cena);
-    case 4:
-      return new Area5(cena);
-    case 5:
-      return new Area6(cena);
-    default:
-      return new Area1(cena);
+/** Cria os 6 trechos do mapa contínuo, um depois do outro, cada um começando onde o anterior acaba. */
+export function criarTrechos(cena: CenaFase3): AreaLixao[] {
+  const trechos = [Area1, Area2, Area3, Area4, Area5, Area6].map((Trecho) => new Trecho(cena));
+  let x = 0;
+  for (const trecho of trechos) {
+    trecho.offset = x;
+    x += trecho.largura;
   }
+  return trechos;
 }

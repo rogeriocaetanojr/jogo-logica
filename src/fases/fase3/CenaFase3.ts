@@ -4,49 +4,66 @@ import type { ResultadoComando } from '../../compartilhado/tipos';
 import { interpretarComandoFase3 } from './InterpretadorFase3';
 import { PROF } from './areas/AreaLixao';
 import type { AreaLixao } from './areas/AreaLixao';
-import { criarArea } from './areas/FabricaAreas';
+import { CenarioLixao } from './areas/CenarioLixao';
+import { criarTrechos } from './areas/FabricaAreas';
 import { COR, gerarTexturasLixao } from './lixao/ArteLixao';
 import { JogadorLixao } from './lixao/JogadorLixao';
-import { AREAS, DEBUG } from './lixao/TiposLixao';
-import type { DadosCenaLixao } from './lixao/TiposLixao';
+import { ALTURA_TELA, AREAS, CHAO_Y, DEBUG, LARGURA_TELA } from './lixao/TiposLixao';
 
-/** Distância horizontal para interagir com o ponto de exercício ou a saída. */
+/** Distância horizontal para interagir com o ponto de exercício. */
 const ALCANCE_INTERACAO = 80;
+/** Antes do fim do mapa, a distância em que a fase é concluída. */
+const MARGEM_FIM = 80;
 
 /**
  * CenaFase3: LIXÃO ELETRÔNICO.
- * Só orquestra: carrega a área atual, o jogador, a câmera e o terminal.
- * Cenário, clima e objetos de cada área ficam em areas/.
+ * Mapa único e contínuo com os 6 trechos em sequência. Só orquestra: monta cenário e
+ * trechos, o jogador, a câmera e o terminal, e acompanha em que trecho o jogador está.
+ * Céu e clima ficam em areas/CenarioLixao; cada trecho fica em areas/AreaN.
  */
 export class CenaFase3 extends CenaBase {
-  public area!: AreaLixao;
+  public trechos: AreaLixao[] = [];
+  public cenario!: CenarioLixao;
+  /** Sólidos de todos os trechos (chão, obstáculos e barreiras). */
+  public solidos!: Phaser.Physics.Arcade.StaticGroup;
   public jogador!: JogadorLixao;
+  /** X do último ponto de exercício alcançado, onde o jogador volta ao morrer. */
+  public checkpoint = 0;
 
-  private indiceArea = 0;
+  private indiceTrecho = 0;
+  /** Trecho cujo terminal está aberto, que recebe o resultado dos comandos. */
+  private trechoTerminal?: AreaLixao;
   private teclas!: Record<string, Phaser.Input.Keyboard.Key>;
   private textoPrompt!: Phaser.GameObjects.Text;
+  private textoArea!: Phaser.GameObjects.Text;
   private fisicaPausada = false;
-  private transicionando = false;
+  private concluindo = false;
 
   constructor() {
     super('CenaFase3', 'fase3');
   }
 
-  override init(dados?: DadosCenaLixao): void {
-    this.indiceArea = Phaser.Math.Clamp(dados?.area ?? 0, 0, AREAS.length - 1);
+  override init(): void {
+    this.indiceTrecho = 0;
+    this.trechoTerminal = undefined;
     this.fisicaPausada = false;
-    this.transicionando = false;
+    this.concluindo = false;
   }
 
   override create(): void {
     super.create();
     gerarTexturasLixao(this);
 
-    this.area = criarArea(this, this.indiceArea);
-    this.area.construir();
+    this.solidos = this.physics.add.staticGroup();
+    this.trechos = criarTrechos(this);
+    this.cenario = new CenarioLixao(this, this.trechos);
+    this.cenario.construir();
+    this.trechos.forEach((t) => t.construir());
+    this.cenario.definirTrecho(0, true);
 
-    this.physics.world.setBounds(0, 0, this.area.largura, this.area.altura);
-    this.cameras.main.setBounds(0, 0, this.area.largura, this.area.altura);
+    const larguraMundo = this.trechos[this.trechos.length - 1].fim;
+    this.physics.world.setBounds(0, 0, larguraMundo, ALTURA_TELA);
+    this.cameras.main.setBounds(0, 0, larguraMundo, ALTURA_TELA);
     this.cameras.main.fadeIn(400, 0, 0, 0);
 
     this.criarJogador();
@@ -65,14 +82,27 @@ export class CenaFase3 extends CenaBase {
       .setDepth(PROF.textos)
       .setVisible(false);
 
-    const info = AREAS[this.indiceArea];
-    this.criarHUDSuperior(`ÁREA ${info.numero}/${AREAS.length} · ${info.rotuloClima}`);
+    this.criarHUDSuperior('LIXÃO ELETRÔNICO');
+    this.textoArea = this.add
+      .text(LARGURA_TELA - 20, 16, '', {
+        fontFamily: 'Consolas, "Courier New", monospace',
+        fontSize: '13px',
+        color: COR.ceuPoeiraClaro,
+        backgroundColor: COR.contorno,
+        padding: { x: 8, y: 4 },
+      })
+      .setOrigin(1, 0)
+      .setScrollFactor(0)
+      .setDepth(9998);
+    this.atualizarTextoArea();
     this.criarEfeitoCRT(this.scale.width, this.scale.height, 0.02);
   }
 
   private criarJogador(): void {
-    this.jogador = new JogadorLixao(this, this.area.inicio.x, this.area.inicio.y);
-    this.physics.add.collider(this.jogador.sprite, this.area.solidos);
+    const inicio = this.trechos[0].inicio;
+    this.checkpoint = inicio.x;
+    this.jogador = new JogadorLixao(this, inicio.x, inicio.y);
+    this.physics.add.collider(this.jogador.sprite, this.solidos);
     this.cameras.main.startFollow(this.jogador.sprite, true, 0.08, 0.08);
   }
 
@@ -97,15 +127,18 @@ export class CenaFase3 extends CenaBase {
         this.terminal.limpar();
         return;
       }
-      this.area.aoResultadoTerminal(resultado);
+      if (resultado.acao === 'RESOLVER_EXERCICIO') this.trechoTerminal?.resolverExercicio();
     });
   }
 
-  private abrirTerminal(): void {
-    const info = AREAS[this.indiceArea];
+  private abrirTerminal(trecho: AreaLixao): void {
+    this.trechoTerminal = trecho;
+    const info = trecho.info;
     this.terminal.abrir({
       titulo: `LIXÃO // ÁREA ${info.numero} - ${info.nome.toUpperCase()}`,
-      linhasIniciais: ['Exercício ainda não definido.', 'Digite "ajuda" para ver os comandos.'],
+      linhasIniciais: trecho.exercicioResolvido
+        ? ['Exercício desta área já resolvido. O caminho está livre.']
+        : ['Exercício ainda não definido. Digite "ok" para liberar a passagem.', 'Digite "ajuda" para ver os comandos.'],
     });
   }
 
@@ -115,10 +148,10 @@ export class CenaFase3 extends CenaBase {
 
   override update(tempo: number, delta: number): void {
     super.update(tempo, delta);
-    if (!this.jogador || !this.area) return;
+    if (!this.jogador || !this.cenario) return;
 
     // Terminal aberto pausa a física (drones e perigos); o cenário segue animado
-    const pausado = this.terminal.estaAberto || this.transicionando;
+    const pausado = this.terminal.estaAberto || this.concluindo;
     if (pausado !== this.fisicaPausada) {
       this.fisicaPausada = pausado;
       if (pausado) this.jogador.parar();
@@ -126,50 +159,64 @@ export class CenaFase3 extends CenaBase {
       else this.physics.world.resume();
     }
 
-    this.area.atualizar(tempo, delta);
+    this.cenario.atualizar(delta);
     if (pausado) return;
 
     if (DEBUG) this.atualizarAtalhosDebug();
     this.jogador.atualizar(tempo, delta);
+    this.atualizarTrechoAtual();
     this.atualizarInteracoes();
+  }
+
+  /** Descobre o trecho pela posição do jogador; ao mudar, troca clima e HUD. */
+  private atualizarTrechoAtual(): void {
+    const x = this.jogador.x;
+    const indice = this.trechos.findIndex((t) => t.contem(x));
+    if (indice < 0 || indice === this.indiceTrecho) return;
+    this.indiceTrecho = indice;
+    this.cenario.definirTrecho(indice);
+    this.atualizarTextoArea();
+  }
+
+  private atualizarTextoArea(): void {
+    const info = AREAS[this.indiceTrecho];
+    this.textoArea.setText(`ÁREA ${info.numero}/${AREAS.length} · ${info.rotuloClima}`);
   }
 
   private atualizarInteracoes(): void {
     const x = this.jogador.x;
-    const pertoExercicio = Math.abs(x - this.area.xExercicio) < ALCANCE_INTERACAO;
+    const trecho = this.trechos[this.indiceTrecho];
+    const pertoExercicio = Math.abs(x - trecho.xExercicio) < ALCANCE_INTERACAO;
 
     this.textoPrompt.setVisible(pertoExercicio);
     if (pertoExercicio) {
-      this.textoPrompt.setPosition(this.area.xExercicio, this.area.marcador.y - 100).setText('[E] Terminal');
-      if (Phaser.Input.Keyboard.JustDown(this.teclas.E)) this.abrirTerminal();
+      this.checkpoint = trecho.xExercicio;
+      this.textoPrompt.setPosition(trecho.xExercicio, trecho.marcador.y - 100).setText('[E] Terminal');
+      if (Phaser.Input.Keyboard.JustDown(this.teclas.E)) this.abrirTerminal(trecho);
     }
 
-    if (x > this.area.xSaida - ALCANCE_INTERACAO / 2) this.irParaArea(this.indiceArea + 1);
+    const fimMapa = this.trechos[this.trechos.length - 1].fim;
+    if (x > fimMapa - MARGEM_FIM) this.concluirFase();
   }
 
   private atualizarAtalhosDebug(): void {
-    for (let i = 0; i < AREAS.length; i++) {
+    for (let i = 0; i < this.trechos.length; i++) {
       const tecla = this.teclas[`AREA${i}`];
       if (tecla && Phaser.Input.Keyboard.JustDown(tecla)) {
-        this.irParaArea(i);
+        const inicio = this.trechos[i].inicio;
+        this.jogador.corpo.reset(inicio.x, Math.min(inicio.y, CHAO_Y));
+        this.cameras.main.centerOn(inicio.x, ALTURA_TELA / 2);
         return;
       }
     }
   }
 
-  /** Troca de área com fade. Depois da última, conclui a fase e volta ao hub. */
-  private irParaArea(indice: number): void {
-    if (this.transicionando) return;
-    this.transicionando = true;
-
-    if (indice >= AREAS.length) {
-      this.concluirFaseAtual();
-      this.retornarAoHub();
-      return;
-    }
-
+  /** Fim do trecho 6: conclui a fase e volta ao hub. */
+  private concluirFase(): void {
+    if (this.concluindo) return;
+    this.concluindo = true;
     this.terminal.fecharForcado();
-    this.cameras.main.fade(300, 0, 0, 0);
-    this.time.delayedCall(300, () => this.scene.restart({ area: indice } satisfies DadosCenaLixao));
+    this.concluirFaseAtual();
+    this.retornarAoHub();
   }
 }
