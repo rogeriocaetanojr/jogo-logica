@@ -1,5 +1,5 @@
 import type Phaser from 'phaser';
-import type { LinhaDialogo } from '../../compartilhado/tipos';
+import type { TextosTotemFase1 } from './DialogosFase1';
 
 /**
  * Representa uma plataforma de mármore com comportamento de rachadura e quebra temporária.
@@ -47,42 +47,21 @@ export type EstadoSentinela =
   | 'desativada';
 
 /**
- * Interface legada e descritor de dados da Sentinela.
- */
-export interface SentinelaInimiga {
-  sprite: Phaser.Physics.Arcade.Sprite;
-  coneGrafico: Phaser.GameObjects.Graphics;
-  xInicial: number;
-  yInicial: number;
-  minX: number;
-  maxX: number;
-  velocidade: number;
-  direcao: number; // 1 = direita, -1 = esquerda
-  alcanceVisao: number;
-  aberturaCone: number;
-  emAlerta: boolean;
-  hackeada: boolean;
-  escudoAtivo?: boolean;
-  graficoEscudo?: Phaser.GameObjects.Graphics;
-}
-
-/**
- * Pilar móvel da antecâmara final (Desafio 6 do Arquiteto Preguiçoso).
- */
-export interface PilarMovel {
-  id: number;
-  sprite: Phaser.Physics.Arcade.Sprite;
-  rachado: boolean;
-  recolhido: boolean;
-  yOriginal: number;
-}
-
-/**
  * Ponto 2D de coordenadas.
  */
 export interface Coordenada2D {
   x: number;
   y: number;
+}
+
+/**
+ * Posição e escala de uma plataforma estática do level design.
+ */
+export interface ConfigPlataforma {
+  x: number;
+  y: number;
+  scaleX: number;
+  scaleY: number;
 }
 
 /**
@@ -110,7 +89,7 @@ export interface ConfigSentinela {
 }
 
 /**
- * Parâmetros de sincronização das rajadas de vento (Desafio 5).
+ * Parâmetros de sincronização das rajadas de vento (Desafio 4).
  */
 export interface ParametrosEscadaVento {
   ordem: string;
@@ -119,16 +98,15 @@ export interface ParametrosEscadaVento {
 }
 
 /**
- * Dados de estado e referência de um Totem interativo da Fase 1.
+ * Totem interativo no cenário: imagem, prompt [E] e textos do terminal.
+ * Totens reabríveis continuam disponíveis depois de resolvidos (ex.: recalibrar rajadas).
  */
-export interface TotemConfigInteracao {
+export interface TotemFase1 {
   id: string;
-  x: number;
-  y: number;
-  tituloTerminal: string;
-  dialogoAbertura: string;
-  variaveisDisponiveis: string[];
-  funcoesDisponiveis: string[];
+  imagem: Phaser.GameObjects.Image;
+  prompt: Phaser.GameObjects.Text;
+  textos: TextosTotemFase1;
+  reabrivel: boolean;
 }
 
 /**
@@ -137,24 +115,5 @@ export interface TotemConfigInteracao {
 export interface SnapshotCheckpointFase1 {
   idCheckpoint: string;
   pontoSpawn: Coordenada2D;
-  totem1Resolvido: boolean;
-  totem2Resolvido: boolean;
-  totem3Resolvido: boolean;
-  totem4Resolvido: boolean;
-  totem5Resolvido: boolean;
-  totem6Resolvido: boolean;
-}
-
-/**
- * Configuração de dados de um NPC interativo no cenário da Fase 1.
- */
-export interface ConfigNpcFase1 {
-  id: string;
-  nome: string;
-  x: number;
-  y: number;
-  textura: string;
-  dialogo: LinhaDialogo[];
-  prompt: string;
-  raioInteracao?: number;
+  totensResolvidos: readonly string[];
 }

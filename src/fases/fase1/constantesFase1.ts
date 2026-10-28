@@ -1,6 +1,6 @@
 /**
  * Constantes e configurações do level design, física e puzzles da Fase 1: Céu Partido.
- * Centraliza todos os números mágicos, coordenadas e diálogos/mensagens sarcásticas dos 6 totens.
+ * Centraliza todos os números mágicos e coordenadas. Textos e diálogos ficam em DialogosFase1.ts.
  */
 
 export const MUNDO_FASE1 = {
@@ -113,14 +113,6 @@ export const SENTINELAS_FASE1 = {
     velocidade: 80,
     podeDispararPulso: true,
   },
-  SENTINELA_B02: {
-    x: 3180,
-    y: 390,
-    minX: 3100,
-    maxX: 3280,
-    velocidade: 75,
-    podeDispararPulso: false, // Foco em puzzle de patrulha
-  },
   SENTINELA_3: {
     x: 3940,
     y: 340,
@@ -136,166 +128,90 @@ export const CHECKPOINTS_FASE1 = {
   CP1: {
     ID: 'cp1_central',
     GATILHO_X: 1680,
+    GATILHO_Y_MAX: 520,
     PONTO: { x: 1740, y: 390 }, // Platô Bloco 1 em y=500 (topo ≈ 478.4), pés em 390 + 58 = 448 (30.4px acima)
     NOME: 'CHECKPOINT 1 // SETOR CENTRAL',
   },
   CP2: {
     ID: 'cp2_elevador',
     GATILHO_X: 2750,
+    GATILHO_Y_MAX: 420,
     PONTO: { x: 2820, y: 280 }, // Platô do Elevador em y=390 (topo = 372.0), pés em 280 + 58 = 338 (34px acima)
     NOME: 'CHECKPOINT 2 // PLATÔ DO ELEVADOR',
   },
   CP3: {
     ID: 'cp3_portao',
     GATILHO_X: 3550,
+    GATILHO_Y_MAX: 490,
     PONTO: { x: 3600, y: 355 }, // Platô do Portão em y=470 (topo ≈ 448.4), pés em 355 + 58 = 413 (35.4px acima)
     NOME: 'CHECKPOINT 3 // PORTÃO MILENAR',
   },
   CP4: {
     ID: 'cp4_ante_camara',
     GATILHO_X: 4720,
+    GATILHO_Y_MAX: 370,
     PONTO: { x: 4760, y: 230 }, // Platô da Antecâmara em y=340 (topo = 322.0), pés em 230 + 58 = 288 (34px acima)
     NOME: 'CHECKPOINT 4 // ENTRADA DA ANTECÂMARA',
   },
   LIMITE_QUEDA_Y: 690,
+  MARGEM_ALTURA_SEGURA: 120, // Só salva checkpoint se o jogador estiver acima de LIMITE_QUEDA_Y - margem
 } as const;
 
 export const DISTANCIA_INTERACAO_TOTEM_PADRAO = 80;
 export const DISTANCIA_INTERACAO_NPC_PADRAO = 90;
+export const OFFSET_PROMPT_TOTEM_Y = 50;
 
 export const NPCS_FASE1 = {
   SUCATINHA: {
     ID: 'npc_sucatinha',
-    NOME: 'Sucatinha',
     X: 1200,
     Y: 390,
-    PROMPT: '[E] FALAR COM SUCATINHA',
-    FALANTE: '> SUCATINHA // DRONE DESERTOR',
-    DIALOGO: [
-      {
-        falante: '> SUCATINHA // DRONE DESERTOR',
-        texto:
-          'Psiu, carne com osso! Se você continuar pulando desse jeito sem usar o vento, vai virar adubo lá embaixo. Eu fugi da tropa do Azel porque o código de segurança dele é uma vergonha alheia. Dica de graça: se o terminal falar grosso com você, devolve lógica pura, senão ele vai te humilhar.',
-      },
-    ],
+    TEXTURA: 'npc-sucatinha',
+    OFFSET_NUVEM_Y: 40,
   },
   MAGO_NUVEM: {
     ID: 'npc_mago_nuvem',
-    NOME: 'Mago da Nuvem Sem Salário',
     X: 3400,
     Y: 390,
-    PROMPT: '[E] FALAR COM MAGO DA NUVEM',
-    FALANTE: '> MAGO DA NUVEM // SEM SALÁRIO',
-    DIALOGO: [
-      {
-        falante: '> MAGO DA NUVEM // SEM SALÁRIO',
-        texto:
-          'Você demorou tudo isso pra passar daquela sentinela? Eu já vi lesmas com compilação mais rápida. O santuário do Azel tá logo na frente. Ele acha que manda nos ventos só porque usa uma capa dramática. Vai lá e desconfigura a inteligência dele.',
-      },
-    ],
+    TEXTURA: 'npc-mago-nuvem',
+    OFFSET_NUVEM_Y: 45,
   },
 } as const;
 
 // =============================================================================
-// OS 6 DESAFIOS LÓGICOS DA FASE 1
+// OS 4 DESAFIOS LÓGICOS DA FASE 1
 // =============================================================================
 
 export const TOTEM_1_ALCOOLEMIA = {
   ID: 'totem_1_sentinela_escudo',
-  TITULO: 'SENTINELA A-01 // TESTE DE ALCOOLEMIA',
   X: 1880,
   Y: 480,
-  DIALOGO_INICIAL:
-    'Ora, ora, se não é o zé programação tentando fingir que sabe codificar. Olha para aquela sentinela: a rotina de segurança dela foi escrita por um estagiário não remunerado. Ela só mantém o escudo erguido se achar que você é uma ameaça legítima. Vá ao terminal e prove que a lógica dela está completamente embriagada.',
-  VARIAVEIS_DISPONIVEIS: [
-    'alarme_ligado (booleano): indica se o alarme da sala foi disparado',
-    'jogador_armado (booleano): indica se o hacker carrega armamento físico',
-  ],
-  FUNCOES_DISPONIVEIS: [
-    'desativar_escudo(): desliga a barreira de vento intransponível do corredor',
-  ],
-  MENSAGENS_ERRO: [
-    'Você acabou de mandar a sentinela atirar com o dobro de força. Parabéns pelo brilhantismo, Einstein. Tente de novo antes que ela perceba que o seu código é pior que a mira dela.',
-    "Operador errado. O alarme tá berrando no teto e você achou que um 'and' solto ia te camuflar? Desligue o interruptor primeiro ou aprenda o que 'not' faz.",
-    'A sentinela nem se mexeu. Ela tá olhando para a tela do seu terminal e sentindo pena de quem te ensinou lógica booleana.',
-  ],
+  BARREIRA: { x: 2160, y: 430, scaleX: 0.2, scaleY: 3.5 },
+  ESCUDO_VISUAL: { x: 2150, y: 330, largura: 20, altura: 200 },
 } as const;
 
 export const TOTEM_2_BALANCA = {
   ID: 'totem_2_balanca_nuvens',
-  TITULO: 'ELEVADOR DE MÁRMORE // BALANÇA HIPÓCRITA',
   X: 2480,
   Y: 534,
   ALTITUDE_ALVO: 350,
   ELEVADOR_X: 2620,
   ELEVADOR_Y_INICIAL: 540,
-  DIALOGO_INICIAL:
-    'Parabéns por chegar até aqui sem cair no precipício vinte vezes — ou você já caiu e eu finjo que não vi? Esta plataforma possui três pesos. Se você colocar vento demais, vai virar purê no teto de mármore. Se colocar de menos, vai fazer companhia aos pássaros lá embaixo. Ajuste a válvula condicional de acordo com a altitude indicada na placa.',
-  VARIAVEIS_DISPONIVEIS: [
-    'altitude_atual (inteiro): altitude atual da plataforma móvel',
-    'altitude_alvo: indicada na placa comemorativa de mármore (350)',
-  ],
-  FUNCOES_DISPONIVEIS: [
-    'aumentar_pressao(): impulsiona a plataforma para cima caso esteja abaixo da meta',
-    'aliviar_pressao(): reduz a pressão caso a plataforma ultrapasse o nível',
-    'estabilizar(): ancora os ímãs ao atingir a altitude correta',
-  ],
-  MENSAGENS_ERRO: [
-    'A plataforma decolou direto para a estratosfera. Se a sua intenção era construir um foguete amador, parabéns. Agora calibra essa pressão direito.',
-    "Caiu feito pedra no abismo. Faltou um 'elif' ou você achou que a gravidade ia ignorar esse número ridículo?",
-    'Você estabilizou a plataforma na altura errada. Agora ela serve de mesa de centro para urubus. Leia a placa de altitude antes de chutar código, gênio.',
-  ],
+  PLACA_OFFSET: { x: 65, y: -45 },
 } as const;
 
-export const TOTEM_3_DDA = {
-  ID: 'totem_3_sentinela_patrulha',
-  TITULO: 'SENTINELA B-02 // ROTINA DE PATRULHA TRUNCADA',
-  X: 3000,
-  Y: 414,
-  LIMITE_PLACA: 2300,
-  DIALOGO_INICIAL:
-    'Veja bem aquele drone ali. O sujeito que programou a rotina dele colocou o limite de patrulha menor que a largura do próprio chassis. Ele está preso num loop ridículo de micro-passos. Abra o código defeituoso dele e corrija o alcance para que ele desocupe a passagem antes que eu decida fechar a janela do jogo por vergonha alheia.',
-  VARIAVEIS_DISPONIVEIS: [
-    'sentinela.x: posição horizontal atual do drone',
-    'limite: coordenada gravada na placa de patrulha (2300)',
-  ],
-  FUNCOES_DISPONIVEIS: [
-    'patrulhar(limite): define a fronteira máxima de patrulha da sentinela',
-  ],
-  MENSAGENS_ERRO: [
-    'Mandou o drone andar até a coordenada zero? Ele quase se atirou no abismo... Uma pena que a física impediu. Use a coordenada da placa!',
-    'Você inverteu a lógica e criou uma sentinela que anda 2 pixels e gira em círculos fingindo demência. Corrige essa condição de parada.',
-    'O drone travou no mesmo lugar bloqueando o caminho e o cooler dele acabou de fundir de tanta vergonha alheia. Tente outro valor.',
-  ],
-} as const;
-
-export const TOTEM_4_PORTAO = {
-  ID: 'totem_4_portao_existencial',
-  TITULO: 'PORTÃO MILENAR // CRISE EXISTENCIAL',
+export const TOTEM_3_PORTAO = {
+  ID: 'totem_3_portao_existencial',
   X: 3620,
   Y: 450,
   X_PORTAO: 3720,
   Y_PORTAO: 390,
-  DIALOGO_INICIAL:
-    'Olhe para este portão milenar. Ele foi programado com uma lógica tão confusa que nem o arquiteto celestial lembra como abre. Ele só quer uma expressão lógica coerente. Sem parênteses no lugar certo, ele simplesmente finge demência e continua trancado.',
-  VARIAVEIS_DISPONIVEIS: [
-    'energia_sol (booleano): sensor de luz difusa da abóbada',
-    'energia_vento (booleano): turbinas geradoras de brisa',
-    'placa_pressionada (booleano): peso físico sobre o pedestal rúnico',
-  ],
-  FUNCOES_DISPONIVEIS: [
-    'abrir_portao(): recolhe as trancas pesadas de mármore do portal',
-  ],
-  MENSAGENS_ERRO: [
-    'Faltaram os parênteses e a porta tentou explodir em vez de abrir. Volte para as aulas de matemática básica do ensino fundamental, por favor.',
-    'Esqueceu de checar a placa de pressão no chão? Achar que só acender a luz resolvia a vida é puro privilégio de protagonista.',
-    'A porta analisou sua expressão booleana e entrou em crise existencial. Ela só quer que você agrupe as condições direito.',
-  ],
+  DESLOCAMENTO_ABERTO_Y: 160,
+  ALFA_ABERTO: 0.15,
 } as const;
 
-export const TOTEM_5_SEQUENCIADOR = {
-  ID: 'totem_5_sequenciador_rajadas',
-  TITULO: 'GERADOR TRIPLO // SEQUENCIADOR DE RAJADAS',
+export const TOTEM_4_SEQUENCIADOR = {
+  ID: 'totem_4_sequenciador_rajadas',
   X: 4100,
   Y: 434,
   PERIODO_PADRAO_MS: 1500,
@@ -324,48 +240,6 @@ export const TOTEM_5_SEQUENCIADOR = {
     forca: 450,
     ativa: false,
   },
-  DIALOGO_INICIAL:
-    'Você realmente achou que o jogo ia deixar você passar só segurando o direcional para a frente? Isto não é um simulador de caminhada. Você tem três geradores de vento. Se dispararem juntos, eles entram em curto e você despenca. Defina a ordem, o intervalo e o impulso. E não me venha com números mágicos tirados da sua imaginação.',
-  VARIAVEIS_DISPONIVEIS: [
-    'ordem (texto): padrão rítmico do fluxo ("crescente")',
-    'intervalo (número): tempo de duração em segundos de cada coluna (ideal: 1.2 a 1.8)',
-    'forca (número): empuxo vertical em pixels (mínimo: 400)',
-  ],
-  FUNCOES_DISPONIVEIS: [
-    'sincronizar_rajadas(ordem, intervalo, forca): calibra os canais de ar em onda contínua',
-  ],
-  MENSAGENS_ERRO: [
-    'Intervalo curto demais! Nem o Sonic com overclock conseguiria pular de uma nuvem para a outra nesse ritmo. Dá um respiro entre as rajadas.',
-    'Força insuficiente. O vento gerado não move nem folha seca, quem dirá seu personagem. Aumente essa potência.',
-    'Todas as turbinas ligaram juntas e queimaram a fiação celeste. É uma sequência crescente, não um show de fogos de artifício.',
-  ],
-} as const;
-
-export const TOTEM_6_ARQUITETO = {
-  ID: 'totem_6_arquiteto_pilares',
-  TITULO: 'ANTECÂMARA // DESAFIO DO ARQUITETO PREGUIÇOSO',
-  X: 4860,
-  Y: 270,
-  PILARES_CONFIG: [
-    { id: 1, x: 4940, y: 320, rachado: true },
-    { id: 2, x: 5020, y: 320, rachado: false },
-    { id: 3, x: 5100, y: 320, rachado: true },
-    { id: 4, x: 5180, y: 320, rachado: false },
-  ],
-  DIALOGO_INICIAL:
-    'O criador deste templo colocou quatro pilares no meio do caminho e foi almoçar. Metade deles está podre e vai quebrar se você pisar. Escreva um filtro para retrair os pilares defeituosos antes que você descubra a lei da gravidade da pior maneira possível.',
-  VARIAVEIS_DISPONIVEIS: [
-    'pilares: lista contendo os 4 pilares de mármore do corredor',
-    'pilar.rachado: propriedade booleana que indica fratura estrutural grave',
-  ],
-  FUNCOES_DISPONIVEIS: [
-    'pilar.recolher(): aciona os pistões para rebaixar o pilar ao fundo do vale',
-  ],
-  MENSAGENS_ERRO: [
-    'Você recolheu os pilares inteiros e deixou só os podres no caminho. Deseja um paraquedas ou vai pular no abismo por teimosia?',
-    "Iterou sobre a lista de pilares e não filtrou nada? Eles continuam todos aí bloqueando a sua cara. Use o 'if' dentro do loop, preguiçoso.",
-    "Erro de sintaxe no 'for'. O arquiteto celeste olhou para sua indentação e preferiu continuar no horário de almoço do que rodar isso.",
-  ],
 } as const;
 
 export const SANTUARIO_FASE1 = {
@@ -374,7 +248,15 @@ export const SANTUARIO_FASE1 = {
   COLUNAS_DOURADAS_X: [5120, 5240, 5340],
   COLUNAS_DOURADAS_Y_OFFSET: 210,
   PORTAL: { x: 5300, yOffset: 140 },
+  FEIXES_LUZ: [
+    { topoX: 5020, baseX1: 4940, baseX2: 5100, baseY: 660 },
+    { topoX: 5280, baseX1: 5180, baseX2: 5380, baseY: 660 },
+  ],
 } as const;
+
+// =============================================================================
+// LEVEL DESIGN POR BLOCO
+// =============================================================================
 
 export const BLOCO_1_LEVEL_DESIGN = {
   CHAO_INICIAL: { x: 280, y: 640, scaleX: 2.5, scaleY: 1.2 },
@@ -389,4 +271,24 @@ export const BLOCO_1_LEVEL_DESIGN = {
   MARMORE_RACHADO_3: { x: 1560, y: 320 },
   PLATO_CHEGADA: { x: 1740, y: 500, scaleX: 1.8, scaleY: 1.2 },
   OBELISCO_CP1: { x: 1700, y: 420, scaleX: 0.8, scaleY: 0.6 },
+} as const;
+
+export const BLOCO_2_LEVEL_DESIGN = {
+  PLATO_TOTEM_1: { x: 1880, y: 540, scaleX: 1.2, scaleY: 1.0 },
+  PLATO_SOB_SENTINELA: { x: 2140, y: 590, scaleX: 1.0, scaleY: 1.0 },
+  PLATO_TOTEM_2: { x: 2480, y: 590, scaleX: 1.0, scaleY: 1.0 },
+  PLATO_APOS_ELEVADOR: { x: 2820, y: 390, scaleX: 1.2, scaleY: 1.0 },
+  PLATO_INTERMEDIARIO: { x: 3000, y: 470, scaleX: 1.0, scaleY: 1.0 },
+  CORREDOR: { x: 3200, y: 450, scaleX: 1.6, scaleY: 1.0 },
+  MARMORE_RACHADO_1: { x: 3480, y: 440 },
+  PLATO_CHEGADA: { x: 3600, y: 470, scaleX: 1.4, scaleY: 1.2 },
+  OBELISCO_CP3: { x: 3560, y: 390, scaleX: 0.8, scaleY: 0.6 },
+} as const;
+
+export const BLOCO_3_LEVEL_DESIGN = {
+  NUVEM_TOTEM_4: { x: 4100, y: 490 },
+  MARMORE_RACHADO_1: { x: 4350, y: 420 },
+  MARMORE_RACHADO_2: { x: 4530, y: 360 },
+  PLATO_APOS_ESCADA: { x: 4760, y: 340, scaleX: 1.2, scaleY: 1.0 },
+  PLATO_ANTECAMARA: { x: 4860, y: 330, scaleX: 0.8, scaleY: 1.0 },
 } as const;
