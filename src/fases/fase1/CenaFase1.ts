@@ -180,13 +180,13 @@ export class CenaFase1 extends CenaBase {
     this.verificarLimitesECheckpoints();
 
     // 3. Movimentação, Coyote Time, Jump Buffer e Mecânica de Planar no Vento
-    this.jogador.update(tempo, this.vento);
+    this.jogador.update(tempo, delta, this.vento);
 
     // 4. Mármore rachado
     this.rachados.update(tempo);
 
     // 5. Colunas de vento e ciclo da Escada de Rajadas (Desafio 4)
-    this.vento.update(delta);
+    this.vento.update(tempo, delta);
 
     // 6. Escudo da Sentinela A-01 (Desafio 1)
     if (this.totensResolvidos.has(TOTEM_1_ALCOOLEMIA.ID)) {

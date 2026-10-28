@@ -117,3 +117,33 @@ export interface SnapshotCheckpointFase1 {
   pontoSpawn: Coordenada2D;
   totensResolvidos: readonly string[];
 }
+
+/**
+ * Risco horizontal que atravessa uma zona de vento contrário, da direita para a esquerda.
+ */
+export interface ParticulaVentoHorizontal {
+  x: number;
+  y: number;
+  velX: number;
+  comprimento: number;
+  alfa: number;
+}
+
+/**
+ * Configuração imutável para criação de zonas de vento contrário.
+ */
+export interface ConfigZonaVentoContrario {
+  x: number;
+  y: number;
+  largura: number;
+  altura: number;
+  forca: number;
+}
+
+/**
+ * Área onde um vento fraco empurra o jogador para a esquerda, no chão e no ar.
+ */
+export interface ZonaVentoContrario extends ConfigZonaVentoContrario {
+  grafico: Phaser.GameObjects.Graphics;
+  particulas: ParticulaVentoHorizontal[];
+}

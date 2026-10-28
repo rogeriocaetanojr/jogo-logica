@@ -1,6 +1,28 @@
 import Phaser from 'phaser';
-import type { ColunaVento, ConfigColunaVento, ParametrosEscadaVento } from './tiposFase1';
+import type {
+  ColunaVento,
+  ConfigColunaVento,
+  ConfigZonaVentoContrario,
+  ParametrosEscadaVento,
+  ParticulaVentoHorizontal,
+  ZonaVentoContrario,
+} from './tiposFase1';
 import { TOTEM_4_SEQUENCIADOR, VENTO_FASE1 } from './constantesFase1';
+
+interface AreaRetangular {
+  x: number;
+  y: number;
+  largura: number;
+  altura: number;
+}
+
+function areaContemPonto(area: AreaRetangular, px: number, py: number): boolean {
+  const metadeL = area.largura / 2;
+  const metadeA = area.altura / 2;
+  return (
+    px >= area.x - metadeL && px <= area.x + metadeL && py >= area.y - metadeA && py <= area.y + metadeA
+  );
+}
 
 /**
  * Lê os parâmetros da escada de rajadas vindos do interpretador
@@ -29,11 +51,14 @@ export function lerParametrosEscada(valor: unknown): Partial<ParametrosEscadaVen
 }
 
 /**
- * Colunas de vento ascensional da Fase 1: criação, partículas, renderização
- * e o ciclo da escada de rajadas (Desafio 4), que liga uma coluna por vez.
+ * Ventos da Fase 1:
+ * - colunas verticais, que erguem o jogador enquanto ele segura o pulo;
+ * - zonas de vento contrário, que o empurram devagar para a esquerda;
+ * - o ciclo da escada de rajadas (Desafio 4), que liga uma coluna por vez.
  */
 export class VentoFase1 {
   public readonly colunas: ColunaVento[] = [];
+  public readonly zonasContrarias: ZonaVentoContrario[] = [];
   public intervaloEscadaSegundos: number = TOTEM_4_SEQUENCIADOR.PERIODO_PADRAO_MS / 1000;
   public forcaEscadaPixels: number = TOTEM_4_SEQUENCIADOR.FORCA_PADRAO;
 
@@ -69,6 +94,19 @@ export class VentoFase1 {
     return coluna;
   }
 
+  public criarZonaContraria(cfg: ConfigZonaVentoContrario): ZonaVentoContrario {
+    const grafico = this.cena.add.graphics();
+    grafico.setDepth(VENTO_FASE1.PROFUNDIDADE_GRAFICO);
+
+    const zona: ZonaVentoContrario = { ...cfg, grafico, particulas: [] };
+    for (let i = 0; i < VENTO_FASE1.CONTRARIO.PARTICULAS_QUANTIDADE; i++) {
+      zona.particulas.push(this.sortearParticulaHorizontal(zona, true));
+    }
+
+    this.zonasContrarias.push(zona);
+    return zona;
+  }
+
   /**
    * Registra as colunas que formam a escada de rajadas, em ordem crescente.
    */
@@ -80,14 +118,14 @@ export class VentoFase1 {
    * Retorna a primeira coluna ativa que contém o ponto, se houver.
    */
   public colunaAtivaEm(x: number, y: number): ColunaVento | undefined {
-    return this.colunas.find((col) => {
-      if (!col.ativa) return false;
-      const metadeL = col.largura / 2;
-      const metadeA = col.altura / 2;
-      return (
-        x >= col.x - metadeL && x <= col.x + metadeL && y >= col.y - metadeA && y <= col.y + metadeA
-      );
-    });
+    return this.colunas.find((col) => col.ativa && areaContemPonto(col, x, y));
+  }
+
+  /**
+   * Retorna a zona de vento contrário que contém o ponto, se houver.
+   */
+  public zonaContrariaEm(x: number, y: number): ZonaVentoContrario | undefined {
+    return this.zonasContrarias.find((zona) => areaContemPonto(zona, x, y));
   }
 
   /**
@@ -105,8 +143,9 @@ export class VentoFase1 {
     this.tempoCicloEscada = 0;
   }
 
-  public update(delta: number): void {
+  public update(tempo: number, delta: number): void {
     this.renderizarColunas(delta);
+    this.renderizarZonasContrarias(tempo, delta);
     this.atualizarCicloEscada(delta);
   }
 
@@ -144,6 +183,63 @@ export class VentoFase1 {
     }
   }
 
+  private renderizarZonasContrarias(tempo: number, delta: number): void {
+    const c = VENTO_FASE1.CONTRARIO;
+    const dt = delta / 1000;
+    const deslocamentoTracejado = (tempo * c.VELOCIDADE_TRACEJADO) % c.PERIODO_TRACEJADO;
+
+    for (const zona of this.zonasContrarias) {
+      const g = zona.grafico;
+      const esquerda = zona.x - zona.largura / 2;
+      const topo = zona.y - zona.altura / 2;
+      const base = zona.y + zona.altura / 2;
+
+      g.clear();
+      g.fillStyle(c.COR_FUNDO, c.ALFA_FUNDO);
+      g.fillRect(esquerda, topo, zona.largura, zona.altura);
+
+      // Bordas tracejadas que correm para a esquerda, como uma esteira de ar
+      g.lineStyle(c.ESPESSURA_BORDA, c.COR_BORDA, c.ALFA_BORDA);
+      for (let dx = -deslocamentoTracejado; dx < zona.largura; dx += c.PERIODO_TRACEJADO) {
+        const inicio = Math.max(0, dx);
+        const fim = Math.min(zona.largura, dx + c.COMPRIMENTO_TRACEJADO);
+        if (fim <= inicio) continue;
+        g.lineBetween(esquerda + inicio, topo, esquerda + fim, topo);
+        g.lineBetween(esquerda + inicio, base, esquerda + fim, base);
+      }
+
+      // Riscos de vento atravessando a zona da direita para a esquerda
+      for (const p of zona.particulas) {
+        p.x -= p.velX * dt;
+        if (p.x + p.comprimento < esquerda) {
+          Object.assign(p, this.sortearParticulaHorizontal(zona, false));
+        }
+        g.lineStyle(c.PARTICULAS_ESPESSURA, c.COR_PARTICULA, p.alfa);
+        g.lineBetween(p.x, p.y, p.x + p.comprimento, p.y);
+      }
+
+      this.desenharBiruta(g, esquerda, topo, tempo);
+    }
+  }
+
+  private desenharBiruta(g: Phaser.GameObjects.Graphics, x: number, y: number, tempo: number): void {
+    const b = VENTO_FASE1.CONTRARIO.BIRUTA;
+
+    g.lineStyle(3, b.COR_MASTRO, 1);
+    g.lineBetween(x, y, x, y + b.ALTURA_MASTRO);
+    g.fillStyle(b.COR_PONTA, 1);
+    g.fillCircle(x, y, 4);
+
+    // Faixas hasteadas para a esquerda, ondulando em fases diferentes
+    const larguraSegmento = b.COMPRIMENTO / b.SEGMENTOS;
+    for (let i = 0; i < b.SEGMENTOS; i++) {
+      const altura = b.ALTURA_BASE - i * b.ALTURA_REDUCAO;
+      const onda = Math.sin(tempo * b.ONDA_VELOCIDADE - i * 0.9) * b.ONDA_AMPLITUDE;
+      g.fillStyle(i % 2 === 0 ? b.COR_SEGMENTO_A : b.COR_SEGMENTO_B, 0.95);
+      g.fillRect(x - (i + 1) * larguraSegmento, y + 4 + onda, larguraSegmento, altura);
+    }
+  }
+
   private atualizarCicloEscada(delta: number): void {
     if (!this.escadaAtiva || this.colunasEscada.length === 0) return;
 
@@ -160,5 +256,22 @@ export class VentoFase1 {
   private sortearXParticula(centroX: number, largura: number): number {
     const padding = VENTO_FASE1.PADDING_PARTICULAS_X;
     return centroX - largura / 2 + padding + Math.random() * (largura - padding * 2);
+  }
+
+  /**
+   * Sorteia um risco de vento: espalhado pela zona na criação, ou na borda direita ao reaparecer.
+   */
+  private sortearParticulaHorizontal(zona: AreaRetangular, espalhar: boolean): ParticulaVentoHorizontal {
+    const c = VENTO_FASE1.CONTRARIO;
+    const esquerda = zona.x - zona.largura / 2;
+    return {
+      x: espalhar ? esquerda + Math.random() * zona.largura : esquerda + zona.largura,
+      y: zona.y - zona.altura / 2 + Math.random() * zona.altura,
+      velX: c.PARTICULAS_VEL_X_MIN + Math.random() * (c.PARTICULAS_VEL_X_MAX - c.PARTICULAS_VEL_X_MIN),
+      comprimento:
+        c.PARTICULAS_COMPRIMENTO_MIN +
+        Math.random() * (c.PARTICULAS_COMPRIMENTO_MAX - c.PARTICULAS_COMPRIMENTO_MIN),
+      alfa: c.PARTICULAS_ALFA_MIN + Math.random() * (c.PARTICULAS_ALFA_MAX - c.PARTICULAS_ALFA_MIN),
+    };
   }
 }

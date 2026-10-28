@@ -168,6 +168,11 @@ export function construirNivelFase1(
   npc(NPCS_FASE1.SUCATINHA, TEXTOS_NPCS_FASE1.SUCATINHA);
   nuvem(b1.NUVEM_2.x, b1.NUVEM_2.y);
   vento.criarColuna(VENTO_FASE1.COLUNA_2);
+
+  // Zonas de vento contrário: empurram o jogador devagar para a esquerda
+  for (const zona of VENTO_FASE1.CONTRARIO.ZONAS) {
+    vento.criarZonaContraria(zona);
+  }
   rachados.criar(b1.MARMORE_RACHADO_2.x, b1.MARMORE_RACHADO_2.y);
   rachados.criar(b1.MARMORE_RACHADO_3.x, b1.MARMORE_RACHADO_3.y);
 

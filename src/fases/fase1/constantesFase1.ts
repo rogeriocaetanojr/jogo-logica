@@ -30,8 +30,31 @@ export const JOGADOR_FASE1 = {
   TEMPO_COYOTE_MS: 120, // Janela para pulo após sair de plataformas
   TEMPO_JUMP_BUFFER_MS: 120, // Janela de tolerância para buffer de comando de pulo pré-aterrissagem
   TINT_VENTO: 0xbae6fd,
+  TINT_PLANEIO: 0xe0f2fe, // Tint mais suave ao planar fora das colunas de vento
   TINT_RACHANDO: 0xf87171,
   PROFUNDIDADE: 10,
+  GRAVIDADE_EXTRA_PULO_CURTO: 1500, // px/s² somados à gravidade ao soltar o pulo subindo (freia a subida em curva)
+
+  // Aceleração horizontal em px/s²: a velocidade acompanha o alvo em rampa em vez de mudar de uma vez
+  ACELERACAO_CHAO: 2600,
+  ACELERACAO_AR: 1800,
+  FRENAGEM_CHAO: 3000,
+  FRENAGEM_AR: 1200,
+
+  // Fiapos de ar que o jogador deixa para trás ao planar
+  RASTRO_PLANEIO: {
+    INTERVALO_MS: 45,
+    VIDA_MS: 380,
+    VELOCIDADE_X: 60,
+    COMPRIMENTO: 18,
+    ESPESSURA: 2,
+    COR: 0xe0f2fe,
+    ALFA: 0.8,
+    RECUO_X: 24,
+    OFFSET_Y_MIN: -20,
+    OFFSET_Y_MAX: 40,
+    PROFUNDIDADE: 9,
+  },
 } as const;
 
 export const VENTO_FASE1 = {
@@ -43,14 +66,56 @@ export const VENTO_FASE1 = {
   PADDING_PARTICULAS_X: 6,
   LARGURA_PARTICULA: 3,
   ALTURA_PARTICULA: 10,
-  FORCA_VENTO_LATERAL: 90, // Força contínua de arraste horizontal para a esquerda
-  SUSTENTACAO_PASSIVA_DELTA: 15,
+  DESCIDA_COLUNA_VEL: 60, // Velocidade de descida dentro da coluna ao soltar o pulo
+  DESCIDA_COLUNA_SUAVIZACAO: 8, // Quanto maior, mais rápido a velocidade vertical converge para a descida
   COR_FUNDO_COLUNA: 0x38bdf8,
   ALFA_FUNDO_COLUNA: 0.22,
   COR_BORDA_COLUNA: 0xa5f3fc,
   ALFA_BORDA_COLUNA: 0.6,
   ESPESSURA_BORDA_COLUNA: 1.5,
   PROFUNDIDADE_GRAFICO: 1,
+
+  // Zonas de vento contrário: empurram o jogador devagar para a esquerda (andar e planar continuam possíveis)
+  CONTRARIO: {
+    COR_FUNDO: 0xe9d5ff,
+    ALFA_FUNDO: 0.1,
+    COR_BORDA: 0xffffff,
+    ALFA_BORDA: 0.55,
+    ESPESSURA_BORDA: 2,
+    COMPRIMENTO_TRACEJADO: 22,
+    PERIODO_TRACEJADO: 44,
+    VELOCIDADE_TRACEJADO: 0.08,
+    PARTICULAS_QUANTIDADE: 24,
+    PARTICULAS_VEL_X_MIN: 140,
+    PARTICULAS_VEL_X_MAX: 260,
+    PARTICULAS_COMPRIMENTO_MIN: 14,
+    PARTICULAS_COMPRIMENTO_MAX: 38,
+    PARTICULAS_ESPESSURA: 2,
+    PARTICULAS_ALFA_MIN: 0.3,
+    PARTICULAS_ALFA_MAX: 0.7,
+    COR_PARTICULA: 0xffffff,
+
+    // Biruta fixada na borda esquerda da zona, avisando de longe de onde vem o vento
+    BIRUTA: {
+      ALTURA_MASTRO: 70,
+      COMPRIMENTO: 56,
+      SEGMENTOS: 4,
+      ALTURA_BASE: 20,
+      ALTURA_REDUCAO: 3,
+      ONDA_AMPLITUDE: 3,
+      ONDA_VELOCIDADE: 0.01,
+      COR_MASTRO: 0xf8fafc,
+      COR_PONTA: 0xf59e0b,
+      COR_SEGMENTO_A: 0xf59e0b,
+      COR_SEGMENTO_B: 0xf8fafc,
+    },
+
+    // Posições provisórias para teste do vento; o layout final é definido junto com o level design
+    ZONAS: [
+      { x: 1530, y: 400, largura: 380, altura: 400, forca: 75 },
+      { x: 3210, y: 380, largura: 620, altura: 400, forca: 75 },
+    ],
+  },
 
   // Colunas do Bloco 1 (Tutorial de Vento)
   COLUNA_1: {
