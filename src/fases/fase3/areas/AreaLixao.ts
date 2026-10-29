@@ -172,6 +172,18 @@ export abstract class AreaLixao {
     return { img, corpo };
   }
 
+  /** Perigo apoiado no chão: encostar tira 1 bateria (ver CenaFase3). x é o centro. */
+  protected perigo(nome: string, x: number, chave: string): Phaser.GameObjects.Image {
+    const img = this.cena.add
+      .image(grade(this.offset + x), CHAO_Y, chave)
+      .setOrigin(0.5, 1)
+      .setScale(ESCALA)
+      .setDepth(PROF.objetos)
+      .setName(this.chave(nome));
+    this.cena.perigos.add(img);
+    return img;
+  }
+
   /** Chão de sucata do trecho, com colisão na linha CHAO_Y. */
   private criarChao(): void {
     const w = Math.ceil(this.largura / ESCALA);

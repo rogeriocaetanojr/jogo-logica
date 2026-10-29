@@ -6,7 +6,21 @@
 export const DEBUG = false;
 
 /** Vida máxima do jogador, em baterias. */
-export const VIDA_MAXIMA = 4;
+export const VIDA_MAXIMA = 5;
+
+/** Dano: invencibilidade piscando e empurrão leve para trás. */
+export const DANO = {
+  INVENCIBILIDADE_MS: 1000,
+  /** Intervalo do pisca durante a invencibilidade. */
+  PISCA_MS: 80,
+  EMPURRAO_X: 220,
+  EMPURRAO_Y: -220,
+  /** Tempo em que o empurrão ignora as teclas de andar. */
+  CONTROLE_TRAVADO_MS: 220,
+} as const;
+
+/** Duração de cada metade do fade ao morrer (escurece, reaparece no checkpoint). */
+export const FADE_MORTE_MS = 400;
 
 /** Dimensões da tela e altura do topo do chão (coordenadas de mundo). */
 export const LARGURA_TELA = 1280;

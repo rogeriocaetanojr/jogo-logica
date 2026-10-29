@@ -16,7 +16,7 @@ Um lixão gigante de lixo eletrônico, inspirado em Wall-E. O jogador controla m
 - Lixo cai das pilhas, com sombra e tremor de aviso.
 - Pulos e trechos em que é preciso se abaixar. Abaixado (S ou seta para baixo), o jogador anda mais devagar, não pula e só levanta se houver espaço acima. Como os personagens não têm quadro de abaixar, o sprite é achatado pelos pés.
 - Parâmetros de movimento ficam em `MOVIMENTO_LIXAO` (lixao/JogadorLixao.ts). Cada jogador tem uma cópia em `parametros` para o clima alterar, por exemplo a frenagem na chuva.
-- Ao morrer, o jogador volta ao último ponto de exercício.
+- Vida de 5 baterias. Cada dano tira 1 bateria, dá 1 s de invencibilidade piscando e um empurrão leve. Ao zerar, o jogador volta com vida cheia ao último ponto de exercício ativado; o início de cada área conta como o primeiro ponto.
 
 ## Arremesso
 - O mesmo controle nas áreas e no chefão: mira com o mouse, arremessa com clique.
@@ -83,6 +83,8 @@ Regras:
 | `neonCiano` | #3FE8E0 | LED e tela do terminal, seta da saída, textos interativos |
 | `neonCianoEscuro` | #1E8F8C | Fundo da tela do terminal, LED apagado, placa da saída |
 | `perigo` | #E0413A | Só perigos: tiros, faíscas, lixo caindo |
+| `bateriaVerde` | #5FCB5A | Baterias da HUD com carga alta |
+| `bateriaAmarela` | #E8C440 | Baterias da HUD com carga média; com carga baixa elas ficam `perigo` |
 | `luz` | #FFFFFF | Base branca de partículas e brilhos que recebem tinta |
 
 Cenário por área (céu fixo, nuvens 0.1, horizonte 0.25, pilhas 0.55, chão 1.0):

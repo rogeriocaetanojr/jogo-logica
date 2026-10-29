@@ -1,6 +1,6 @@
 import { COR, aleatorio, desenharBlocoSucata, desenharCano, desenharMuralha, desenharViga } from '../lixao/ArteLixao';
 import type { Pincel } from '../lixao/ArteLixao';
-import { CHAO_Y } from '../lixao/TiposLixao';
+import { CHAO_Y, DEBUG } from '../lixao/TiposLixao';
 import type { CenaFase3 } from '../CenaFase3';
 import { AreaLixao } from './AreaLixao';
 import type { TemaArea } from './AreaLixao';
@@ -22,6 +22,7 @@ export class Area1 extends AreaLixao {
   protected override decorar(): void {
     this.criarTrechoPulos();
     this.criarCanoBaixo();
+    if (DEBUG) this.perigo('espinho-teste', 400, 'lx-espinho');
 
     // Engrenagens enferrujadas meio enterradas e cabos rompidos, longe dos obstáculos
     this.decoracao(300, 'lx-fios');

@@ -44,6 +44,9 @@ export const COR = {
   neonCiano: '#3FE8E0',
   neonCianoEscuro: '#1E8F8C',
   perigo: '#E0413A',
+  // Baterias da HUD (a última fase da carga usa o vermelho de perigo)
+  bateriaVerde: '#5FCB5A',
+  bateriaAmarela: '#E8C440',
   /** Branco neutro: base de partículas e brilhos que recebem tinta. */
   luz: '#FFFFFF',
 } as const;
@@ -520,6 +523,16 @@ export function gerarTexturasLixao(cena: Phaser.Scene): void {
       0,
       0
     );
+  });
+
+  // Espinho de sucata (perigo de teste): pontas de metal com ponta vermelha
+  texturaPixel(cena, 'lx-espinho', 16, 7, (p) => {
+    p.px(0, 5, 16, 2, COR.contorno);
+    for (let x = 0; x < 16; x += 4) {
+      p.px(x + 1, 3, 2, 2, COR.sucataClara);
+      p.px(x + 1, 1, 2, 2, COR.perigo);
+      p.ponto(x + 1, 0, COR.perigo);
+    }
   });
 
   texturaPixel(cena, 'lx-poeira', 1, 1, (p) => p.ponto(0, 0, COR.luz));

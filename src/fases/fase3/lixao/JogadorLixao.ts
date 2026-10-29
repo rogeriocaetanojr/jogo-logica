@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { GerenciadorEstado, type TipoPersonagem } from '../../../nucleo/GerenciadorEstado';
+import { DANO, VIDA_MAXIMA } from './TiposLixao';
 
 /**
  * Parâmetros de movimento do jogador no lixão (px/s e px/s²). Cada jogador guarda uma cópia
@@ -31,12 +32,14 @@ const PROFUNDIDADE = 60;
 
 /**
  * Jogador da Fase 3 (Alvares ou Reis): anda com aceleração e frenagem suaves, pula com
- * altura variável (segurar pula mais alto) e abaixa reduzindo a hitbox.
+ * altura variável (segurar pula mais alto) e abaixa reduzindo a hitbox. Guarda a vida em
+ * baterias; o dano dá invencibilidade piscando e um empurrão para trás.
  */
 export class JogadorLixao {
   public readonly sprite: Phaser.Physics.Arcade.Sprite;
   public readonly tipoPersonagem: TipoPersonagem;
   public readonly parametros: ParametrosMovimento = { ...MOVIMENTO_LIXAO };
+  public vida = VIDA_MAXIMA;
 
   private readonly cena: Phaser.Scene;
   private teclas: Phaser.Input.Keyboard.Key[][] = [];
@@ -45,6 +48,9 @@ export class JogadorLixao {
   private tempoUltimoPulo = -9999;
   /** Verdadeiro do início do pulo até o topo, enquanto soltar o botão ainda encurta o pulo. */
   private puloCortavel = false;
+  private tempoAtual = 0;
+  private invencivelAte = 0;
+  private controleTravadoAte = 0;
 
   constructor(cena: Phaser.Scene, x: number, y: number) {
     this.cena = cena;
@@ -83,10 +89,45 @@ export class JogadorLixao {
     return this.abaixado;
   }
 
+  get estaInvencivel(): boolean {
+    return this.tempoAtual < this.invencivelAte;
+  }
+
+  /**
+   * Tira 1 bateria e empurra para longe de `origemX`. Ignorado durante a invencibilidade.
+   * Devolve true se o dano foi aplicado.
+   */
+  receberDano(origemX: number): boolean {
+    if (this.vida <= 0 || this.estaInvencivel) return false;
+    this.vida -= 1;
+    this.invencivelAte = this.tempoAtual + DANO.INVENCIBILIDADE_MS;
+    this.controleTravadoAte = this.tempoAtual + DANO.CONTROLE_TRAVADO_MS;
+    const lado = this.sprite.x < origemX ? -1 : 1;
+    this.sprite.setVelocity(lado * DANO.EMPURRAO_X, DANO.EMPURRAO_Y);
+    this.puloCortavel = false;
+    return true;
+  }
+
+  /** Volta ao ponto informado parado, em pé e com vida cheia (renascer no checkpoint). */
+  renascer(x: number, y: number): void {
+    this.definirAbaixado(false);
+    this.corpo.reset(x, y);
+    this.vida = VIDA_MAXIMA;
+    this.invencivelAte = 0;
+    this.controleTravadoAte = 0;
+    this.puloCortavel = false;
+    this.tempoUltimaVezNoChao = -9999;
+    this.tempoUltimoPulo = -9999;
+    this.sprite.setAlpha(1).setFlipX(false);
+    this.tocarAnimacao('idle');
+  }
+
   atualizar(tempo: number, delta: number): void {
     const p = this.parametros;
     const corpo = this.corpo;
     const dt = delta / 1000;
+    this.tempoAtual = tempo;
+    const controleLivre = tempo >= this.controleTravadoAte;
     const [esquerda, direita, pulo, abaixar] = this.teclas.map((grupo) => grupo.some((t) => t.isDown));
     const puloAgora = this.teclas[2]?.some((t) => Phaser.Input.Keyboard.JustDown(t)) ?? false;
     const noChao = corpo.blocked.down || corpo.touching.down;
@@ -105,7 +146,7 @@ export class JogadorLixao {
     const taxa = direcao !== 0 ? (noChao ? p.ACELERACAO_CHAO : p.ACELERACAO_AR) : noChao ? p.FRENAGEM_CHAO : p.FRENAGEM_AR;
     const passo = taxa * dt;
     const vx = corpo.velocity.x;
-    this.sprite.setVelocityX(vx + Phaser.Math.Clamp(alvo - vx, -passo, passo));
+    if (controleLivre) this.sprite.setVelocityX(vx + Phaser.Math.Clamp(alvo - vx, -passo, passo));
 
     // Pulo com coyote time e buffer; abaixado não pula
     const podePular = tempo - this.tempoUltimaVezNoChao <= p.TEMPO_COYOTE_MS;
@@ -122,6 +163,9 @@ export class JogadorLixao {
       if (corpo.velocity.y >= 0) this.puloCortavel = false;
       else if (!pulo) this.sprite.setVelocityY(corpo.velocity.y + p.GRAVIDADE_PULO_CURTO * dt);
     }
+
+    // Invencível: pisca
+    this.sprite.setAlpha(this.estaInvencivel && Math.floor(tempo / DANO.PISCA_MS) % 2 === 0 ? 0.25 : 1);
 
     if (!noChao) this.tocarAnimacao('jump');
     else if (this.abaixado) this.tocarAnimacao('idle');

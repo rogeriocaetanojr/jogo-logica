@@ -7,8 +7,9 @@ import type { AreaLixao } from './areas/AreaLixao';
 import { CenarioLixao } from './areas/CenarioLixao';
 import { criarTrechos } from './areas/FabricaAreas';
 import { COR, gerarTexturasLixao } from './lixao/ArteLixao';
+import { HudLixao } from './lixao/HudLixao';
 import { JogadorLixao } from './lixao/JogadorLixao';
-import { ALTURA_TELA, AREAS, CHAO_Y, DEBUG, LARGURA_TELA } from './lixao/TiposLixao';
+import { ALTURA_TELA, AREAS, CHAO_Y, DEBUG, FADE_MORTE_MS, LARGURA_TELA } from './lixao/TiposLixao';
 
 /** Distância horizontal para interagir com o ponto de exercício. */
 const ALCANCE_INTERACAO = 80;
@@ -26,9 +27,15 @@ export class CenaFase3 extends CenaBase {
   public cenario!: CenarioLixao;
   /** Sólidos de todos os trechos (chão, obstáculos e barreiras). */
   public solidos!: Phaser.Physics.Arcade.StaticGroup;
+  /** Perigos que tiram 1 bateria ao encostar. */
+  public perigos!: Phaser.Physics.Arcade.StaticGroup;
   public jogador!: JogadorLixao;
-  /** X do último ponto de exercício alcançado, onde o jogador volta ao morrer. */
-  public checkpoint = 0;
+  /**
+   * Onde o jogador volta ao morrer: o início da área mais avançada em que entrou ou, depois
+   * de encostar no terminal dela, o ponto de exercício.
+   */
+  public checkpoint = { x: 0, trecho: 0 };
+  private hud!: HudLixao;
 
   private indiceTrecho = 0;
   /** Trecho cujo terminal está aberto, que recebe o resultado dos comandos. */
@@ -38,6 +45,7 @@ export class CenaFase3 extends CenaBase {
   private textoArea!: Phaser.GameObjects.Text;
   private fisicaPausada = false;
   private concluindo = false;
+  private morrendo = false;
 
   constructor() {
     super('CenaFase3', 'fase3');
@@ -48,6 +56,7 @@ export class CenaFase3 extends CenaBase {
     this.trechoTerminal = undefined;
     this.fisicaPausada = false;
     this.concluindo = false;
+    this.morrendo = false;
   }
 
   override create(): void {
@@ -55,6 +64,7 @@ export class CenaFase3 extends CenaBase {
     gerarTexturasLixao(this);
 
     this.solidos = this.physics.add.staticGroup();
+    this.perigos = this.physics.add.staticGroup();
     this.trechos = criarTrechos(this);
     this.cenario = new CenarioLixao(this, this.trechos);
     this.cenario.construir();
@@ -95,14 +105,19 @@ export class CenaFase3 extends CenaBase {
       .setScrollFactor(0)
       .setDepth(9998);
     this.atualizarTextoArea();
+    this.hud = new HudLixao(this);
+    this.hud.atualizarVida(this.jogador.vida);
     this.criarEfeitoCRT(this.scale.width, this.scale.height, 0.02);
   }
 
   private criarJogador(): void {
     const inicio = this.trechos[0].inicio;
-    this.checkpoint = inicio.x;
+    this.checkpoint = { x: inicio.x, trecho: 0 };
     this.jogador = new JogadorLixao(this, inicio.x, inicio.y);
     this.physics.add.collider(this.jogador.sprite, this.solidos);
+    this.physics.add.overlap(this.jogador.sprite, this.perigos, (_j, perigo) =>
+      this.aoTocarPerigo((perigo as Phaser.GameObjects.Image).x)
+    );
     this.cameras.main.startFollow(this.jogador.sprite, true, 0.08, 0.08);
   }
 
@@ -151,7 +166,7 @@ export class CenaFase3 extends CenaBase {
     if (!this.jogador || !this.cenario) return;
 
     // Terminal aberto pausa a física (drones e perigos); o cenário segue animado
-    const pausado = this.terminal.estaAberto || this.concluindo;
+    const pausado = this.terminal.estaAberto || this.concluindo || this.morrendo;
     if (pausado !== this.fisicaPausada) {
       this.fisicaPausada = pausado;
       if (pausado) this.jogador.parar();
@@ -176,6 +191,39 @@ export class CenaFase3 extends CenaBase {
     this.indiceTrecho = indice;
     this.cenario.definirTrecho(indice);
     this.atualizarTextoArea();
+    // Entrar numa área nova faz do início dela o primeiro ponto de volta
+    if (indice > this.checkpoint.trecho) this.checkpoint = { x: this.trechos[indice].inicio.x, trecho: indice };
+  }
+
+  /* =========================================================================
+   * DANO E CHECKPOINT
+   * ========================================================================= */
+
+  private aoTocarPerigo(origemX: number): void {
+    if (this.morrendo || !this.jogador.receberDano(origemX)) return;
+    this.hud.atualizarVida(this.jogador.vida);
+    this.cameras.main.shake(120, 0.004);
+    if (this.jogador.vida <= 0) this.morrer();
+  }
+
+  /** Vida zerada: fade, volta ao último checkpoint com vida cheia e reaparece. */
+  private morrer(): void {
+    this.morrendo = true;
+    this.terminal.fecharForcado();
+    this.cameras.main.fadeOut(FADE_MORTE_MS, 0, 0, 0);
+    this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
+      const { x, trecho } = this.checkpoint;
+      this.physics.world.resume();
+      this.jogador.renascer(x, CHAO_Y - 4);
+      this.fisicaPausada = false;
+      this.indiceTrecho = trecho;
+      this.cenario.definirTrecho(trecho, true);
+      this.atualizarTextoArea();
+      this.hud.atualizarVida(this.jogador.vida);
+      this.cameras.main.centerOn(x, ALTURA_TELA / 2);
+      this.cameras.main.fadeIn(FADE_MORTE_MS, 0, 0, 0);
+      this.morrendo = false;
+    });
   }
 
   private atualizarTextoArea(): void {
@@ -190,7 +238,8 @@ export class CenaFase3 extends CenaBase {
 
     this.textoPrompt.setVisible(pertoExercicio);
     if (pertoExercicio) {
-      this.checkpoint = trecho.xExercicio;
+      // Provisório: encostar no terminal ativa o checkpoint (na T1 passa a ser ao abrir o terminal)
+      this.checkpoint = { x: trecho.xExercicio, trecho: this.indiceTrecho };
       this.textoPrompt.setPosition(trecho.xExercicio, trecho.marcador.y - 100).setText('[E] Terminal');
       if (Phaser.Input.Keyboard.JustDown(this.teclas.E)) this.abrirTerminal(trecho);
     }
