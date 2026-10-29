@@ -132,6 +132,17 @@ export abstract class AreaLixao {
     return this.xExercicioLocal + DISTANCIA_SAIDA;
   }
 
+  /**
+   * Chão firme em x (relativo ao trecho), numa faixa de meia largura informada: fora dos
+   * buracos, do vão de saída e da área do terminal. Usado para espalhar poças e decoração.
+   */
+  chaoLivre(x: number, meiaLargura: number): boolean {
+    const fimSaida = this.xSaidaLocal + LARGURA_SAIDA[this.saida];
+    if (x + meiaLargura > this.xExercicioLocal - 120 && x - meiaLargura < fimSaida + 60) return false;
+    if (x - meiaLargura < 0 || x + meiaLargura > this.largura) return false;
+    return !this.buracos.some(([bx, bl]) => x + meiaLargura > bx - MARGEM_BURACO && x - meiaLargura < bx + bl + MARGEM_BURACO);
+  }
+
   contem(x: number): boolean {
     return x >= this.offset && x < this.fim;
   }
@@ -194,10 +205,7 @@ export abstract class AreaLixao {
    * sobre o terminal, a saída ou um buraco, para não esconder o que é interativo nem flutuar.
    */
   protected decoracao(x: number, chave: string, espelhar = false, afundar = 0): void {
-    const fimSaida = this.xSaidaLocal + LARGURA_SAIDA[this.saida];
-    const livre = x < this.xExercicioLocal - 120 || x > fimSaida + 60;
-    const sobreBuraco = this.buracos.some(([bx, bl]) => x > bx - MARGEM_BURACO && x < bx + bl + MARGEM_BURACO);
-    if (!livre || sobreBuraco) return;
+    if (!this.chaoLivre(x, 0)) return;
     const img = this.cena.add
       .image(grade(this.offset + x), CHAO_Y + afundar * ESCALA, chave)
       .setOrigin(0.5, 1)
@@ -333,6 +341,8 @@ export abstract class AreaLixao {
       .setScale(ESCALA)
       .setAlpha(0.45)
       .setDepth(PROF.escuro + 1);
+    // LED ciano: fura a escuridão da noite
+    this.cena.cenario.clima.registrarLuz(brilho);
     this.cena.time.addEvent({
       delay: 600,
       loop: true,

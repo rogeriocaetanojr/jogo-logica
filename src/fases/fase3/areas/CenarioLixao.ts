@@ -1,8 +1,10 @@
 import Phaser from 'phaser';
-import { COR, ESCALA, aleatorio, bayer, desenharPilha, hexNum, hexRgb, texturaPixel } from '../lixao/ArteLixao';
+import { COR, ESCALA, aleatorio, bayer, desenharPilha, hexRgb, texturaPixel } from '../lixao/ArteLixao';
 import type { Pincel, TipoPilha } from '../lixao/ArteLixao';
 import { ALTURA_TELA, CHAO_Y, LARGURA_TELA } from '../lixao/TiposLixao';
 import type { Clima } from '../lixao/TiposLixao';
+import { ClimaLixao, EFEITOS_CLIMA } from '../lixao/ClimaLixao';
+import type { EstadoClima } from '../lixao/ClimaLixao';
 import { PROF } from './AreaLixao';
 import type { AreaLixao } from './AreaLixao';
 
@@ -12,20 +14,6 @@ const PARALLAX = { ceu: 0, nuvens: 0.1, horizonte: 0.25, pilhas: 0.55 } as const
 /** Duração da transição de clima e tema ao trocar de trecho. */
 const DURACAO_TRANSICAO_MS = 3000;
 
-/** Intensidade dos efeitos de cada clima (0 desligado, 1 ligado por inteiro). */
-interface EstadoClima {
-  poeira: number;
-  chuva: number;
-  noite: number;
-}
-
-const EFEITOS: Record<Clima, EstadoClima> = {
-  ensolarado: { poeira: 0, chuva: 0, noite: 0 },
-  empoeirado: { poeira: 1, chuva: 0, noite: 0 },
-  chuva: { poeira: 0, chuva: 1, noite: 0 },
-  noite: { poeira: 0, chuva: 0, noite: 1 },
-};
-
 /** Valores que a transição interpola entre o tema de saída e o de chegada. */
 interface Visual {
   tinta: Rgb;
@@ -34,13 +22,13 @@ interface Visual {
   clima: EstadoClima;
 }
 
-function visualDe(trecho: AreaLixao): Visual {
+function visualDe(trecho: AreaLixao, clima: Clima = trecho.info.clima): Visual {
   const tema = trecho.tema;
   return {
     tinta: hexRgb(tema.tinta ?? COR.luz),
     nuvem: hexRgb(tema.nuvem),
     horizonte: hexRgb(tema.horizonte),
-    clima: { ...EFEITOS[trecho.info.clima] },
+    clima: { ...EFEITOS_CLIMA[clima] },
   };
 }
 
@@ -57,7 +45,8 @@ function misturar(a: Rgb, b: Rgb, t: number): Rgb {
 /**
  * Cenário do mapa contínuo: céu de cada trecho, nuvens, horizonte e pilhas em parallax
  * cobrindo o mundo inteiro, e os efeitos de clima. Ao trocar de trecho, céu, tinta, cores
- * distantes e partículas mudam em fade de alguns segundos.
+ * distantes e partículas mudam em fade de alguns segundos. Os efeitos de clima em si ficam
+ * em ClimaLixao; aqui só se decide a intensidade de cada um.
  */
 export class CenarioLixao {
   private readonly cena: Phaser.Scene;
@@ -67,10 +56,7 @@ export class CenarioLixao {
   private nuvens!: Phaser.GameObjects.Image;
   private horizonte!: Phaser.GameObjects.Image;
   private readonly tingiveis: Phaser.GameObjects.Components.Tint[] = [];
-  private poeira!: Phaser.GameObjects.Particles.ParticleEmitter;
-  private veuPoeira!: Phaser.GameObjects.Rectangle;
-  private chuva!: Phaser.GameObjects.Particles.ParticleEmitter;
-  private veuNoite!: Phaser.GameObjects.Rectangle;
+  public readonly clima: ClimaLixao;
 
   private indiceAtual = -1;
   private de!: Visual;
@@ -81,6 +67,7 @@ export class CenarioLixao {
     this.cena = cena;
     this.trechos = trechos;
     this.larguraMundo = trechos[trechos.length - 1].fim;
+    this.clima = new ClimaLixao(cena);
   }
 
   /** Monta céus, camadas e clima (antes dos trechos, que registram seus objetos tingíveis). */
@@ -89,7 +76,7 @@ export class CenarioLixao {
     this.criarNuvens();
     this.criarHorizonte();
     this.criarPilhas();
-    this.criarClima();
+    this.clima.construir();
   }
 
   registrarTingivel(obj: Phaser.GameObjects.Components.Tint): void {
@@ -104,6 +91,18 @@ export class CenarioLixao {
     this.para = destino;
     this.indiceAtual = indice;
     this.progresso = imediato ? 1 : 0;
+    this.aplicar();
+  }
+
+  /**
+   * Depuração: aplica na hora o tema e os efeitos de um clima, sem mudar o céu do trecho.
+   * Vale até o próximo trecho ou até `null`, que volta ao clima do trecho atual.
+   */
+  forcarClima(clima: Clima | null): void {
+    const trecho = this.trechos[this.indiceAtual];
+    const modelo = clima ? (this.trechos.find((t) => t.info.clima === clima) ?? trecho) : trecho;
+    this.de = this.para = visualDe(modelo, clima ?? trecho.info.clima);
+    this.progresso = 1;
     this.aplicar();
   }
 
@@ -153,12 +152,7 @@ export class CenarioLixao {
     const tinta = rgbNum(v.tinta);
     for (const obj of this.tingiveis) obj.setTint(tinta);
 
-    this.poeira.setAlpha(v.clima.poeira);
-    this.poeira.emitting = v.clima.poeira > 0.01;
-    this.veuPoeira.setAlpha(0.3 * v.clima.poeira);
-    this.chuva.setAlpha(0.5 * v.clima.chuva);
-    this.chuva.emitting = v.clima.chuva > 0.01;
-    this.veuNoite.setAlpha(0.45 * v.clima.noite);
+    this.clima.aplicar(v.clima as EstadoClima);
   }
 
   /* =========================================================================
@@ -276,53 +270,5 @@ export class CenarioLixao {
         }
       })
     );
-  }
-
-  /** Poeira, chuva e escuridão do mapa; a intensidade de cada um segue o trecho atual. */
-  private criarClima(): void {
-    this.poeira = this.cena.add
-      .particles(0, 0, 'lx-poeira', {
-        x: { min: 0, max: LARGURA_TELA },
-        y: { min: 0, max: ALTURA_TELA },
-        lifespan: 4000,
-        speedX: { min: -220, max: -120 },
-        speedY: { min: -10, max: 20 },
-        scale: { min: ESCALA, max: ESCALA * 2 },
-        alpha: { start: 0.7, end: 0 },
-        quantity: 4,
-        frequency: 40,
-        tint: [hexNum(COR.ceuPoeira), hexNum(COR.horizonte)],
-        emitting: false,
-      })
-      .setScrollFactor(0)
-      .setDepth(PROF.clima);
-    this.veuPoeira = this.cena.add
-      .rectangle(0, 0, LARGURA_TELA, ALTURA_TELA, hexNum(COR.horizonte), 1)
-      .setOrigin(0, 0)
-      .setScrollFactor(0)
-      .setDepth(PROF.clima)
-      .setAlpha(0);
-    this.chuva = this.cena.add
-      .particles(0, 0, 'lx-poeira', {
-        x: { min: -100, max: LARGURA_TELA + 100 },
-        y: -10,
-        lifespan: 900,
-        speedY: { min: 800, max: 1000 },
-        speedX: -120,
-        scaleX: ESCALA,
-        scaleY: ESCALA * 4,
-        quantity: 6,
-        frequency: 16,
-        tint: hexNum(COR.tintaChuva),
-        emitting: false,
-      })
-      .setScrollFactor(0)
-      .setDepth(PROF.clima);
-    this.veuNoite = this.cena.add
-      .rectangle(0, 0, LARGURA_TELA, ALTURA_TELA, hexNum(COR.noiteRoxoEscuro), 1)
-      .setOrigin(0, 0)
-      .setScrollFactor(0)
-      .setDepth(PROF.escuro)
-      .setAlpha(0);
   }
 }

@@ -7,6 +7,7 @@ import type { AreaLixao } from './areas/AreaLixao';
 import { CenarioLixao } from './areas/CenarioLixao';
 import { criarTrechos } from './areas/FabricaAreas';
 import { COR, gerarTexturasLixao } from './lixao/ArteLixao';
+import { CLIMAS } from './lixao/ClimaLixao';
 import { HudLixao } from './lixao/HudLixao';
 import { JogadorLixao } from './lixao/JogadorLixao';
 import { ALTURA_TELA, AREAS, CHAO_Y, DEBUG, FADE_MORTE_MS, LARGURA_TELA } from './lixao/TiposLixao';
@@ -40,6 +41,8 @@ export class CenaFase3 extends CenaBase {
   private hud!: HudLixao;
 
   private indiceTrecho = 0;
+  /** Depuração: posição em CLIMAS do clima forçado pela tecla C; -1 segue o trecho. */
+  private climaForcado = -1;
   /** Trecho cujo terminal está aberto, que recebe o resultado dos comandos. */
   private trechoTerminal?: AreaLixao;
   private teclas!: Record<string, Phaser.Input.Keyboard.Key>;
@@ -55,6 +58,7 @@ export class CenaFase3 extends CenaBase {
 
   override init(): void {
     this.indiceTrecho = 0;
+    this.climaForcado = -1;
     this.trechoTerminal = undefined;
     this.fisicaPausada = false;
     this.concluindo = false;
@@ -71,6 +75,7 @@ export class CenaFase3 extends CenaBase {
     this.cenario = new CenarioLixao(this, this.trechos);
     this.cenario.construir();
     this.trechos.forEach((t) => t.construir());
+    this.cenario.clima.criarPocas(this.trechos);
     this.cenario.definirTrecho(0, true);
 
     const larguraMundo = this.trechos[this.trechos.length - 1].fim;
@@ -136,6 +141,8 @@ export class CenaFase3 extends CenaBase {
       numeros.forEach((codigo, i) => (nomes[`AREA${i}`] = codigo));
       // L libera a saída do trecho atual sem resolver o exercício
       nomes.LIBERAR = K.L;
+      // C troca o clima na hora (ensolarado, empoeirado, chuva, noite, o do trecho)
+      nomes.CLIMA = K.C;
     }
     this.teclas = {};
     for (const [nome, codigo] of Object.entries(nomes)) this.teclas[nome] = kb.addKey(codigo, false);
@@ -181,6 +188,7 @@ export class CenaFase3 extends CenaBase {
     }
 
     this.cenario.atualizar(delta);
+    this.cenario.clima.atualizar(delta, this.jogador);
     if (pausado) return;
 
     if (DEBUG) this.atualizarAtalhosDebug();
@@ -200,6 +208,7 @@ export class CenaFase3 extends CenaBase {
     const indice = this.trechos.findIndex((t) => t.contem(x));
     if (indice < 0 || indice === this.indiceTrecho) return;
     this.indiceTrecho = indice;
+    this.climaForcado = -1;
     this.cenario.definirTrecho(indice);
     this.atualizarTextoArea();
     // Entrar numa área nova faz do início dela o primeiro ponto de volta
@@ -261,6 +270,12 @@ export class CenaFase3 extends CenaBase {
 
   private atualizarAtalhosDebug(): void {
     if (Phaser.Input.Keyboard.JustDown(this.teclas.LIBERAR)) this.trechos[this.indiceTrecho].resolverExercicio();
+    if (Phaser.Input.Keyboard.JustDown(this.teclas.CLIMA)) {
+      this.climaForcado = this.climaForcado + 1 < CLIMAS.length ? this.climaForcado + 1 : -1;
+      const clima = this.climaForcado >= 0 ? CLIMAS[this.climaForcado] : null;
+      this.cenario.forcarClima(clima);
+      this.textoArea.setText(`ÁREA ${AREAS[this.indiceTrecho].numero}/${AREAS.length} · ${clima ? `DEBUG ${clima.toUpperCase()}` : AREAS[this.indiceTrecho].rotuloClima}`);
+    }
     for (let i = 0; i < this.trechos.length; i++) {
       const tecla = this.teclas[`AREA${i}`];
       if (tecla && Phaser.Input.Keyboard.JustDown(tecla)) {
