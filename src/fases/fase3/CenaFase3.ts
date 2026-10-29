@@ -10,6 +10,7 @@ import { COR, gerarTexturasLixao } from './lixao/ArteLixao';
 import { CLIMAS } from './lixao/ClimaLixao';
 import { HudLixao } from './lixao/HudLixao';
 import { JogadorLixao } from './lixao/JogadorLixao';
+import { QuedasLixao } from './lixao/QuedasLixao';
 import { ALTURA_TELA, AREAS, CHAO_Y, DEBUG, FADE_MORTE_MS, LARGURA_TELA } from './lixao/TiposLixao';
 
 /** Distância horizontal para interagir com o ponto de exercício. */
@@ -33,6 +34,8 @@ export class CenaFase3 extends CenaBase {
   /** Perigos que tiram 1 bateria ao encostar. */
   public perigos!: Phaser.Physics.Arcade.StaticGroup;
   public jogador!: JogadorLixao;
+  /** Lixo caindo das pilhas e recicláveis no chão (munição do arremesso). */
+  public quedas!: QuedasLixao;
   /**
    * Onde o jogador volta ao morrer: o início da área mais avançada em que entrou ou, depois
    * de encostar no terminal dela, o ponto de exercício.
@@ -86,6 +89,8 @@ export class CenaFase3 extends CenaBase {
     this.cameras.main.fadeIn(400, 0, 0, 0);
 
     this.criarJogador();
+    this.quedas = new QuedasLixao(this, (x) => this.aoTocarPerigo(x));
+    this.quedas.construir();
     this.configurarTeclas();
     this.configurarTerminal();
 
@@ -193,6 +198,7 @@ export class CenaFase3 extends CenaBase {
 
     if (DEBUG) this.atualizarAtalhosDebug();
     this.jogador.atualizar(tempo, delta);
+    this.quedas.atualizar(delta, this.indiceTrecho);
     // Caiu num buraco: perde a vida toda e volta ao checkpoint
     if (this.jogador.y > ALTURA_TELA + QUEDA_FATAL) {
       this.morrer();
@@ -235,6 +241,7 @@ export class CenaFase3 extends CenaBase {
       const { x, trecho } = this.checkpoint;
       this.physics.world.resume();
       this.jogador.renascer(x, CHAO_Y - 4);
+      this.quedas.reiniciar();
       this.fisicaPausada = false;
       this.indiceTrecho = trecho;
       this.cenario.definirTrecho(trecho, true);
