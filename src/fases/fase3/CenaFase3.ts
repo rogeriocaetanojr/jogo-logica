@@ -15,6 +15,8 @@ import { ALTURA_TELA, AREAS, CHAO_Y, DEBUG, FADE_MORTE_MS, LARGURA_TELA } from '
 const ALCANCE_INTERACAO = 80;
 /** Antes do fim do mapa, a distância em que a fase é concluída. */
 const MARGEM_FIM = 80;
+/** Abaixo da tela, a distância em que cair num buraco mata. */
+const QUEDA_FATAL = 120;
 
 /**
  * CenaFase3: LIXÃO ELETRÔNICO.
@@ -73,6 +75,8 @@ export class CenaFase3 extends CenaBase {
 
     const larguraMundo = this.trechos[this.trechos.length - 1].fim;
     this.physics.world.setBounds(0, 0, larguraMundo, ALTURA_TELA);
+    // Sem borda embaixo: o jogador cai pelos buracos (ver QUEDA_FATAL)
+    this.physics.world.setBoundsCollision(true, true, true, false);
     this.cameras.main.setBounds(0, 0, larguraMundo, ALTURA_TELA);
     this.cameras.main.fadeIn(400, 0, 0, 0);
 
@@ -130,6 +134,8 @@ export class CenaFase3 extends CenaBase {
     if (DEBUG) {
       const numeros = [K.ONE, K.TWO, K.THREE, K.FOUR, K.FIVE, K.SIX];
       numeros.forEach((codigo, i) => (nomes[`AREA${i}`] = codigo));
+      // L libera a saída do trecho atual sem resolver o exercício
+      nomes.LIBERAR = K.L;
     }
     this.teclas = {};
     for (const [nome, codigo] of Object.entries(nomes)) this.teclas[nome] = kb.addKey(codigo, false);
@@ -179,6 +185,11 @@ export class CenaFase3 extends CenaBase {
 
     if (DEBUG) this.atualizarAtalhosDebug();
     this.jogador.atualizar(tempo, delta);
+    // Caiu num buraco: perde a vida toda e volta ao checkpoint
+    if (this.jogador.y > ALTURA_TELA + QUEDA_FATAL) {
+      this.morrer();
+      return;
+    }
     this.atualizarTrechoAtual();
     this.atualizarInteracoes();
   }
@@ -249,6 +260,7 @@ export class CenaFase3 extends CenaBase {
   }
 
   private atualizarAtalhosDebug(): void {
+    if (Phaser.Input.Keyboard.JustDown(this.teclas.LIBERAR)) this.trechos[this.indiceTrecho].resolverExercicio();
     for (let i = 0; i < this.trechos.length; i++) {
       const tecla = this.teclas[`AREA${i}`];
       if (tecla && Phaser.Input.Keyboard.JustDown(tecla)) {

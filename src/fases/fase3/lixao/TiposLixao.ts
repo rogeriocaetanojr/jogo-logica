@@ -2,7 +2,10 @@
  * Constantes e tipos do Lixão Eletrônico (Fase 3).
  */
 
-/** Liga atalhos de desenvolvimento (teclas 1 a 6 levam ao início de cada trecho). Deixar false no commit. */
+/**
+ * Liga atalhos de desenvolvimento: teclas 1 a 6 levam ao início de cada trecho e L libera a
+ * saída do trecho atual. Deixar false no commit.
+ */
 export const DEBUG = false;
 
 /** Vida máxima do jogador, em baterias. */

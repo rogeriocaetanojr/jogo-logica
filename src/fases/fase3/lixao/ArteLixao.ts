@@ -445,6 +445,33 @@ export function desenharMuralha(p: Pincel, w: number, h: number, rnd: () => numb
   p.px(w - 1, 0, 1, h, COR.contorno);
 }
 
+/** Portão de grade de sucata que vai do chão ao alto da tela; sobe quando o exercício é resolvido. */
+export function desenharPortao(p: Pincel, w: number, h: number): void {
+  p.px(0, 0, w, h, COR.contorno);
+  for (let x = 2; x < w - 2; x += 4) {
+    p.px(x, 0, 2, h, COR.sucata);
+    p.px(x, 0, 1, h, COR.sucataClara);
+  }
+  // Travessas enferrujadas com rebites
+  for (let y = 6; y < h - 4; y += 24) {
+    p.caixa(0, y, w, 4, COR.cobreEscuro);
+    for (let x = 3; x < w - 2; x += 5) p.ponto(x, y + 1, COR.cobre);
+  }
+  p.px(0, h - 2, w, 2, COR.sombraSucata);
+}
+
+/** Fosso sem fundo entre trechos de chão: paredes de sucata descendo para o escuro. */
+export function desenharFosso(p: Pincel, w: number, h: number, rnd: () => number): void {
+  p.px(0, 0, w, h, COR.contorno);
+  p.px(0, 0, 2, Math.floor(h * 0.6), COR.sombraSucata);
+  p.px(w - 2, 0, 2, Math.floor(h * 0.6), COR.sombraSucata);
+  // Cabos pendurados na boca do fosso
+  for (let x = 3 + Math.floor(rnd() * 4); x < w - 3; x += 5 + Math.floor(rnd() * 6)) {
+    const comprimento = 2 + Math.floor(rnd() * (h / 2));
+    p.linha(x, 0, x + (rnd() < 0.5 ? 1 : -1), comprimento, rnd() < 0.5 ? COR.cobreEscuro : COR.sombraSucata);
+  }
+}
+
 /* =========================================================================
  * TEXTURAS COMUNS
  * ========================================================================= */
