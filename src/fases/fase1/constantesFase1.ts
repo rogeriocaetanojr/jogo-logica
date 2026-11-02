@@ -20,6 +20,59 @@ export const MUNDO_FASE1 = {
   OPACIDADE_CRT: 0.02,
 } as const;
 
+/**
+ * Efeitos sonoros sintetizados (SomFase1). Volumes de 0 a 1 sobre o volume geral dos efeitos.
+ */
+export const SOM_FASE1 = {
+  // Os efeitos ficam acima da música: são eles que contam o que está acontecendo
+  VOLUME_EFEITOS: 0.9,
+  // Sons com posição somem quando estão a esta distância (além dos 300 px do centro da tela)
+  ALCANCE_PX: 900,
+  LACOS: { BASE: 0.04, PLANEIO: 0.08, COLUNA: 0.12, ZONA: 0.1, CHUVA: 0 },
+  // Voz das falas: um bipe a cada N letras, com o tom sorteado pelo nome de quem fala
+  VOZ_LETRAS_POR_BIPE: 2,
+  // Sentinela por perto: bipe de varredura a cada intervalo
+  SCANNER_INTERVALO_MS: 1400,
+} as const;
+
+/**
+ * Trilha sonora (MusicaFase1): skyTheme no céu e helioTheme na luta. Tempos em segundos.
+ * Volumes baixos de propósito: a música é fundo, os efeitos ficam por cima.
+ */
+export const MUSICA_FASE1 = {
+  VOLUME_CEU: 0.17,
+  VOLUME_HELIO: 0.2,
+  VOLUME_SUSPENSE: 0.06, // Helio de joelhos, esperando o comando do núcleo
+  VOLUME_CEU_VITORIA: 0.12,
+  FATOR_ABAFADO: 0.35, // Fração do volume com terminal ou diálogo abertos
+  FADE_PADRAO_S: 1.5,
+  FADE_ENTRADA_S: 2.5,
+  FADE_SAIDA_CEU_S: 1.2,
+  FADE_ENTRADA_LUTA_S: 1,
+  FADE_VITORIA_S: 3,
+} as const;
+
+/**
+ * Sensação de movimento do jogador: esticar e achatar, inclinação ao planar e poeira.
+ * O corpo físico nunca muda: só o sprite que se vê (JogadorFase1.visual).
+ */
+export const FEEL_FASE1 = {
+  PULO: { x: 0.8, y: 1.25 },
+  ATERRISSAGEM: { x: 0.3, y: 0.28 }, // Quanto achata no impacto máximo
+  VELOCIDADE_MIN_ATERRISSAGEM: 140, // Abaixo disso, pousar não faz barulho nem poeira
+  VELOCIDADE_IMPACTO_MAX: 620,
+  RETORNO_FORMA: 14, // Quão rápido volta ao normal (1 / s)
+  INCLINACAO_PLANEIO_GRAUS: 9,
+  INCLINACAO_SUAVIZACAO: 10,
+  PASSO_INTERVALO_MS: 230,
+  VELOCIDADE_MIN_PASSO: 60,
+  POEIRA: { VIDA_MS: 420, RAIO_MIN: 3, RAIO_MAX: 7, COR: 0xe3dcea, ALFA: 0.75 },
+  // Zoom suave quando o Helio chega (a arena tem a largura da tela, então é só um empurrãozinho)
+  ZOOM_INTRO: 1.06,
+  ZOOM_INTRO_MS: 900,
+  ZOOM_VOLTA_MS: 700,
+} as const;
+
 export const CAMERA_FASE1 = {
   LERP_X: 0.08,
   LERP_Y: 0.08,

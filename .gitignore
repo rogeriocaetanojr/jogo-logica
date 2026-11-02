@@ -25,3 +25,6 @@ docs/fase1/mockup/
 *.njsproj
 *.sln
 *.sw?
+
+# Trilhas originais da Fase 1 (as versões comprimidas ficam em public/assets/fase1/musica)
+docs/fase1/sonsReferencia/

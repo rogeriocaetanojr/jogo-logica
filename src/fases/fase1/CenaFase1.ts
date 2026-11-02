@@ -11,6 +11,8 @@ import { BossHelioFase1 } from './BossHelioFase1';
 import { HudLutaFase1 } from './HudLutaFase1';
 import { TempestadeFase1 } from './TempestadeFase1';
 import { CenarioFase1 } from './CenarioFase1';
+import { SomFase1, emitirSom } from './SomFase1';
+import { MusicaFase1 } from './MusicaFase1';
 import {
   construirNivelFase1,
   desenharEscudoSentinela,
@@ -41,6 +43,8 @@ import {
   CHECKPOINTS_FASE1,
   DISTANCIA_INTERACAO_TOTEM_PADRAO,
   ERROS_PARA_ESQUELETO,
+  FEEL_FASE1,
+  SOM_FASE1,
   TERMINAL_OCIOSO_MS,
   SENTINELAS_FASE1,
   TOTEM_1_ALCOOLEMIA,
@@ -52,6 +56,19 @@ import {
   BOSS_HELIO_FASE1,
   NPCS_FASE1,
 } from './constantesFase1';
+
+/**
+ * Cada personagem fala num tom: o Helio grave e áspero, o Sucatinha agudo de robô,
+ * o Mago arrastado, o Pombo ligeiro. O rótulo vem do Comunicador ("> NOME // PAPEL").
+ */
+function vozDoFalante(falante: string): { frequencia: number; forma: OscillatorType } {
+  const nome = falante.toUpperCase();
+  if (nome.includes('HELIO')) return { frequencia: 150, forma: 'sawtooth' };
+  if (nome.includes('SUCATINHA')) return { frequencia: 880, forma: 'square' };
+  if (nome.includes('MAGO')) return { frequencia: 260, forma: 'triangle' };
+  if (nome.includes('POMBO')) return { frequencia: 640, forma: 'square' };
+  return { frequencia: 480, forma: 'square' };
+}
 
 const CHECKPOINTS_EM_ORDEM = [
   CHECKPOINTS_FASE1.CP1,
@@ -91,6 +108,17 @@ export class CenaFase1 extends CenaBase {
   private falaAtual?: Phaser.GameObjects.Text;
   private tempestade!: TempestadeFase1;
   private cenario!: CenarioFase1;
+  private som!: SomFase1;
+  private musica!: MusicaFase1;
+  private teclaMudo?: Phaser.Input.Keyboard.Key;
+
+  // Sons de interface: voz das falas, avisos de [E] e varredura das sentinelas
+  private textoDialogoAnterior: string = '';
+  private falanteAnterior: string = '';
+  private letrasDesdeBipe: number = 0;
+  private dialogoAtivoAntes: boolean = false;
+  private promptsVisiveisAntes: number = 0;
+  private scannerMs: number = 0;
 
   // Placa de pressão do portão (Desafio 3): só troca o rótulo quando o estado muda
   private placaPisada: boolean = false;
@@ -167,7 +195,10 @@ export class CenaFase1 extends CenaBase {
     // 6. Construção dos 4 blocos de level design com os 4 desafios, sentinelas e NPCs
     this.nivel = construirNivelFase1(this, this.jogador.sprite, this.vento, this.instaveis, {
       contexto: () => this.contextoDialogos(),
-      aoConversar: (idNpc) => this.conversasNpcs.add(idNpc),
+      aoConversar: (idNpc) => {
+        this.conversasNpcs.add(idNpc);
+        emitirSom(this, 'npc');
+      },
     });
 
     // 7. Colisões com o Jogador
@@ -185,6 +216,25 @@ export class CenaFase1 extends CenaBase {
     this.helio = new BossHelioFase1(this);
     this.hudLuta = new HudLutaFase1(this);
     this.tempestade = new TempestadeFase1(this);
+
+    // 7c. Som e trilha da fase (o mudo escolhido com [M] fica salvo no navegador)
+    this.som = new SomFase1(this);
+    this.musica = new MusicaFase1();
+    this.teclaMudo = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.M);
+    this.aplicarMudo(this.lerMudoSalvo(), false);
+    this.musica.iniciar();
+    this.textoDialogoAnterior = '';
+    this.falanteAnterior = '';
+    this.dialogoAtivoAntes = false;
+    this.promptsVisiveisAntes = 0;
+    this.scannerMs = 0;
+    document.addEventListener('keydown', this.aoTeclarNoTerminal, true);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      document.removeEventListener('keydown', this.aoTeclarNoTerminal, true);
+      this.musica.destruir();
+      this.som.destruir();
+      this.sound.mute = false;
+    });
 
     // 8. Integração com o Terminal
     this.configurarTerminal();
@@ -238,6 +288,89 @@ export class CenaFase1 extends CenaBase {
     });
   }
 
+  /** Clique de tecla enquanto o jogador digita no terminal; Enter tem som de envio. */
+  private aoTeclarNoTerminal = (evento: KeyboardEvent): void => {
+    if (!this.terminal?.estaAberto) return;
+    if (evento.key === 'Enter') emitirSom(this, 'enviar');
+    else if (evento.key.length === 1 || evento.key === 'Backspace') emitirSom(this, 'tecla');
+  };
+
+  /**
+   * Sons que não pertencem a um objeto só: a voz de quem fala (um bipe por sílaba, enquanto o
+   * texto aparece), o plim quando surge um [E] por perto e a varredura das sentinelas.
+   */
+  private atualizarSonsDeInterface(delta: number, emMenuOuDialogo: boolean): void {
+    const ativo = this.comunicador?.estaAtivo ?? false;
+    if (ativo && !this.dialogoAtivoAntes) emitirSom(this, 'dialogo_abrir');
+    this.dialogoAtivoAntes = ativo;
+
+    if (ativo) {
+      const texto = document.getElementById('dialog-text')?.textContent ?? '';
+      const falante = document.getElementById('dialog-speaker')?.textContent ?? '';
+      const novaFala = falante !== this.falanteAnterior || !texto.startsWith(this.textoDialogoAnterior);
+      if (novaFala) {
+        if (this.textoDialogoAnterior) emitirSom(this, 'dialogo_avancar');
+        this.textoDialogoAnterior = '';
+        this.letrasDesdeBipe = SOM_FASE1.VOZ_LETRAS_POR_BIPE;
+      }
+      const novas = texto.slice(this.textoDialogoAnterior.length).replace(/\s/g, '').length;
+      this.letrasDesdeBipe += novas;
+      // Um bipe por quadro no máximo: pular o texto inteiro não vira uma rajada de bipes
+      if (novas > 0 && this.letrasDesdeBipe >= SOM_FASE1.VOZ_LETRAS_POR_BIPE) {
+        this.letrasDesdeBipe = 0;
+        const voz = vozDoFalante(falante);
+        this.som.voz(voz.frequencia, voz.forma);
+      }
+      this.textoDialogoAnterior = texto;
+      this.falanteAnterior = falante;
+    } else {
+      this.textoDialogoAnterior = '';
+      this.falanteAnterior = '';
+    }
+
+    if (emMenuOuDialogo) return;
+
+    const visiveis =
+      this.nivel.npcs.filter((npc) => npc.promptTexto.visible).length +
+      this.nivel.totens.filter((totem) => totem.prompt.visible).length;
+    if (visiveis > this.promptsVisiveisAntes) emitirSom(this, 'prompt');
+    this.promptsVisiveisAntes = visiveis;
+
+    this.scannerMs += delta;
+    if (this.scannerMs >= SOM_FASE1.SCANNER_INTERVALO_MS) {
+      this.scannerMs = 0;
+      for (const s of this.nivel.sentinelas) {
+        if (s.hackeada || s.estado === 'desativada' || s.estado === 'plataforma') continue;
+        emitirSom(this, 'scanner', s.sprite.x, 0.8);
+      }
+    }
+  }
+
+  private lerMudoSalvo(): boolean {
+    try {
+      return window.localStorage.getItem('fase1-mudo') === '1';
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Liga ou desliga todo o som da fase ([M]) e guarda a escolha no navegador.
+   */
+  private aplicarMudo(mudo: boolean, avisar: boolean): void {
+    this.sound.mute = mudo;
+    this.musica.definirMudo(mudo);
+    try {
+      window.localStorage.setItem('fase1-mudo', mudo ? '1' : '0');
+    } catch {
+      // Navegador sem armazenamento: a escolha vale só nesta visita
+    }
+    if (avisar) {
+      this.mostrarNotificacaoCurta(mudo ? 'SOM DESLIGADO // [M] PARA LIGAR' : 'SOM LIGADO // [M] PARA DESLIGAR');
+      if (!mudo) emitirSom(this, 'mudo');
+    }
+  }
+
   /**
    * O que os textos reativos precisam saber da jogatina.
    */
@@ -279,6 +412,17 @@ export class CenaFase1 extends CenaBase {
     const emMenuOuDialogo = Boolean(
       this.terminal?.estaAberto || this.comunicador?.estaAtivo || this.simulacaoRajadas !== 'nenhuma'
     );
+    // Som e trilha seguem vivos com o jogo congelado: a música abaixa para dar para ler
+    this.musica.definirAbafada(emMenuOuDialogo);
+    this.musica.atualizar(delta);
+    this.som.definirPausado(emMenuOuDialogo);
+    this.som.definirTempestade(this.tempestade.intensidadeAtual);
+    this.som.atualizar();
+    this.atualizarSonsDeInterface(delta, emMenuOuDialogo);
+    if (this.teclaMudo && Phaser.Input.Keyboard.JustDown(this.teclaMudo) && !emMenuOuDialogo) {
+      this.aplicarMudo(!this.sound.mute, true);
+    }
+
     if (emMenuOuDialogo) {
       if (!this.jogoCongeladoPorMenu) {
         this.jogoCongeladoPorMenu = true;
@@ -438,6 +582,7 @@ export class CenaFase1 extends CenaBase {
     });
 
     this.terminal.abrir({ titulo: totem.textos.TITULO, linhasIniciais: this.linhasEnunciado(totem) });
+    emitirSom(this, 'terminal_abrir');
     this.terminalOciosoMs = 0;
 
     // Na primeira visita, o totem comenta o histórico do jogador (se houver o que comentar)
@@ -501,6 +646,7 @@ export class CenaFase1 extends CenaBase {
     const erros = (this.errosPorTotem.get(totem.id) ?? 0) + 1;
     this.errosPorTotem.set(totem.id, erros);
     this.errosTotais++;
+    emitirSom(this, 'terminal_erro');
     const insistente = ERROS_INSISTENTES_FASE1[erros];
     if (insistente) this.terminal.imprimirLinha(insistente, 'info');
     this.terminal.definirContexto({ totemAtivo: totem.id, errosNoTotem: erros });
@@ -561,6 +707,7 @@ export class CenaFase1 extends CenaBase {
    * Fecha o terminal pouco depois do acerto, para o jogador ler a mensagem de sucesso.
    */
   private fecharTerminalComFeedback(notificacao: string, efeito: () => void): void {
+    emitirSom(this, 'terminal_acerto');
     this.time.delayedCall(800, () => {
       this.terminal.fechar();
       efeito();
@@ -592,6 +739,7 @@ export class CenaFase1 extends CenaBase {
 
   private executarEstabilizarElevador(): void {
     this.totensResolvidos.add(TOTEM_2_BALANCA.ID);
+    emitirSom(this, 'elevador');
     const elevador = this.nivel.elevadorNuvem;
 
     this.tweens.add({
@@ -611,6 +759,7 @@ export class CenaFase1 extends CenaBase {
 
   private executarAbrirPortaoExistencial(): void {
     this.totensResolvidos.add(TOTEM_3_PORTAO.ID);
+    this.time.delayedCall(800, () => emitirSom(this, 'portao'));
     this.nivel.colisorPortao.destroy();
 
     this.tweens.add({
@@ -657,6 +806,7 @@ export class CenaFase1 extends CenaBase {
     });
 
     this.cameras.main.shake(300, 0.006);
+    emitirSom(this, 'porta_arena');
     this.mostrarNotificacaoCurta('PORTA SELADA // AGORA É VOCÊ E O VENTO');
     this.iniciarIntroHelio();
   }
@@ -671,6 +821,8 @@ export class CenaFase1 extends CenaBase {
   private iniciarIntroHelio(): void {
     this.lutaHelio = 'intro';
     this.tempestade.iniciar();
+    this.musica.iniciarLuta();
+    this.cameras.main.zoomTo(FEEL_FASE1.ZOOM_INTRO, FEEL_FASE1.ZOOM_INTRO_MS, 'Sine.easeInOut');
     this.travarCameraArena(true);
 
     // As sentinelas que ficaram para trás saem de serviço (o cone da S-03 invadia o canto da arena)
@@ -704,6 +856,7 @@ export class CenaFase1 extends CenaBase {
       ease: 'Cubic.easeIn',
       onComplete: () => {
         this.cameras.main.shake(300, 0.01);
+        emitirSom(this, 'boss_entrada');
         this.comunicador.iniciarDialogo(introHelio(this.contextoDialogos()), () => this.comecarLuta());
       },
     });
@@ -711,6 +864,7 @@ export class CenaFase1 extends CenaBase {
 
   private comecarLuta(): void {
     this.lutaHelio = 'lutando';
+    this.cameras.main.zoomTo(1, FEEL_FASE1.ZOOM_VOLTA_MS, 'Sine.easeInOut');
     this.coracoes = BOSS_HELIO_FASE1.CORACOES;
     this.hudLuta.mostrar();
     this.atualizarHudLuta();
@@ -726,6 +880,7 @@ export class CenaFase1 extends CenaBase {
     if (this.lutaHelio !== 'lutando' || this.time.now < this.invulneravelAte) return;
 
     this.coracoes--;
+    emitirSom(this, 'dano');
     this.invulneravelAte = this.time.now + b.INVULNERAVEL_MS;
     this.atualizarHudLuta();
     this.cameras.main.flash(150, 255, 80, 80);
@@ -751,6 +906,7 @@ export class CenaFase1 extends CenaBase {
     });
 
     this.jogador.quicar(b.QUIQUE_PISAO);
+    emitirSom(this, 'pisao');
     this.invulneravelAte = this.time.now + b.INVULNERAVEL_MS / 2;
     this.cameras.main.flash(120, 255, 255, 255);
     this.cameras.main.shake(200, 0.008);
@@ -762,6 +918,8 @@ export class CenaFase1 extends CenaBase {
     }
 
     this.lutaHelio = 'derrotado';
+    emitirSom(this, 'boss_derrotado');
+    this.musica.suspenseDerrota();
     this.jogador.sprite.setAlpha(1);
     this.falaFlutuante(TEXTOS_HELIO.DERROTADO, 4000);
 
@@ -781,6 +939,7 @@ export class CenaFase1 extends CenaBase {
     const sprite = this.jogador.sprite;
 
     this.lutaHelio = 'morrendo';
+    emitirSom(this, 'queda');
     this.jogador.congelar();
     sprite.setAlpha(1);
     sprite.setTint(0xf87171);
@@ -825,6 +984,7 @@ export class CenaFase1 extends CenaBase {
 
     if (pisando === this.placaPisada) return;
     this.placaPisada = pisando;
+    emitirSom(this, pisando ? 'placa' : 'placa_solta', placa.imagem.x);
 
     if (pisando) placa.imagem.setTint(0x6ee7b7);
     else placa.imagem.clearTint();
@@ -858,6 +1018,9 @@ export class CenaFase1 extends CenaBase {
 
     this.fecharTerminalComFeedback('HELIO DESLIGADO // PORTAL DO SANTUÁRIO ABERTO!', () => {
       this.helio.desligar();
+      emitirSom(this, 'desligar');
+      this.time.delayedCall(1400, () => emitirSom(this, 'portal'));
+      this.musica.aoVencer();
       this.tempestade.encerrar();
       this.hudLuta.esconder();
       this.falaFlutuante(TEXTOS_HELIO.DESLIGADO);
@@ -894,6 +1057,7 @@ export class CenaFase1 extends CenaBase {
   private falaFlutuante(texto: string, duracaoMs: number = 2600): void {
     // Uma fala por vez: a nova substitui a anterior em vez de empilhar balões
     this.falaAtual?.destroy();
+    emitirSom(this, 'helio_fala');
 
     const helio = this.helio.sprite;
     const visao = this.cameras.main.worldView;
@@ -954,6 +1118,7 @@ export class CenaFase1 extends CenaBase {
 
   private salvarSnapshotCheckpoint(idCheckpoint: string, ponto: Coordenada2D, nomeNotificacao: string): void {
     this.snapshotAtual = { idCheckpoint, pontoSpawn: { ...ponto } };
+    emitirSom(this, 'checkpoint');
     this.exibirAnimacaoCheckpoint(nomeNotificacao);
   }
 
@@ -981,8 +1146,12 @@ export class CenaFase1 extends CenaBase {
       this.descongelarJogo();
     }
 
-    if (comFlash) this.cameras.main.flash(200, 255, 255, 255);
+    if (comFlash) {
+      this.cameras.main.flash(200, 255, 255, 255);
+      emitirSom(this, 'queda');
+    }
     this.mortes++;
+    this.time.delayedCall(250, () => emitirSom(this, 'renascer'));
     const piada = piadaDeMorte(this.mortes);
     this.mostrarNotificacaoCurta(piada ? `${motivo}\n${piada}` : motivo);
 
@@ -1073,6 +1242,7 @@ export class CenaFase1 extends CenaBase {
     if (distPortal >= ARENA_FASE1.DISTANCIA_PORTAL) return;
 
     this.faseConcluida = true;
+    emitirSom(this, 'vitoria');
     this.jogador.sprite.setVelocity(0, 0);
     this.jogador.corpo.allowGravity = false;
 

@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { emitirSom } from './SomFase1';
 import type { ConfigPlataformaMovel, PlataformaInstavel, TipoPlataformaInstavel } from './tiposFase1';
 import { ALTURA_CORPO_PLATAFORMA_MOVEL, JOGADOR_FASE1, MARMORE_RACHADO_FASE1, NUVEM_EFEMERA_FASE1 } from './constantesFase1';
 
@@ -46,6 +47,7 @@ export class PlataformasInstaveisFase1 {
     if (plat && !plat.rachando && !plat.quebrada) {
       plat.rachando = true;
       plat.tempoRachando = this.cena.time.now;
+      emitirSom(this.cena, plat.tipo === 'rachado' ? 'rachar' : 'efemera', plat.sprite.x);
       if (plat.tipo === 'rachado') {
         plat.sprite.setTint(JOGADOR_FASE1.TINT_RACHANDO);
       }
@@ -105,6 +107,7 @@ export class PlataformasInstaveisFase1 {
   private quebrar(plat: PlataformaInstavel, tempoRespawnMs: number, duracaoFadeInMs: number): void {
     plat.quebrada = true;
     plat.rachando = false;
+    if (plat.tipo === 'rachado') emitirSom(this.cena, 'quebrar', plat.sprite.x);
     plat.sprite.x = plat.xOriginal;
     plat.sprite.setVisible(false);
     plat.sprite.disableBody(true, true);

@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { emitirSom } from './SomFase1';
 import type { ConfigSentinela, EstadoSentinela, TipoDeteccaoSentinela } from './tiposFase1';
 import { SENTINELAS_FASE1 } from './constantesFase1';
 
@@ -114,6 +115,7 @@ export class SentinelaFase1 {
       this.renderizarConeVisao();
       if (this.timerAcaoMs >= SENTINELAS_FASE1.TEMPO_MIRA_MS) {
         this.estado = 'rajando';
+        emitirSom(this.cena, 'rajada', this.sprite.x);
         this.timerAcaoMs = 0;
         this.coneGrafico.clear();
         eventos.aoRajar(this);
@@ -197,6 +199,7 @@ export class SentinelaFase1 {
 
   private transicionarParaCarregandoPulso(): void {
     this.estado = 'carregando_pulso';
+    emitirSom(this.cena, 'pulso_carga', this.sprite.x);
     this.timerEstadoMs = 0;
     this.sprite.setVelocityX(0);
     this.coneGrafico.clear();
@@ -222,6 +225,7 @@ export class SentinelaFase1 {
 
   private dispararPulsoEolico(jogador: Phaser.Physics.Arcade.Sprite): void {
     this.estado = 'disparando_pulso';
+    emitirSom(this.cena, 'pulso', this.sprite.x);
     this.timerEstadoMs = 0;
 
     // Efeito sonoro/câmera
@@ -372,11 +376,13 @@ export class SentinelaFase1 {
 
     if (this.deteccao === 'respawn') {
       this.emAlerta = true;
+      emitirSom(this.cena, 'alerta', this.sprite.x);
       eventos.aoDetectar(this);
     } else {
       this.estado = 'mirando';
       this.timerAcaoMs = 0;
       this.sprite.setVelocityX(0);
+      emitirSom(this.cena, 'mirar', this.sprite.x);
     }
   }
 
@@ -407,6 +413,7 @@ export class SentinelaFase1 {
 
     this.hackeada = true;
     this.estado = 'plataforma';
+    emitirSom(this.cena, 'hackear', this.sprite.x);
     this.emAlerta = false;
     this.escudoAtivo = false;
     this.plataformaAlvo = plataforma;

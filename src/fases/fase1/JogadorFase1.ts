@@ -2,7 +2,8 @@ import Phaser from 'phaser';
 import { GerenciadorEstado, type TipoPersonagem } from '../../nucleo/GerenciadorEstado';
 import type { Coordenada2D } from './tiposFase1';
 import type { VentoFase1 } from './VentoFase1';
-import { JOGADOR_FASE1, VENTO_FASE1 } from './constantesFase1';
+import { FEEL_FASE1, JOGADOR_FASE1, VENTO_FASE1 } from './constantesFase1';
+import { EVENTO_ESTADO_SOM_FASE1, emitirSom } from './SomFase1';
 
 /**
  * Fiapo de ar deixado para trás durante o planeio.
@@ -15,12 +16,40 @@ interface FiapoPlaneio {
 }
 
 /**
+ * Nuvenzinha de poeira levantada ao pular, pousar e correr.
+ */
+interface Poeira {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  raio: number;
+  vidaMs: number;
+}
+
+/**
  * Jogador da Fase 1 (Alvares ou Reis): sprite físico, teclado, movimento, coyote time,
  * jump buffer, pulo variável e o planar dentro e fora das colunas de vento.
  */
 export class JogadorFase1 {
+  /** Sprite físico: guarda corpo, animação e estado. Fica invisível; quem aparece é `visual`. */
   public readonly sprite: Phaser.Physics.Arcade.Sprite;
   public readonly tipoPersonagem: TipoPersonagem;
+
+  // Cópia visível do sprite, que estica, achata e inclina sem mexer no corpo físico
+  // (o corpo do Arcade escala junto com o sprite, e a hitbox não pode mudar)
+  private readonly visual: Phaser.GameObjects.Sprite;
+  private readonly cena: Phaser.Scene;
+  private readonly graficoPoeira: Phaser.GameObjects.Graphics;
+  private poeira: Poeira[] = [];
+  private esticarX: number = 1;
+  private esticarY: number = 1;
+  private inclinacao: number = 0;
+  private estavaNoChao: boolean = false;
+  private velocidadeYAnterior: number = 0;
+  private acumuladorPassoMs: number = 0;
+  private planandoAntes: boolean = false;
+  private naColunaAntes: boolean = false;
 
   private cursores?: Phaser.Types.Input.Keyboard.CursorKeys;
   private teclasWASD?: {
@@ -57,6 +86,17 @@ export class JogadorFase1 {
     this.corpo.setSize(JOGADOR_FASE1.HITBOX_LARGURA, JOGADOR_FASE1.HITBOX_ALTURA);
     this.corpo.setOffset(JOGADOR_FASE1.HITBOX_OFFSET_X, JOGADOR_FASE1.HITBOX_OFFSET_Y);
     this.tocarAnimacao('idle');
+
+    this.cena = cena;
+    this.sprite.setVisible(false);
+    this.visual = cena.add.sprite(spawn.x, spawn.y, `${this.tipoPersonagem}_idle`);
+    this.visual.setDepth(JOGADOR_FASE1.PROFUNDIDADE);
+    this.graficoPoeira = cena.add.graphics();
+    this.graficoPoeira.setDepth(JOGADOR_FASE1.PROFUNDIDADE - 0.5);
+    cena.events.on(Phaser.Scenes.Events.POST_UPDATE, this.sincronizarVisual, this);
+    cena.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      cena.events.off(Phaser.Scenes.Events.POST_UPDATE, this.sincronizarVisual, this);
+    });
 
     this.graficoRastro = cena.add.graphics();
     this.graficoRastro.setDepth(JOGADOR_FASE1.RASTRO_PLANEIO.PROFUNDIDADE);
@@ -103,6 +143,8 @@ export class JogadorFase1 {
   public quicar(velocidadeY: number): void {
     this.sprite.setVelocityY(velocidadeY);
     this.puloCurtoPendente = false;
+    this.esticarX = FEEL_FASE1.PULO.x;
+    this.esticarY = FEEL_FASE1.PULO.y;
   }
 
   public aplicarEmpurrao(velocidadeX: number, velocidadeY: number, duracaoMs: number): void {
@@ -132,6 +174,16 @@ export class JogadorFase1 {
     if (noChao) {
       this.tempoUltimaVezNoChao = tempo;
     }
+
+    // Pouso: achata na hora e levanta poeira, mais forte quanto mais rápido caía
+    if (noChao && !this.estavaNoChao && this.velocidadeYAnterior > FEEL_FASE1.VELOCIDADE_MIN_ATERRISSAGEM) {
+      const impacto = Math.min(1, this.velocidadeYAnterior / FEEL_FASE1.VELOCIDADE_IMPACTO_MAX);
+      this.esticarX = 1 + FEEL_FASE1.ATERRISSAGEM.x * impacto;
+      this.esticarY = 1 - FEEL_FASE1.ATERRISSAGEM.y * impacto;
+      this.soltarPoeira(Math.ceil(2 + impacto * 4), 1 + impacto);
+      emitirSom(this.cena, 'aterrissar', undefined, 0.4 + impacto * 0.6);
+    }
+    this.estavaNoChao = noChao;
 
     if (puloApertadoAgora) {
       this.tempoUltimoPressionarPulo = tempo;
@@ -177,6 +229,10 @@ export class JogadorFase1 {
       this.tempoUltimoPressionarPulo = -9999;
       this.tempoUltimaVezNoChao = -9999;
       this.puloCurtoPendente = true;
+      this.esticarX = FEEL_FASE1.PULO.x;
+      this.esticarY = FEEL_FASE1.PULO.y;
+      this.soltarPoeira(3, 0.8);
+      emitirSom(this.cena, 'pulo');
     }
 
     // Gêiser em erupção: um impulso único para cima, que não é cortado ao soltar o pulo
@@ -184,6 +240,9 @@ export class JogadorFase1 {
     if (impulsoGeiser !== undefined) {
       this.sprite.setVelocityY(-impulsoGeiser);
       this.puloCurtoPendente = false;
+      this.esticarX = FEEL_FASE1.PULO.x;
+      this.esticarY = FEEL_FASE1.PULO.y;
+      emitirSom(this.cena, 'impulso');
     }
 
     let planando = false;
@@ -225,6 +284,40 @@ export class JogadorFase1 {
     }
 
     this.atualizarRastro(delta, planando);
+
+    // Sensação de movimento: forma volta ao normal, inclina ao planar, passos e poeira
+    const retorno = Math.min(1, dt * FEEL_FASE1.RETORNO_FORMA);
+    this.esticarX += (1 - this.esticarX) * retorno;
+    this.esticarY += (1 - this.esticarY) * retorno;
+    const alvoInclinacao = planando ? (this.sprite.flipX ? -1 : 1) * FEEL_FASE1.INCLINACAO_PLANEIO_GRAUS : 0;
+    this.inclinacao += (alvoInclinacao - this.inclinacao) * Math.min(1, dt * FEEL_FASE1.INCLINACAO_SUAVIZACAO);
+
+    if (noChao && Math.abs(corpo.velocity.x) > FEEL_FASE1.VELOCIDADE_MIN_PASSO && andando) {
+      this.acumuladorPassoMs += delta;
+      if (this.acumuladorPassoMs >= FEEL_FASE1.PASSO_INTERVALO_MS) {
+        this.acumuladorPassoMs = 0;
+        this.soltarPoeira(1, 0.5);
+        emitirSom(this.cena, 'passo');
+      }
+    } else {
+      this.acumuladorPassoMs = FEEL_FASE1.PASSO_INTERVALO_MS * 0.6;
+    }
+
+    this.atualizarPoeira(delta);
+
+    // Abrir o "paraquedas" e entrar numa corrente de vento têm som próprio
+    const naColuna = Boolean(colunaAtual);
+    if (planando && !this.planandoAntes) emitirSom(this.cena, 'planar_inicio');
+    if (naColuna && !this.naColunaAntes) emitirSom(this.cena, 'coluna_entrar');
+    this.planandoAntes = planando;
+    this.naColunaAntes = naColuna;
+
+    this.cena.events.emit(EVENTO_ESTADO_SOM_FASE1, {
+      planando,
+      naColuna: Boolean(colunaAtual),
+      naZonaContraria: Boolean(zonaContraria),
+    });
+    this.velocidadeYAnterior = corpo.velocity.y;
 
     if (noChao) {
       this.tocarAnimacao(andando ? 'run' : 'idle');
@@ -268,9 +361,78 @@ export class JogadorFase1 {
     this.puloCurtoPendente = false;
     this.controleTravadoAte = 0;
 
+    this.esticarX = 1;
+    this.esticarY = 1;
+    this.inclinacao = 0;
+    this.estavaNoChao = false;
+    this.velocidadeYAnterior = 0;
+    this.poeira = [];
+    this.graficoPoeira.clear();
+
     this.fiapos = [];
     this.acumuladorRastroMs = 0;
     this.graficoRastro.clear();
+  }
+
+  /**
+   * Copia o sprite físico para o sprite visível, aplicando esticar/achatar (ancorado nos pés) e inclinação.
+   * Roda depois da física a cada quadro, inclusive com o jogo congelado e durante a animação de morte.
+   */
+  private sincronizarVisual(): void {
+    const origem = this.sprite;
+    const v = this.visual;
+    if (v.texture.key !== origem.texture.key || v.frame.name !== origem.frame.name) {
+      v.setTexture(origem.texture.key, origem.frame.name);
+    }
+    v.setFlipX(origem.flipX);
+    v.setAlpha(origem.alpha);
+    if (origem.isTinted) v.setTint(origem.tintTopLeft);
+    else v.clearTint();
+    v.setAngle(origem.angle + this.inclinacao);
+    v.setScale(origem.scaleX * this.esticarX, origem.scaleY * this.esticarY);
+
+    // Os pés ficam parados no chão enquanto o resto estica ou achata
+    const pes = this.corpo.bottom;
+    v.setPosition(origem.x, pes - (pes - origem.y) * this.esticarY);
+  }
+
+  /**
+   * Levanta poeira nos pés, para os dois lados.
+   */
+  private soltarPoeira(quantidade: number, forca: number): void {
+    const f = FEEL_FASE1.POEIRA;
+    const pes = this.corpo.bottom;
+    for (let i = 0; i < quantidade; i++) {
+      const lado = i % 2 === 0 ? -1 : 1;
+      this.poeira.push({
+        x: this.sprite.x + lado * (4 + Math.random() * 10),
+        y: pes - 2,
+        vx: lado * (30 + Math.random() * 50) * forca,
+        vy: -(10 + Math.random() * 30) * forca,
+        raio: f.RAIO_MIN + Math.random() * (f.RAIO_MAX - f.RAIO_MIN),
+        vidaMs: f.VIDA_MS,
+      });
+    }
+  }
+
+  private atualizarPoeira(delta: number): void {
+    const f = FEEL_FASE1.POEIRA;
+    const dt = delta / 1000;
+    this.graficoPoeira.clear();
+    for (let i = this.poeira.length - 1; i >= 0; i--) {
+      const p = this.poeira[i];
+      p.vidaMs -= delta;
+      if (p.vidaMs <= 0) {
+        this.poeira.splice(i, 1);
+        continue;
+      }
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.vx *= 0.94;
+      const vida = p.vidaMs / f.VIDA_MS;
+      this.graficoPoeira.fillStyle(f.COR, f.ALFA * vida);
+      this.graficoPoeira.fillCircle(p.x, p.y, p.raio * (1.6 - vida * 0.6));
+    }
   }
 
   /**

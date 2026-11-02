@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { CORES_FASE1 } from './ArteFase1';
+import { emitirSom } from './SomFase1';
 import { ARENA_FASE1, BOSS_HELIO_FASE1 } from './constantesFase1';
 
 export type AtaqueHelio = 'rajada' | 'salto' | 'chuva';
@@ -196,11 +197,13 @@ export class BossHelioFase1 {
       this.estado = 'tonto';
       this.ataqueAtual = undefined;
       this.timerMs = 0;
+      emitirSom(this.cena, 'boss_tonto', this.sprite.x);
       return;
     }
     this.ataqueAtual = ataque;
     this.estado = 'aviso';
     this.timerMs = 0;
+    emitirSom(this.cena, 'boss_aviso', this.sprite.x);
   }
 
   private duracaoTelegrafia(): number {
@@ -298,6 +301,7 @@ export class BossHelioFase1 {
 
   private comecarSalto(): void {
     this.saltosRestantes--;
+    emitirSom(this.cena, 'boss_salto', this.sprite.x);
     const destino = Phaser.Math.Clamp(this.alvoX, A.LIMITE_ESQUERDO, A.LIMITE_DIREITO);
     this.salto = { x0: this.sprite.x, x1: destino, progresso: 0 };
   }
@@ -307,6 +311,7 @@ export class BossHelioFase1 {
     this.sprite.y = A.CHAO_Y;
     this.pausaSaltoMs = B.PAUSA_POS_SALTO_MS;
     this.cena.cameras.main.shake(220, 0.008);
+    emitirSom(this.cena, 'boss_choque', this.sprite.x);
 
     // Ondas de choque correndo pelo chão para os dois lados
     for (const direcao of [-1, 1]) {
@@ -326,6 +331,7 @@ export class BossHelioFase1 {
 
   private lancarOnda(): void {
     const direcao = this.alvoX >= this.sprite.x ? 1 : -1;
+    emitirSom(this.cena, 'boss_onda', this.sprite.x);
     this.projeteis.push({
       tipo: 'onda',
       x: this.sprite.x + direcao * (B.LARGURA_CORPO / 2),
@@ -343,6 +349,7 @@ export class BossHelioFase1 {
    * A primeira pena mira onde o jogador está; as outras se espalham pela arena sem se sobrepor.
    */
   private lancarPenas(): void {
+    emitirSom(this.cena, 'boss_penas');
     const quantidade = B.PENAS_POR_GOLPES[this.indiceFase];
     const posicoes: number[] = [Phaser.Math.Clamp(this.alvoX, A.LIMITE_ESQUERDO, A.LIMITE_DIREITO)];
 
@@ -383,7 +390,9 @@ export class BossHelioFase1 {
           return true;
         }
         p.y += p.vy * dt;
-        return p.y + p.altura / 2 < A.CHAO_Y;
+        const chegou = p.y + p.altura / 2 >= A.CHAO_Y;
+        if (chegou) emitirSom(this.cena, 'pena_impacto', p.x, 0.7);
+        return !chegou;
       }
       p.x += p.vx * dt;
       return p.x > limiteEsquerdo && p.x < limiteDireito;

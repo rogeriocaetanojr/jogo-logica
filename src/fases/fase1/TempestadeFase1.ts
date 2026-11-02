@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { emitirSom } from './SomFase1';
 import { TEMPESTADE_FASE1 } from './constantesFase1';
 
 interface Gota {
@@ -28,6 +29,11 @@ export class TempestadeFase1 {
   private readonly gotas: Gota[] = [];
 
   private intensidade: number = 0;
+
+  /** Intensidade atual (0 a 1), lida pelo som da chuva. */
+  public get intensidadeAtual(): number {
+    return this.intensidade;
+  }
   private ativa: boolean = false;
   private proximoRaioMs: number = 0;
   private raioRestanteMs: number = 0;
@@ -141,6 +147,7 @@ export class TempestadeFase1 {
       this.pontosRaio.push(new Phaser.Math.Vector2(x, y));
     }
     this.raioRestanteMs = T.RAIO_DURACAO_MS;
+    emitirSom(this.cena, 'trovao');
     this.cena.time.delayedCall(220, () => this.cena.cameras.main.shake(260, 0.003));
   }
 

@@ -63,7 +63,7 @@ export const DIALOGO_RADIO_ABERTURA: LinhaDialogo[] = [
   {
     falante: FALANTE_RADIO,
     texto:
-      'Setas andam, [ESPAÇO] pula, e segurar [ESPAÇO] no ar vira paraquedas. Chegue perto de um totem ou de alguém e aperte [E].',
+      'Setas andam, [ESPAÇO] pula, e segurar [ESPAÇO] no ar vira paraquedas. Chegue perto de um totem ou de alguém e aperte [E]. [M] liga e desliga o som.',
   },
   {
     falante: FALANTE_RADIO,

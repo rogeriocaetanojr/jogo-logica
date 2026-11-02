@@ -13,6 +13,7 @@ import { TOTEM_4_SEQUENCIADOR, VENTO_FASE1 } from './constantesFase1';
 import { CORES_FASE1 as C } from './ArteFase1';
 import { poligono } from './TexturasFase1';
 import { desenharBandeira } from './CenarioFase1';
+import { emitirSom } from './SomFase1';
 
 interface AreaRetangular {
   x: number;
@@ -25,6 +26,7 @@ interface GeiserVento extends ConfigGeiser {
   grafico: Phaser.GameObjects.Graphics;
   tempoCiclo: number;
   lancouNestaErupcao: boolean;
+  emErupcaoAntes: boolean;
   bolhas: { x: number; y: number }[];
   jatos: { x: number; y: number; comprimento: number }[];
 }
@@ -174,6 +176,7 @@ export class VentoFase1 {
       grafico,
       tempoCiclo: cfg.duracaoMs + cfg.defasagemMs,
       lancouNestaErupcao: false,
+      emErupcaoAntes: false,
       bolhas,
       jatos,
     });
@@ -360,6 +363,8 @@ export class VentoFase1 {
       const erupcao = fase < geiser.duracaoMs;
       const aviso = fase >= geiser.periodoMs - geiser.avisoMs;
       if (!erupcao) geiser.lancouNestaErupcao = false;
+      if (erupcao && !geiser.emErupcaoAntes) emitirSom(this.cena, 'geiser', geiser.x);
+      geiser.emErupcaoAntes = erupcao;
 
       const desenho = geiser.grafico;
       const topo = geiser.yBase - geiser.altura;
@@ -608,7 +613,9 @@ export class VentoFase1 {
     const colunaAtivaIndex = this.ordemEscada === 'decrescente' ? quantidade - 1 - passo : passo;
 
     for (let i = 0; i < quantidade; i++) {
-      this.colunasEscada[i].ativa = i === colunaAtivaIndex;
+      const vaiLigar = i === colunaAtivaIndex;
+      if (vaiLigar && !this.colunasEscada[i].ativa) emitirSom(this.cena, 'escada', this.colunasEscada[i].x);
+      this.colunasEscada[i].ativa = vaiLigar;
     }
   }
 
