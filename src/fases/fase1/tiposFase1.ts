@@ -154,10 +154,21 @@ export interface ConfigZonaVentoContrario {
 }
 
 /**
+ * Pilar sólido (com colisão), em pixels: centro, largura e altura.
+ */
+export interface ConfigParede {
+  x: number;
+  y: number;
+  largura: number;
+  altura: number;
+}
+
+/**
  * Tabela de dados de um bloco do nível. Tudo é opcional: cada bloco usa o que precisa.
  */
 export interface BlocoNivelFase1 {
   PLATAFORMAS?: readonly ConfigPlataforma[];
+  PAREDES?: readonly ConfigParede[];
   NUVENS?: readonly Coordenada2D[];
   RACHADOS?: readonly Coordenada2D[];
   EFEMERAS?: readonly Coordenada2D[];

@@ -26,6 +26,20 @@ interface GeiserVento extends ConfigGeiser {
   jatos: { x: number; y: number; comprimento: number }[];
 }
 
+/**
+ * Gerador na base de uma coluna da escada: grade no chão, carcaça sob a laje e hélice.
+ */
+interface GeradorEscada {
+  coluna: ColunaVento;
+  grafico: Phaser.GameObjects.Graphics;
+  helice: Phaser.GameObjects.Image;
+}
+
+const ESPESSURA_LAJE = 36; // Plataformas de mármore com scaleY 1
+const ALTURA_CARCACA = 52;
+const GIRO_LIGADO = 0.9; // graus por ms
+const GIRO_DESLIGADO = 0.04;
+
 function areaContemPonto(area: AreaRetangular, px: number, py: number): boolean {
   const metadeL = area.largura / 2;
   const metadeA = area.altura / 2;
@@ -77,6 +91,7 @@ export class VentoFase1 {
   public readonly colunas: ColunaVento[] = [];
   public readonly zonasContrarias: ZonaVentoContrario[] = [];
   private readonly geiseres: GeiserVento[] = [];
+  private readonly geradores: GeradorEscada[] = [];
   public intervaloEscadaSegundos: number = TOTEM_4_SEQUENCIADOR.PERIODO_PADRAO_MS / 1000;
   public forcaEscadaPixels: number = TOTEM_4_SEQUENCIADOR.FORCA_PADRAO;
 
@@ -183,10 +198,25 @@ export class VentoFase1 {
   }
 
   /**
-   * Registra as colunas que formam a escada de rajadas, em ordem crescente.
+   * Registra as colunas que formam a escada de rajadas, em ordem crescente,
+   * e monta o gerador na base de cada uma (no chão, logo abaixo da coluna).
    */
   public definirEscada(colunas: ColunaVento[]): void {
     this.colunasEscada = colunas;
+
+    for (const coluna of colunas) {
+      const piso = coluna.y + coluna.altura / 2;
+      const centroCarcaca = piso + ESPESSURA_LAJE + ALTURA_CARCACA / 2;
+
+      this.cena.add.image(coluna.x, centroCarcaca, 'gerador-vento').setDepth(VENTO_FASE1.PROFUNDIDADE_GRAFICO);
+      const helice = this.cena.add.image(coluna.x, centroCarcaca + 2, 'helice-gerador');
+      helice.setDepth(VENTO_FASE1.PROFUNDIDADE_GRAFICO + 1);
+
+      const grafico = this.cena.add.graphics();
+      grafico.setDepth(VENTO_FASE1.PROFUNDIDADE_GRAFICO + 1);
+
+      this.geradores.push({ coluna, grafico, helice });
+    }
   }
 
   /**
@@ -262,6 +292,34 @@ export class VentoFase1 {
     this.renderizarZonasContrarias(tempo, delta);
     this.atualizarGeiseres(tempo, delta);
     this.atualizarCicloEscada(delta);
+    this.atualizarGeradores(tempo, delta);
+  }
+
+  /**
+   * Gerador ligado: hélice girando forte, grade do chão brilhando e luz verde.
+   * Desligado: hélice quase parada e luz vermelha. Mostra de baixo qual coluna vai soprar.
+   */
+  private atualizarGeradores(tempo: number, delta: number): void {
+    for (const gerador of this.geradores) {
+      const { coluna, grafico, helice } = gerador;
+      const ligado = coluna.ativa;
+      const piso = coluna.y + coluna.altura / 2;
+      const meiaLargura = coluna.largura / 2 - 6;
+
+      helice.angle += delta * (ligado ? GIRO_LIGADO : GIRO_DESLIGADO);
+
+      grafico.clear();
+      // Grade no chão, por onde o vento sai
+      grafico.fillStyle(0x0f172a, 0.9);
+      grafico.fillRect(coluna.x - meiaLargura, piso - 6, meiaLargura * 2, 6);
+      grafico.fillStyle(ligado ? 0x7dd3fc : 0x334155, ligado ? 0.6 + Math.sin(tempo * 0.02) * 0.3 : 1);
+      for (let x = coluna.x - meiaLargura + 4; x < coluna.x + meiaLargura - 4; x += 10) {
+        grafico.fillRect(x, piso - 5, 5, 4);
+      }
+      // Luz de estado na carcaça
+      grafico.fillStyle(ligado ? 0x22c55e : 0xef4444, 1);
+      grafico.fillCircle(coluna.x + 36, piso + ESPESSURA_LAJE + 10, 4);
+    }
   }
 
   private emErupcao(geiser: GeiserVento): boolean {

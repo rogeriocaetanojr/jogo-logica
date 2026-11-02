@@ -10,6 +10,7 @@ import {
   TEXTOS_TOTEM_2_BALANCA,
   TEXTOS_TOTEM_3_PORTAO,
   TEXTOS_TOTEM_4_SEQUENCIADOR,
+  TEXTOS_TOTEM_5_HELIO,
   type TextosTotemFase1,
 } from './DialogosFase1';
 import {
@@ -20,6 +21,7 @@ import {
   TOTEM_2_BALANCA,
   TOTEM_3_PORTAO,
   TOTEM_4_SEQUENCIADOR,
+  TOTEM_5_HELIO,
   ARENA_FASE1,
   BLOCOS_NIVEL_FASE1,
 } from './constantesFase1';
@@ -44,6 +46,10 @@ export interface ElementosNivelFase1 {
   portaArena: Phaser.Physics.Arcade.Sprite;
   colisorPortaArena: Phaser.Physics.Arcade.Collider;
   portalFinal: Phaser.GameObjects.Sprite;
+  /** Totem do núcleo do Helio: fica escondido e fora da lista de totens até ele cair de joelhos. */
+  totemFinal: TotemFase1;
+  /** Placa de pressão do portão: a cena acende a placa e troca o rótulo quando o jogador pisa nela. */
+  placaPressao: { imagem: Phaser.GameObjects.Image; rotulo: Phaser.GameObjects.Text; xMin: number; xMax: number };
 }
 
 const ESTILO_TEXTO_MONO = { fontFamily: 'Consolas, Courier New, monospace' } as const;
@@ -154,6 +160,9 @@ export function construirNivelFase1(
       cena.add.image(cfg.x, cfg.y, 'coluna-marmore').setScale(cfg.scaleX, cfg.scaleY).setDepth(2);
     }
     for (const cfg of bloco.PLATAFORMAS ?? []) plataforma(cfg);
+    for (const cfg of bloco.PAREDES ?? []) {
+      plataformasEstaticas.create(cfg.x, cfg.y, 'coluna-marmore').setDisplaySize(cfg.largura, cfg.altura).refreshBody();
+    }
     for (const pos of bloco.NUVENS ?? []) nuvensSolidas.create(pos.x, pos.y, 'nuvem-solida').refreshBody();
     for (const pos of bloco.RACHADOS ?? []) instaveis.criar(pos.x, pos.y, 'rachado');
     for (const pos of bloco.EFEMERAS ?? []) instaveis.criar(pos.x, pos.y, 'efemera');
@@ -242,6 +251,39 @@ export function construirNivelFase1(
   (portaoMilenar.body as Phaser.Physics.Arcade.Body).setAllowGravity(false);
   const colisorPortao = cena.physics.add.collider(jogador, portaoMilenar);
 
+  // Os três sensores da condição, no cenário e com o nome da variável: o jogador vê de onde vem cada valor
+  const rotuloSensor = (x: number, y: number, texto: string, cor: string) =>
+    cena.add
+      .text(x, y, texto, { ...ESTILO_TEXTO_MONO, fontSize: '11px', color: cor, backgroundColor: '#0f172a', padding: { x: 4, y: 2 } })
+      .setOrigin(0.5)
+      .setDepth(4);
+
+  const cristal = cena.add.image(t3.CRISTAL.x, t3.CRISTAL.y, 'cristal-solar').setDepth(3);
+  cena.tweens.add({ targets: cristal, y: t3.CRISTAL.y - 6, alpha: 0.75, yoyo: true, repeat: -1, duration: 1100, ease: 'Sine.easeInOut' });
+  rotuloSensor(t3.CRISTAL.x - 20, t3.CRISTAL.y - 42, 'energia_sol = True', t3.COR_SENSOR_LIGADO);
+
+  cena.add.image(t3.TURBINA.x, t3.TURBINA.y + 25, 'turbina-base').setDepth(3);
+  cena.add.image(t3.TURBINA.x, t3.TURBINA.y, 'pas-turbina').setDepth(3).setAngle(15);
+  rotuloSensor(t3.TURBINA.x + 24, t3.TURBINA.y - 42, 'energia_vento = False', t3.COR_SENSOR_DESLIGADO);
+
+  const imagemPlaca = cena.add.image(t3.PLACA.x, t3.PLACA.y - 5, 'placa-pressao').setDepth(3);
+  const rotuloPlaca = rotuloSensor(t3.PLACA.x, t3.PLACA.y + 18, 'placa_pressionada = False', t3.COR_SENSOR_DESLIGADO);
+
+  // Fios dourados dos sensores até o portão
+  const topoPortao = t3.Y_PORTAO - (200 * t3.ESCALA_Y_PORTAO) / 2;
+  const fios = cena.add.graphics().setDepth(2);
+  fios.lineStyle(2, 0xf59e0b, 0.7);
+  fios.lineBetween(t3.CRISTAL.x, t3.CRISTAL.y + 22, t3.X_PORTAO - 14, topoPortao);
+  fios.lineBetween(t3.TURBINA.x, t3.TURBINA.y + 58, t3.X_PORTAO + 14, topoPortao);
+  fios.lineBetween(t3.PLACA.x + t3.PLACA.largura / 2, t3.PLACA.y - 3, t3.X_PORTAO - 20, t3.PLACA.y - 3);
+
+  const placaPressao = {
+    imagem: imagemPlaca,
+    rotulo: rotuloPlaca,
+    xMin: t3.PLACA.x - t3.PLACA.largura / 2,
+    xMax: t3.PLACA.x + t3.PLACA.largura / 2,
+  };
+
   // ===========================================================================
   // DESAFIO 4: sequenciador da escada de rajadas (reabrível para recalibrar)
   // ===========================================================================
@@ -279,6 +321,8 @@ export function construirNivelFase1(
 
   const portalFinal = cena.add.sprite(a.PORTAL.x, a.PORTAL.y, 'portal-santuario');
   portalFinal.setDepth(3);
+  portalFinal.setVisible(false); // Só abre quando o Helio for desligado
+  portalFinal.setAlpha(0);
   cena.tweens.add({
     targets: portalFinal,
     scaleX: 1.05,
@@ -288,6 +332,17 @@ export function construirNivelFase1(
     duration: 1200,
     ease: 'Sine.easeInOut',
   });
+
+  const imagemTotemFinal = cena.add.image(a.TOTEM_FINAL.x, a.TOTEM_FINAL.y, 'totem-celestial');
+  imagemTotemFinal.setTint(0xfbbf24);
+  imagemTotemFinal.setAlpha(0);
+  const totemFinal: TotemFase1 = {
+    id: TOTEM_5_HELIO.ID,
+    imagem: imagemTotemFinal,
+    prompt: criarPromptTexto(cena, a.TOTEM_FINAL.x, a.TOTEM_FINAL.y - OFFSET_PROMPT_TOTEM_Y, TEXTOS_TOTEM_5_HELIO.PROMPT),
+    textos: TEXTOS_TOTEM_5_HELIO,
+    reabrivel: false,
+  };
 
   return {
     plataformasEstaticas,
@@ -306,6 +361,8 @@ export function construirNivelFase1(
     portaArena,
     colisorPortaArena,
     portalFinal,
+    totemFinal,
+    placaPressao,
   };
 }
 

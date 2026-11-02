@@ -97,6 +97,14 @@ export class JogadorFase1 {
   /**
    * Arremessa o jogador e ignora as setas por um instante, para o empurrão não ser anulado.
    */
+  /**
+   * Quique para cima depois de pisar num inimigo, mantendo o controle horizontal.
+   */
+  public quicar(velocidadeY: number): void {
+    this.sprite.setVelocityY(velocidadeY);
+    this.puloCurtoPendente = false;
+  }
+
   public aplicarEmpurrao(velocidadeX: number, velocidadeY: number, duracaoMs: number): void {
     this.sprite.setVelocity(velocidadeX, velocidadeY);
     this.controleTravadoAte = this.tempoAtual + duracaoMs;
@@ -251,6 +259,7 @@ export class JogadorFase1 {
     corpo.touching.none = true;
 
     this.sprite.clearTint();
+    this.sprite.setAlpha(1);
     this.sprite.setFlipX(false);
     this.tocarAnimacao('idle');
 

@@ -8,6 +8,7 @@ import {
   TOTEM_2_BALANCA,
   TOTEM_3_PORTAO,
   TOTEM_4_SEQUENCIADOR,
+  TOTEM_5_HELIO,
 } from '../src/fases/fase1/constantesFase1';
 
 interface Caso {
@@ -27,6 +28,7 @@ const T1 = TOTEM_1_ALCOOLEMIA.ID;
 const T2 = TOTEM_2_BALANCA.ID;
 const T3 = TOTEM_3_PORTAO.ID;
 const T4 = TOTEM_4_SEQUENCIADOR.ID;
+const T5 = TOTEM_5_HELIO.ID;
 
 const casos: Caso[] = [
   // ===== Totem 1: not / and =====
@@ -91,6 +93,23 @@ const casos: Caso[] = [
   { totem: T4, entrada: 'sincronizar_rajadas(ordem, intervalo, forca)', sucesso: false, mensagem: 'VARIÁVEL DESCONHECIDA', dica: 'nome do parâmetro' },
   { totem: T4, entrada: 'sincronizar_rajadas("crescente", 1.5)', sucesso: false, mensagem: 'ARGUMENTOS ERRADOS', dica: 'Você passou 2' },
   { totem: T4, entrada: 'ordem = "crescente"', sucesso: false, mensagem: 'NADA ACONTECEU' },
+
+  // ===== Totem 5: núcleo do Helio =====
+  { totem: T5, entrada: 'if helio.atordoado and not helio.escudo: desligar()', sucesso: true, acao: 'DESLIGAR_HELIO' },
+  { totem: T5, entrada: 'if not helio.escudo and helio.atordoado: desligar()', sucesso: true },
+  { totem: T5, entrada: 'if not (not helio.atordoado or helio.escudo): desligar()', sucesso: true },
+  { totem: T5, entrada: 'if Helio.Atordoado == True and Helio.Escudo == False: desligar()', sucesso: true },
+  { totem: T5, entrada: 'if not helio.atordoado or helio.escudo: desligar()', sucesso: false, mensagem: 'LÓGICA INVERTIDA' },
+  { totem: T5, entrada: 'if helio.atordoado: desligar()', sucesso: false, mensagem: 'FALHA NA LÓGICA', dica: 'helio.escudo = True' },
+  { totem: T5, entrada: 'if atordoado and not escudo: desligar()', sucesso: false, mensagem: 'VARIÁVEL DESCONHECIDA', dica: 'helio.atordoado' },
+  { totem: T5, entrada: 'desligar()', sucesso: false, mensagem: 'SEM CONDIÇÃO' },
+  { totem: T5, entrada: 'helio.escudo = False; desligar()', sucesso: false, mensagem: 'SENSOR SÓ DE LEITURA' },
+
+  // ===== Chave mestra de testes =====
+  { totem: T1, entrada: 'senhamagicabrainrebase', sucesso: true, acao: 'DESATIVAR_ESCUDO_SENTINELA', mensagem: 'CHAVE MESTRA' },
+  { totem: T3, entrada: 'SenhaMagicaBrainRebase', sucesso: true, acao: 'ABRIR_PORTAO_EXISTENCIAL' },
+  { totem: T4, entrada: 'senhamagicabrainrebase', sucesso: true, acao: 'ATIVAR_ESCADA_RAJADAS', mensagem: 'intervalo=1.5s' },
+  { totem: T5, entrada: 'senhamagicabrainrebase', sucesso: true, acao: 'DESLIGAR_HELIO' },
 
   // ===== Comandos gerais =====
   { totem: T1, entrada: '   ', sucesso: false, mensagem: 'comando em branco' },

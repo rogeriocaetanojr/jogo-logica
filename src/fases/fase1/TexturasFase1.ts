@@ -301,4 +301,135 @@ export function gerarTexturasFase1(cena: Phaser.Scene): void {
     g.fillRect(18, 36, 2, 4);
     g.fillRect(26, 36, 2, 4);
   });
+
+  // 17. Boss Helio, Senhor dos Ventos: capa, manto, coroa solar, barba de vento e manoplas
+  gerar(cena, 'boss-helio', 128, 144, (g) => {
+    // Capa
+    g.fillStyle(0x6d28d9, 1);
+    g.fillTriangle(64, 40, 6, 144, 122, 144);
+    // Manto e barra
+    g.fillStyle(0xf8fafc, 1);
+    g.fillRoundedRect(34, 58, 60, 86, 10);
+    g.fillStyle(0xe9d5ff, 1);
+    g.fillRect(34, 124, 60, 20);
+    // Cinto dourado
+    g.fillStyle(0xf59e0b, 1);
+    g.fillRect(34, 94, 60, 8);
+    // Manoplas de vento
+    g.fillStyle(0x38bdf8, 1);
+    g.fillCircle(26, 94, 12);
+    g.fillCircle(102, 94, 12);
+    g.fillStyle(0xe0f2fe, 1);
+    g.fillCircle(26, 94, 6);
+    g.fillCircle(102, 94, 6);
+    // Coroa solar: raios em leque sobre a cabeça
+    g.fillStyle(0xfbbf24, 1);
+    for (let i = 0; i <= 6; i++) {
+      const angulo = Math.PI + (i / 6) * Math.PI;
+      g.fillTriangle(
+        64 + Math.cos(angulo - 0.2) * 18,
+        38 + Math.sin(angulo - 0.2) * 18,
+        64 + Math.cos(angulo + 0.2) * 18,
+        38 + Math.sin(angulo + 0.2) * 18,
+        64 + Math.cos(angulo) * 36,
+        38 + Math.sin(angulo) * 36
+      );
+    }
+    // Rosto
+    g.fillStyle(0xfde68a, 1);
+    g.fillCircle(64, 40, 20);
+    // Barba de vento
+    g.fillStyle(0xffffff, 1);
+    g.fillCircle(52, 58, 9);
+    g.fillCircle(64, 62, 10);
+    g.fillCircle(76, 58, 9);
+    // Sobrancelhas bravas e olhos
+    g.lineStyle(3, 0x1e1b4b, 1);
+    g.lineBetween(51, 32, 61, 37);
+    g.lineBetween(77, 32, 67, 37);
+    g.fillStyle(0x1e1b4b, 1);
+    g.fillCircle(57, 42, 3);
+    g.fillCircle(71, 42, 3);
+  });
+
+  // 18. Gerador da escada de rajadas: carcaça pendurada sob o chão, com moldura dourada
+  gerar(cena, 'gerador-vento', 96, 52, (g) => {
+    g.fillStyle(0x1e293b, 1);
+    g.fillRoundedRect(4, 0, 88, 48, 8);
+    g.fillStyle(0x334155, 1);
+    g.fillRoundedRect(10, 6, 76, 36, 6);
+    g.fillStyle(0xf59e0b, 1);
+    g.fillRect(4, 0, 88, 4);
+    g.fillStyle(0x64748b, 1);
+    g.fillRect(0, 14, 6, 20);
+    g.fillRect(90, 14, 6, 20);
+    g.fillStyle(0x0f172a, 1);
+    g.fillCircle(48, 26, 18);
+  });
+
+  // 19. Hélice do gerador (gira quando a coluna está ligada)
+  gerar(cena, 'helice-gerador', 36, 36, (g) => {
+    g.fillStyle(0xe0f2fe, 1);
+    for (let i = 0; i < 4; i++) {
+      const angulo = (i * Math.PI) / 2;
+      g.fillTriangle(
+        18,
+        18,
+        18 + Math.cos(angulo - 0.35) * 16,
+        18 + Math.sin(angulo - 0.35) * 16,
+        18 + Math.cos(angulo + 0.25) * 16,
+        18 + Math.sin(angulo + 0.25) * 16
+      );
+    }
+    g.fillStyle(0xf59e0b, 1);
+    g.fillCircle(18, 18, 4);
+  });
+
+  // 20. Cristal solar (sensor energia_sol)
+  gerar(cena, 'cristal-solar', 30, 46, (g) => {
+    g.fillStyle(0xfbbf24, 1);
+    g.fillTriangle(15, 0, 0, 20, 30, 20);
+    g.fillTriangle(0, 20, 30, 20, 15, 46);
+    g.fillStyle(0xfef08a, 1);
+    g.fillTriangle(15, 4, 6, 20, 15, 20);
+    g.fillTriangle(15, 20, 6, 20, 15, 38);
+  });
+
+  // 21. Base da turbina (sensor energia_vento)
+  gerar(cena, 'turbina-base', 20, 70, (g) => {
+    g.fillStyle(0xcbd5e1, 1);
+    g.fillRect(7, 10, 6, 60);
+    g.fillStyle(0xf59e0b, 1);
+    g.fillRect(2, 64, 16, 6);
+    g.fillStyle(0x475569, 1);
+    g.fillCircle(10, 10, 8);
+  });
+
+  // 22. Pás da turbina
+  gerar(cena, 'pas-turbina', 60, 60, (g) => {
+    g.fillStyle(0xf8fafc, 1);
+    for (let i = 0; i < 3; i++) {
+      const angulo = (i * Math.PI * 2) / 3;
+      g.fillTriangle(
+        30 + Math.cos(angulo - 0.2) * 6,
+        30 + Math.sin(angulo - 0.2) * 6,
+        30 + Math.cos(angulo + 0.2) * 6,
+        30 + Math.sin(angulo + 0.2) * 6,
+        30 + Math.cos(angulo) * 28,
+        30 + Math.sin(angulo) * 28
+      );
+    }
+    g.fillStyle(0x475569, 1);
+    g.fillCircle(30, 30, 5);
+  });
+
+  // 23. Placa de pressão rúnica (sensor placa_pressionada)
+  gerar(cena, 'placa-pressao', 70, 10, (g) => {
+    g.fillStyle(0x475569, 1);
+    g.fillRoundedRect(0, 0, 70, 10, 3);
+    g.fillStyle(0x94a3b8, 1);
+    g.fillRect(6, 2, 58, 3);
+    g.fillStyle(0xf59e0b, 1);
+    g.fillRect(31, 1, 8, 8);
+  });
 }

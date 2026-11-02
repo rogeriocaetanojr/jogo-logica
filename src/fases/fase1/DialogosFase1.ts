@@ -67,7 +67,7 @@ export const TEXTOS_NPCS_FASE1 = {
       {
         falante: '> SUCATINHA // DRONE DESERTOR',
         texto:
-          'Psiu, carne com osso! Se você continuar pulando desse jeito sem usar o vento, vai virar adubo lá embaixo. Eu fugi da tropa do Azel porque o código de segurança dele é uma vergonha alheia. Dica de graça: se o terminal falar grosso com você, devolve lógica pura, senão ele vai te humilhar.',
+          'Psiu, carne com osso! Se você continuar pulando desse jeito sem usar o vento, vai virar adubo lá embaixo. Eu fugi da tropa do Helio porque o código de segurança dele é uma vergonha alheia. Dica de graça: se o terminal falar grosso com você, devolve lógica pura, senão ele vai te humilhar.',
       },
     ] as LinhaDialogo[],
   },
@@ -78,7 +78,7 @@ export const TEXTOS_NPCS_FASE1 = {
       {
         falante: '> MAGO DA NUVEM // SEM SALÁRIO',
         texto:
-          'Você demorou tudo isso pra passar daquela sentinela? Eu já vi lesmas com compilação mais rápida. O santuário do Azel tá logo na frente. Ele acha que manda nos ventos só porque usa uma capa dramática. Vai lá e desconfigura a inteligência dele.',
+          'Você demorou tudo isso pra passar daquela sentinela? Eu já vi lesmas com compilação mais rápida. O santuário do Helio tá logo na frente. Ele acha que manda nos ventos só porque usa uma capa dramática. Vai lá e desconfigura a inteligência dele.',
       },
     ] as LinhaDialogo[],
   },
@@ -94,10 +94,49 @@ export const TEXTOS_NPCS_FASE1 = {
       {
         falante: '> POMBO-CORREIO // SINDICATO DOS ENTREGADORES ALADOS',
         texto:
-          'Conselho de quem tá em greve: passou da porta, ela fecha e não tem volta. E o chefão ainda tá sendo programado, então por enquanto lá dentro só tem o portal. Aproveita a folga.',
+          'Conselho de quem tá em greve: o Helio é velho e repetitivo. Rajada rasteira, salto com pisão, chuva de penas. Sempre. Depois disso ele fica tonto, e cabeça de deus tonto é pra pisar.',
+      },
+      {
+        falante: '> POMBO-CORREIO // SINDICATO DOS ENTREGADORES ALADOS',
+        texto:
+          'Passou da porta, ela fecha e não tem volta. Eu, como representante sindical, vou estar bem longe daqui.',
       },
     ] as LinhaDialogo[],
   },
+} as const;
+
+// =============================================================================
+// BOSS: HELIO
+// =============================================================================
+
+const FALANTE_HELIO = '> HELIO // SENHOR DOS VENTOS';
+
+export const TEXTOS_HELIO = {
+  INTRO: [
+    {
+      falante: FALANTE_HELIO,
+      texto:
+        'Então é você o "hacker" que andou desconfigurando meus totens. Eu vi seu código. Vi as tentativas erradas também. Todas elas.',
+    },
+    {
+      falante: FALANTE_HELIO,
+      texto: 'Aqui não tem terminal pra te salvar, gênio. Aqui é vento, reflexo e humilhação ao vivo. Pula se for capaz.',
+    },
+  ] as LinhaDialogo[],
+  // Frases curtas que flutuam sobre o Helio durante a luta (não pausam o jogo)
+  GOLPES: [
+    'Isso foi sorte. Sorte estatisticamente irrelevante.',
+    'Você pisou na minha cabeça?! Eu tenho contrato com os desenvolvedores!',
+    'Tá, eu tropecei no meu próprio vento. Acontece com todo deus.',
+  ],
+  RECOMECO: [
+    'Volta do checkpoint, volta. Eu espero. Eu literalmente não tenho mais nada pra fazer nessa fase.',
+    'Três corações e você gastou todos. Impressionante, até pra um estagiário.',
+    'Quer que eu jogue em câmera lenta? Ah, não dá. Eu não fui programado com dó.',
+  ],
+  DERROTADO:
+    'Ok... meus ventos tão fracos. Mas só me desliga quem acertar a condição do meu núcleo. Duvido.',
+  DESLIGADO: 'Desligado por um if. Que fim mais... didático.',
 } as const;
 
 // =============================================================================
@@ -185,11 +224,11 @@ export const TEXTOS_TOTEM_3_PORTAO: TextosTotemFase1 = {
   TITULO: 'PORTÃO MILENAR // CRISE EXISTENCIAL',
   PROMPT: '[E] CONECTAR AO PORTÃO MILENAR',
   DIALOGO_INICIAL:
-    'Olhe para este portão milenar. Ele foi programado com uma lógica tão confusa que nem o arquiteto celestial lembra como abre. Ele só quer uma expressão lógica coerente. Sem parênteses no lugar certo, ele simplesmente finge demência e continua trancado.',
+    'Olha pra cima do portão: um cristal solar e uma turbina de vento. Olha pro chão: uma placa rúnica. A regra do arquiteto é simples: o portão precisa de ENERGIA, que pode vir do cristal OU da turbina (qualquer um serve), E de alguém pisando na placa. Ele escreveu isso sem parênteses, e o portão nunca mais abriu. Conserta essa lógica antes que eu morra de tédio.',
   VARIAVEIS_DISPONIVEIS: [
-    'energia_sol (booleano): sensor de luz difusa da abóbada',
-    'energia_vento (booleano): turbinas geradoras de brisa',
-    'placa_pressionada (booleano): peso físico sobre o pedestal rúnico',
+    'energia_sol (booleano): o cristal solar acima do portão está carregado',
+    'energia_vento (booleano): a turbina ao lado do portão está girando',
+    'placa_pressionada (booleano): tem alguém em pé na placa rúnica do chão',
   ],
   FUNCOES_DISPONIVEIS: [
     'abrir_portao(): recolhe as trancas pesadas de mármore do portal',
@@ -213,9 +252,10 @@ export const TEXTOS_TOTEM_3_PORTAO: TextosTotemFase1 = {
     FORMATO_UMA_LINHA,
   STATUS:
     '[TELEMETRIA // PORTÃO MILENAR]\n' +
-    '  - energia_sol: True\n' +
-    '  - energia_vento: True\n' +
-    '  - placa_pressionada: True\n' +
+    '  - energia_sol: True (cristal carregado)\n' +
+    '  - energia_vento: False (turbina parada)\n' +
+    '  - placa_pressionada: True quando alguém pisa na placa do chão\n' +
+    '  - regra: energia (do sol OU do vento) E placa pressionada\n' +
     '  - trancas: BLOQUEADAS',
 };
 
@@ -263,6 +303,39 @@ export const TEXTOS_TOTEM_4_SEQUENCIADOR: TextosTotemFase1 = {
     '  - turbinas: 3 canais em espera\n' +
     `  - ordem exigida: "${S.ORDEM_CORRETA}"\n` +
     `  - janela de intervalo: ${S.INTERVALO_MIN}s - ${S.INTERVALO_MAX}s | empuxo: ${S.FORCA_MIN}px - ${S.FORCA_MAX}px`,
+};
+
+export const TEXTOS_TOTEM_5_HELIO: TextosTotemFase1 = {
+  TITULO: 'HELIO // NÚCLEO DOS VENTOS',
+  PROMPT: '[E] ACESSAR O NÚCLEO DO HELIO',
+  DIALOGO_INICIAL:
+    'O núcleo do Helio só aceita o comando de desligar se ele estiver atordoado E sem o escudo de vento reserva. Errar aqui não ressuscita o deus do vento. Mas a vergonha fica salva no seu histórico.',
+  VARIAVEIS_DISPONIVEIS: [
+    'helio.atordoado (booleano): o Helio está tonto depois da surra',
+    'helio.escudo (booleano): o escudo de vento reserva está ligado',
+  ],
+  FUNCOES_DISPONIVEIS: ['desligar(): corta a energia do núcleo dos ventos'],
+  MENSAGENS_ERRO: [
+    'O núcleo leu sua condição e riu. Riu alto. Os ventos riram junto.',
+    'Quase. Quase é a palavra favorita de quem perde pro chefão no último segundo.',
+    'Você revisou a fase inteira até aqui pra errar justo o and? Poético.',
+  ],
+  ERROS_ESPECIFICOS: {
+    INVERTIDA:
+      'Você desligaria o Helio só quando ele estivesse acordado e blindado. Ousado. Suicida, mas ousado.',
+  },
+  ESQUELETO: 'if helio.___ and not helio.___: desligar()',
+  AJUDA:
+    '=== AJUDA // NÚCLEO DO HELIO ===\n' +
+    'Desligue somente se ele estiver atordoado E sem escudo.\n' +
+    'Variáveis: helio.atordoado, helio.escudo\n' +
+    'Função: desligar()\n' +
+    FORMATO_UMA_LINHA,
+  STATUS:
+    '[TELEMETRIA // NÚCLEO DO HELIO]\n' +
+    '  - helio.atordoado: True\n' +
+    '  - helio.escudo: False\n' +
+    '  - ventos: INSTÁVEIS',
 };
 
 // =============================================================================
@@ -338,6 +411,7 @@ export const TEXTOS_TERMINAL_FASE1 = {
   COMANDOS_TERMINAL:
     'Comandos do terminal: help, status, enunciado, clear. Use ↑ e ↓ para repetir comandos anteriores.',
   STATUS_GERAL: '[STATUS] Totem operacional.',
+  CHAVE_MESTRA: '[CHAVE MESTRA ACEITA] Modo de teste: totem resolvido sem validar o código.',
   PREFIXO_DICA: '[DICA]',
   ESQUELETO_LIBERADO: '[ESQUELETO DE EMERGÊNCIA] Preencha as lacunas:',
   ESQUELETO_BLOQUEADO:

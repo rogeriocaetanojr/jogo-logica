@@ -12,10 +12,12 @@ import {
 } from './AvaliadorFase1';
 import {
   ERROS_PARA_ESQUELETO,
+  SENHA_MESTRA_FASE1,
   TOTEM_1_ALCOOLEMIA,
   TOTEM_2_BALANCA,
   TOTEM_3_PORTAO,
   TOTEM_4_SEQUENCIADOR,
+  TOTEM_5_HELIO,
 } from './constantesFase1';
 import {
   ERROS_GERAIS_FASE1,
@@ -24,6 +26,7 @@ import {
   TEXTOS_TOTEM_2_BALANCA,
   TEXTOS_TOTEM_3_PORTAO,
   TEXTOS_TOTEM_4_SEQUENCIADOR,
+  TEXTOS_TOTEM_5_HELIO,
   type TextosTotemFase1,
 } from './DialogosFase1';
 import type { FeedbackErroFase1, ParametrosEscadaVento } from './tiposFase1';
@@ -49,6 +52,8 @@ interface RegraTotem {
   /** Dicas sob medida quando o jogador usa um destes nomes como variável. */
   dicasNomes?: Readonly<Record<string, string>>;
   validar: (programa: Instrucao[]) => ResultadoComando;
+  /** Resultado de sucesso devolvido pela senha-mestra de testes. */
+  respostaMestra: ResultadoComando;
 }
 
 // =============================================================================
@@ -279,6 +284,7 @@ const SUCESSO_TOTEM_1: ResultadoComando = {
 };
 
 const REGRA_TOTEM_1: RegraTotem = {
+  respostaMestra: SUCESSO_TOTEM_1,
   textos: TEXTOS_TOTEM_1_ALCOOLEMIA,
   variaveis: ['alarme_ligado', 'jogador_armado'],
   funcoes: ['desativar_escudo'],
@@ -368,6 +374,7 @@ function validarTotem2(programa: Instrucao[]): ResultadoComando {
 }
 
 const REGRA_TOTEM_2: RegraTotem = {
+  respostaMestra: SUCESSO_TOTEM_2,
   textos: TEXTOS_TOTEM_2_BALANCA,
   variaveis: ['altitude_atual', 'altitude_alvo'],
   funcoes: FUNCOES_TOTEM_2,
@@ -388,6 +395,7 @@ const SUCESSO_TOTEM_3: ResultadoComando = {
 };
 
 const REGRA_TOTEM_3: RegraTotem = {
+  respostaMestra: SUCESSO_TOTEM_3,
   textos: TEXTOS_TOTEM_3_PORTAO,
   variaveis: ['energia_sol', 'energia_vento', 'placa_pressionada'],
   funcoes: ['abrir_portao'],
@@ -508,14 +516,18 @@ function validarTotem4(programa: Instrucao[]): ResultadoComando {
     );
   }
 
+  return sucessoRajadas(simulacao);
+}
+
+function sucessoRajadas(parametros: ParametrosEscadaVento): ResultadoComando {
   return {
     sucesso: true,
     mensagem:
       '[GERADOR TRIPLO // SEQUENCIADOR DE RAJADAS ATIVADO]\n' +
-      `Sincronização compilada: ordem="${ordemNormalizada}", intervalo=${intervalo}s, forca=${forca}px!\n` +
+      `Sincronização compilada: ordem="${parametros.ordem}", intervalo=${parametros.intervalo}s, forca=${parametros.forca}px!\n` +
       'As três correntes de ar disparam em escada ascendente perfeita. Voe, passarinho!',
     acao: 'ATIVAR_ESCADA_RAJADAS',
-    valor: JSON.stringify(simulacao),
+    valor: JSON.stringify(parametros),
   };
 }
 
@@ -524,6 +536,11 @@ const DICA_PARAMETRO = (nome: string) =>
 const DICA_ASPAS = (nome: string) => `Texto vai entre aspas: "${nome}".`;
 
 const REGRA_TOTEM_4: RegraTotem = {
+  respostaMestra: sucessoRajadas({
+    ordem: TOTEM_4_SEQUENCIADOR.ORDEM_CORRETA,
+    intervalo: TOTEM_4_SEQUENCIADOR.PERIODO_PADRAO_MS / 1000,
+    forca: TOTEM_4_SEQUENCIADOR.FORCA_PADRAO,
+  }),
   textos: TEXTOS_TOTEM_4_SEQUENCIADOR,
   variaveis: [],
   funcoes: [FUNCAO_RAJADAS],
@@ -538,6 +555,41 @@ const REGRA_TOTEM_4: RegraTotem = {
 };
 
 // =============================================================================
+// TOTEM 5: núcleo do Helio (revisão final: not / and com sensores do boss)
+// =============================================================================
+
+const SUCESSO_TOTEM_5: ResultadoComando = {
+  sucesso: true,
+  mensagem:
+    '[NÚCLEO DOS VENTOS // DESLIGADO]\n' +
+    'Condição validada: atordoado e sem escudo. O Helio foi desligado.\n' +
+    'O portal do santuário está aberto.',
+  acao: 'DESLIGAR_HELIO',
+};
+
+const DICA_PREFIXO_HELIO = (nome: string) => `Os sensores são do Helio: escreva helio.${nome}.`;
+
+const REGRA_TOTEM_5: RegraTotem = {
+  respostaMestra: SUCESSO_TOTEM_5,
+  textos: TEXTOS_TOTEM_5_HELIO,
+  variaveis: ['helio.atordoado', 'helio.escudo'],
+  funcoes: ['desligar'],
+  dicasNomes: {
+    atordoado: DICA_PREFIXO_HELIO('atordoado'),
+    escudo: DICA_PREFIXO_HELIO('escudo'),
+  },
+  validar: criarValidadorBooleano({
+    textos: TEXTOS_TOTEM_5_HELIO,
+    variaveis: ['helio.atordoado', 'helio.escudo'],
+    funcao: 'desligar',
+    esperado: (a) => Boolean(a['helio.atordoado']) && !a['helio.escudo'],
+    descrever: (chamou) => (chamou ? 'o Helio é desligado' : 'o Helio continua ligado'),
+    diagnosticarPrecedencia: false,
+    sucesso: SUCESSO_TOTEM_5,
+  }),
+};
+
+// =============================================================================
 // ENTRADA DO INTERPRETADOR
 // =============================================================================
 
@@ -546,6 +598,7 @@ const REGRAS_POR_TOTEM: Record<string, RegraTotem> = {
   [TOTEM_2_BALANCA.ID]: REGRA_TOTEM_2,
   [TOTEM_3_PORTAO.ID]: REGRA_TOTEM_3,
   [TOTEM_4_SEQUENCIADOR.ID]: REGRA_TOTEM_4,
+  [TOTEM_5_HELIO.ID]: REGRA_TOTEM_5,
 };
 
 function ajudaContextual(textos: TextosTotemFase1 | undefined, erros: number): string {
@@ -582,6 +635,11 @@ export function interpretarComandoFase1(entrada: string, contexto?: ContextoInte
   }
   if (!regra) {
     return { sucesso: false, mensagem: T.DESCONHECIDO };
+  }
+
+  // Chave mestra de testes: resolve o totem aberto sem validar código
+  if (comandoMinusculo === SENHA_MESTRA_FASE1) {
+    return { ...regra.respostaMestra, mensagem: `${T.CHAVE_MESTRA}\n${regra.respostaMestra.mensagem}` };
   }
 
   try {

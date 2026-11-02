@@ -483,6 +483,17 @@ export class SentinelaFase1 {
   }
 
   /**
+   * Tira a sentinela de serviço de vez (ex.: as que ficaram para trás quando a luta contra o Helio começa).
+   */
+  public desativar(): void {
+    if (this.hackeada) return;
+    this.estado = 'desativada';
+    this.sprite.setVelocity(0, 0);
+    this.coneGrafico.clear();
+    this.graficoPulso.clear();
+  }
+
+  /**
    * Pausa imediatamente a movimentação da sentinela durante abertura de terminais ou diálogos.
    */
   public congelar(): void {

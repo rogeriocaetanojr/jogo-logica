@@ -7,13 +7,21 @@ import { JogadorFase1 } from './JogadorFase1';
 import { VentoFase1, lerParametrosEscada } from './VentoFase1';
 import { PlataformasInstaveisFase1 } from './PlataformasFase1';
 import { gerarTexturasFase1 } from './TexturasFase1';
+import { BossHelioFase1 } from './BossHelioFase1';
+import { HudLutaFase1 } from './HudLutaFase1';
+import { TempestadeFase1 } from './TempestadeFase1';
 import {
   construirNivelFase1,
   criarCenarioParallaxFase1,
   desenharEscudoSentinela,
   type ElementosNivelFase1,
 } from './NivelFase1';
-import { DIALOGO_RADIO_ABERTURA, DIALOGO_RADIO_VITORIA, TEXTOS_TERMINAL_FASE1 } from './DialogosFase1';
+import {
+  DIALOGO_RADIO_ABERTURA,
+  DIALOGO_RADIO_VITORIA,
+  TEXTOS_HELIO,
+  TEXTOS_TERMINAL_FASE1,
+} from './DialogosFase1';
 import type {
   Coordenada2D,
   FeedbackErroFase1,
@@ -32,7 +40,10 @@ import {
   TOTEM_2_BALANCA,
   TOTEM_3_PORTAO,
   TOTEM_4_SEQUENCIADOR,
+  TOTEM_5_HELIO,
   ARENA_FASE1,
+  BOSS_HELIO_FASE1,
+  NPCS_FASE1,
 } from './constantesFase1';
 
 const CHECKPOINTS_EM_ORDEM = [
@@ -40,6 +51,7 @@ const CHECKPOINTS_EM_ORDEM = [
   CHECKPOINTS_FASE1.CP2,
   CHECKPOINTS_FASE1.CP3,
   CHECKPOINTS_FASE1.CP4,
+  CHECKPOINTS_FASE1.CP5,
 ] as const;
 
 /**
@@ -60,6 +72,21 @@ export class CenaFase1 extends CenaBase {
   private portaArenaFechada: boolean = false;
   private faseConcluida: boolean = false;
 
+  // Luta contra o Helio (os tempos usam o relógio da cena, this.time.now)
+  private helio!: BossHelioFase1;
+  private hudLuta!: HudLutaFase1;
+  private lutaHelio: 'aguardando' | 'intro' | 'lutando' | 'morrendo' | 'recomecando' | 'derrotado' | 'vencida' =
+    'aguardando';
+  private coracoes: number = BOSS_HELIO_FASE1.CORACOES;
+  private invulneravelAte: number = 0;
+  private hitstopAte: number = 0;
+  private portalAberto: boolean = false;
+  private falaAtual?: Phaser.GameObjects.Text;
+  private tempestade!: TempestadeFase1;
+
+  // Placa de pressão do portão (Desafio 3): só troca o rótulo quando o estado muda
+  private placaPisada: boolean = false;
+
   // Terminal: totem conectado, erros por totem (liberam o esqueleto no help) e simulação do Desafio 4
   private totemAberto?: TotemFase1;
   private errosPorTotem = new Map<string, number>();
@@ -78,6 +105,12 @@ export class CenaFase1 extends CenaBase {
     // Reinicia o estado (a instância da cena é reaproveitada entre visitas)
     this.totensResolvidos = new Set<string>();
     this.portaArenaFechada = false;
+    this.lutaHelio = 'aguardando';
+    this.coracoes = BOSS_HELIO_FASE1.CORACOES;
+    this.invulneravelAte = 0;
+    this.hitstopAte = 0;
+    this.portalAberto = false;
+    this.placaPisada = false;
     this.faseConcluida = false;
     this.totemAberto = undefined;
     this.errosPorTotem = new Map<string, number>();
@@ -123,6 +156,11 @@ export class CenaFase1 extends CenaBase {
       this.physics.add.collider(spriteJogador, movel.sprite);
     }
 
+    // 7b. Boss Helio (escondido até a porta da arena fechar) e o HUD da luta
+    this.helio = new BossHelioFase1(this);
+    this.hudLuta = new HudLutaFase1(this);
+    this.tempestade = new TempestadeFase1(this);
+
     // 8. Integração com o Terminal
     this.configurarTerminal();
 
@@ -163,6 +201,9 @@ export class CenaFase1 extends CenaBase {
           break;
         case 'ATIVAR_ESCADA_RAJADAS':
           this.executarAtivacaoEscadaRajadas(resultado.valor);
+          break;
+        case 'DESLIGAR_HELIO':
+          this.executarDesligarHelio();
           break;
         case 'FEEDBACK_ERRO':
           this.tratarFeedbackErro(resultado.valor);
@@ -206,6 +247,9 @@ export class CenaFase1 extends CenaBase {
       this.descongelarJogo();
     }
 
+    // Hitstop do pisão no Helio: o mundo fica parado por um instante
+    if (this.time.now < this.hitstopAte) return;
+
     // 2. Checkpoints, queda no abismo e a porta da arena
     this.verificarLimitesECheckpoints();
     if (!this.portaArenaFechada && this.jogador.x >= ARENA_FASE1.PORTA.gatilhoX) {
@@ -213,7 +257,10 @@ export class CenaFase1 extends CenaBase {
     }
 
     // 3. Movimentação, Coyote Time, Jump Buffer e Mecânica de Planar no Vento
-    this.jogador.update(tempo, delta, this.vento);
+    // Durante a animação de morte o jogador não responde ao teclado
+    if (this.lutaHelio !== 'morrendo') {
+      this.jogador.update(tempo, delta, this.vento);
+    }
 
     // 4. Plataformas que somem e plataformas móveis
     this.instaveis.update(tempo);
@@ -223,6 +270,10 @@ export class CenaFase1 extends CenaBase {
 
     // 5. Colunas, zonas de vento contrário, gêiseres e a Escada de Rajadas (Desafio 4)
     this.vento.update(tempo, delta);
+
+    // Tempestade da arena e a placa de pressão do portão (Desafio 3)
+    this.tempestade.update(delta);
+    this.atualizarPlacaPressao();
 
     // 6. Escudo da Sentinela A-01 (Desafio 1)
     if (this.totensResolvidos.has(TOTEM_1_ALCOOLEMIA.ID)) {
@@ -239,10 +290,23 @@ export class CenaFase1 extends CenaBase {
       });
     }
 
-    // 8. Interação com NPCs e com os 4 Totens (sem conflito)
+    // 8. Luta contra o Helio (ataques, pisão) e o piscar de invulnerabilidade
+    if (this.lutaHelio === 'lutando' || this.lutaHelio === 'derrotado') {
+      this.helio.update(tempo, delta, this.jogador.sprite, {
+        aoFerirJogador: (direcaoX) => this.ferirJogador(direcaoX),
+        aoSerPisado: () => this.aoPisarHelio(),
+      });
+    }
+    if (this.lutaHelio === 'lutando') {
+      const agora = this.time.now;
+      const piscando = agora < this.invulneravelAte && Math.floor(agora / 80) % 2 === 0;
+      this.jogador.sprite.setAlpha(piscando ? 0.35 : 1);
+    }
+
+    // 9. Interação com NPCs e com os totens (sem conflito)
     this.tratarInteracoes();
 
-    // 9. Chegada ao portal da arena
+    // 10. Chegada ao portal da arena (só depois do Helio desligado)
     this.verificarFinalizacaoFase();
   }
 
@@ -525,6 +589,271 @@ export class CenaFase1 extends CenaBase {
 
     this.cameras.main.shake(300, 0.006);
     this.mostrarNotificacaoCurta('PORTA SELADA // AGORA É VOCÊ E O VENTO');
+    this.iniciarIntroHelio();
+  }
+
+  // =========================================================================
+  // LUTA CONTRA O HELIO
+  // =========================================================================
+
+  /**
+   * A porta fechou: o Pombo foge, a câmera trava na arena e o Helio desce do céu para provocar.
+   */
+  private iniciarIntroHelio(): void {
+    this.lutaHelio = 'intro';
+    this.tempestade.iniciar();
+    this.travarCameraArena(true);
+
+    // As sentinelas que ficaram para trás saem de serviço (o cone da S-03 invadia o canto da arena)
+    for (const s of this.nivel.sentinelas) {
+      s.desativar();
+    }
+
+    const pombo = this.nivel.npcs.find((npc) => npc.id === NPCS_FASE1.POMBO.ID);
+    if (pombo) {
+      this.nivel.npcs = this.nivel.npcs.filter((npc) => npc !== pombo);
+      pombo.promptTexto.setVisible(false);
+      this.tweens.killTweensOf(pombo.sprite);
+      this.tweens.add({
+        targets: pombo.sprite,
+        x: pombo.sprite.x - 260,
+        y: pombo.sprite.y - 420,
+        alpha: 0,
+        duration: 1200,
+        ease: 'Quad.easeIn',
+        onComplete: () => pombo.destruir(),
+      });
+    }
+
+    const helio = this.helio.sprite;
+    helio.setVisible(true);
+    helio.setPosition(BOSS_HELIO_FASE1.X_INICIAL, -40);
+    this.tweens.add({
+      targets: helio,
+      y: ARENA_FASE1.CHAO_Y,
+      duration: 900,
+      ease: 'Cubic.easeIn',
+      onComplete: () => {
+        this.cameras.main.shake(300, 0.01);
+        this.comunicador.iniciarDialogo(TEXTOS_HELIO.INTRO, () => this.comecarLuta());
+      },
+    });
+  }
+
+  private comecarLuta(): void {
+    this.lutaHelio = 'lutando';
+    this.coracoes = BOSS_HELIO_FASE1.CORACOES;
+    this.hudLuta.mostrar();
+    this.atualizarHudLuta();
+    this.helio.iniciarLuta();
+  }
+
+  /**
+   * Um ataque acertou: perde um coração, leva um empurrão e fica 1 s piscando e invulnerável.
+   * Sem corações, volta ao checkpoint da arena e a luta recomeça do zero.
+   */
+  private ferirJogador(direcaoX: number): void {
+    const b = BOSS_HELIO_FASE1;
+    if (this.lutaHelio !== 'lutando' || this.time.now < this.invulneravelAte) return;
+
+    this.coracoes--;
+    this.invulneravelAte = this.time.now + b.INVULNERAVEL_MS;
+    this.atualizarHudLuta();
+    this.cameras.main.flash(150, 255, 80, 80);
+
+    if (this.coracoes <= 0) {
+      this.morrerNaLuta();
+      return;
+    }
+    this.jogador.aplicarEmpurrao(direcaoX * b.EMPURRAO_DANO_X, b.EMPURRAO_DANO_Y, b.DURACAO_EMPURRAO_DANO_MS);
+  }
+
+  /**
+   * Pisão válido: hitstop, quique, deboche do Helio. No terceiro, ele cai de joelhos
+   * e o totem do núcleo aparece para o comando final.
+   */
+  private aoPisarHelio(): void {
+    const b = BOSS_HELIO_FASE1;
+
+    this.hitstopAte = this.time.now + b.HITSTOP_MS;
+    this.physics.world.pause();
+    this.time.delayedCall(b.HITSTOP_MS, () => {
+      if (!this.jogoCongeladoPorMenu) this.physics.world.resume();
+    });
+
+    this.jogador.quicar(b.QUIQUE_PISAO);
+    this.invulneravelAte = this.time.now + b.INVULNERAVEL_MS / 2;
+    this.cameras.main.flash(120, 255, 255, 255);
+    this.cameras.main.shake(200, 0.008);
+    this.atualizarHudLuta();
+
+    if (this.helio.vida > 0) {
+      this.falaFlutuante(TEXTOS_HELIO.GOLPES[this.helio.golpes - 1] ?? TEXTOS_HELIO.GOLPES[0]);
+      return;
+    }
+
+    this.lutaHelio = 'derrotado';
+    this.jogador.sprite.setAlpha(1);
+    this.falaFlutuante(TEXTOS_HELIO.DERROTADO, 4000);
+
+    const totem = this.nivel.totemFinal;
+    this.nivel.totens.push(totem);
+    this.tweens.add({ targets: totem.imagem, alpha: 1, duration: 800 });
+    this.mostrarNotificacaoCurta('O NÚCLEO DO HELIO ESTÁ EXPOSTO // USE O TOTEM');
+  }
+
+  /**
+   * Os corações acabaram: o jogador gira, encolhe e some devagar enquanto a tela apaga.
+   * Com a tela escura, volta ao checkpoint da arena e a luta recomeça; a tela reacende em seguida.
+   */
+  private morrerNaLuta(): void {
+    const b = BOSS_HELIO_FASE1;
+    const cor = b.MORTE_COR_FADE;
+    const sprite = this.jogador.sprite;
+
+    this.lutaHelio = 'morrendo';
+    this.jogador.congelar();
+    sprite.setAlpha(1);
+    sprite.setTint(0xf87171);
+    this.cameras.main.shake(300, 0.006);
+
+    this.tweens.add({
+      targets: sprite,
+      angle: 540,
+      scaleX: 0.4,
+      scaleY: 0.4,
+      alpha: 0,
+      y: sprite.y - 50,
+      duration: b.MORTE_ANIMACAO_MS,
+      ease: 'Sine.easeInOut',
+    });
+
+    this.cameras.main.fadeOut(b.MORTE_FADE_SAIDA_MS, cor.r, cor.g, cor.b);
+    this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
+      this.tweens.killTweensOf(sprite);
+      sprite.setAngle(0);
+      sprite.setScale(1);
+      // restaurarSnapshot só recomeça a luta quando ela está em andamento
+      this.lutaHelio = 'lutando';
+      this.restaurarSnapshot('O HELIO TE SOPROU DE VOLTA AO CHECKPOINT!', false);
+      this.cameras.main.fadeIn(b.MORTE_FADE_ENTRADA_MS, cor.r, cor.g, cor.b);
+    });
+  }
+
+  /**
+   * Acende a placa de pressão do portão e troca o rótulo enquanto o jogador está em pé sobre ela.
+   */
+  private atualizarPlacaPressao(): void {
+    const t3 = TOTEM_3_PORTAO;
+    const placa = this.nivel.placaPressao;
+    const corpo = this.jogador.corpo;
+    const noChao = corpo.blocked.down || corpo.touching.down;
+    const pisando =
+      noChao &&
+      this.jogador.x >= placa.xMin &&
+      this.jogador.x <= placa.xMax &&
+      Math.abs(corpo.bottom - t3.PLACA.y) <= 4;
+
+    if (pisando === this.placaPisada) return;
+    this.placaPisada = pisando;
+
+    if (pisando) placa.imagem.setTint(0x6ee7b7);
+    else placa.imagem.clearTint();
+    placa.rotulo.setText(`placa_pressionada = ${pisando ? 'True' : 'False'}`);
+    placa.rotulo.setColor(pisando ? t3.COR_SENSOR_LIGADO : t3.COR_SENSOR_DESLIGADO);
+  }
+
+  /**
+   * Recomeça a luta do zero (vida cheia para os dois), com uma provocação do Helio.
+   */
+  private recomecarLuta(): void {
+    this.lutaHelio = 'recomecando';
+    this.helio.reiniciar();
+    this.helio.sprite.setVisible(true);
+    this.coracoes = BOSS_HELIO_FASE1.CORACOES;
+    this.invulneravelAte = 0;
+    this.atualizarHudLuta();
+    this.travarCameraArena(false);
+
+    this.time.delayedCall(BOSS_HELIO_FASE1.ATRASO_RECOMECO_MS, () => {
+      if (this.lutaHelio !== 'recomecando') return;
+      this.falaFlutuante(Phaser.Utils.Array.GetRandom([...TEXTOS_HELIO.RECOMECO]));
+      this.lutaHelio = 'lutando';
+      this.helio.iniciarLuta();
+    });
+  }
+
+  private executarDesligarHelio(): void {
+    this.totensResolvidos.add(TOTEM_5_HELIO.ID);
+    this.lutaHelio = 'vencida';
+
+    this.fecharTerminalComFeedback('HELIO DESLIGADO // PORTAL DO SANTUÁRIO ABERTO!', () => {
+      this.helio.desligar();
+      this.tempestade.encerrar();
+      this.hudLuta.esconder();
+      this.falaFlutuante(TEXTOS_HELIO.DESLIGADO);
+      this.cameras.main.shake(400, 0.01);
+
+      const portal = this.nivel.portalFinal;
+      portal.setVisible(true);
+      this.tweens.add({ targets: portal, alpha: 1, duration: 900 });
+      this.portalAberto = true;
+      this.cameras.main.startFollow(this.jogador.sprite, true, CAMERA_FASE1.LERP_X, CAMERA_FASE1.LERP_Y);
+    });
+  }
+
+  /**
+   * Durante a luta a câmera fica parada mostrando a arena inteira (ela tem a largura da tela).
+   */
+  private travarCameraArena(suave: boolean): void {
+    const centro = ARENA_FASE1.CAMERA_CENTRO;
+    this.cameras.main.stopFollow();
+    if (suave) {
+      this.cameras.main.pan(centro.x, centro.y, 700, 'Sine.easeInOut');
+    } else {
+      this.cameras.main.centerOn(centro.x, centro.y);
+    }
+  }
+
+  private atualizarHudLuta(): void {
+    this.hudLuta.atualizar(this.helio.vida, BOSS_HELIO_FASE1.VIDA, this.coracoes, BOSS_HELIO_FASE1.CORACOES);
+  }
+
+  /**
+   * Fala curta sobre o Helio que some sozinha, sem pausar a luta.
+   */
+  private falaFlutuante(texto: string, duracaoMs: number = 2600): void {
+    // Uma fala por vez: a nova substitui a anterior em vez de empilhar balões
+    this.falaAtual?.destroy();
+
+    const helio = this.helio.sprite;
+    const visao = this.cameras.main.worldView;
+    const fala = this.add.text(helio.x, helio.y - BOSS_HELIO_FASE1.ALTURA_CORPO - 60, texto, {
+      fontFamily: 'Consolas, Courier New, monospace',
+      fontSize: '13px',
+      color: '#fde68a',
+      backgroundColor: 'rgba(30, 27, 75, 0.9)',
+      padding: { x: 8, y: 5 },
+      align: 'center',
+      wordWrap: { width: 340 },
+    });
+    fala.setOrigin(0.5, 1);
+    fala.setDepth(9500);
+    // Mantém o balão dentro da tela, mesmo com o Helio voando ou encostado na borda
+    fala.x = Phaser.Math.Clamp(fala.x, visao.x + 190, visao.right - 190);
+    fala.y = Math.max(fala.y, visao.y + 150);
+    this.falaAtual = fala;
+
+    this.tweens.add({
+      targets: fala,
+      alpha: 0,
+      delay: duracaoMs,
+      duration: 500,
+      onComplete: () => {
+        fala.destroy();
+        if (this.falaAtual === fala) this.falaAtual = undefined;
+      },
+    });
   }
 
   // =========================================================================
@@ -565,7 +894,7 @@ export class CenaFase1 extends CenaBase {
    * - Sentinelas não hackeadas voltam às rotas iniciais.
    * - Desafios resolvidos continuam resolvidos (escudo, elevador, portão e escada não voltam atrás).
    */
-  private restaurarSnapshot(motivo: string): void {
+  private restaurarSnapshot(motivo: string, comFlash: boolean = true): void {
     const ponto = this.snapshotAtual.pontoSpawn;
 
     this.jogador.respawnar(ponto);
@@ -583,8 +912,13 @@ export class CenaFase1 extends CenaBase {
       this.descongelarJogo();
     }
 
-    this.cameras.main.flash(200, 255, 255, 255);
+    if (comFlash) this.cameras.main.flash(200, 255, 255, 255);
     this.mostrarNotificacaoCurta(motivo);
+
+    // Morrer durante a luta (corações ou queda) recomeça o Helio do zero
+    if (this.lutaHelio === 'lutando') {
+      this.recomecarLuta();
+    }
   }
 
   /**
@@ -644,6 +978,11 @@ export class CenaFase1 extends CenaBase {
     txt.setOrigin(0.5);
     txt.setDepth(9995);
 
+    // Perto da borda da tela, o aviso desliza para dentro em vez de sair cortado
+    const visao = this.cameras.main.worldView;
+    const meiaLargura = txt.width / 2 + 10;
+    txt.x = Phaser.Math.Clamp(txt.x, visao.x + meiaLargura, visao.right - meiaLargura);
+
     this.tweens.add({
       targets: txt,
       y: txt.y - 30,
@@ -654,7 +993,7 @@ export class CenaFase1 extends CenaBase {
   }
 
   private verificarFinalizacaoFase(): void {
-    if (this.faseConcluida) return;
+    if (this.faseConcluida || !this.portalAberto) return;
 
     const portal = this.nivel.portalFinal;
     const distPortal = Phaser.Math.Distance.Between(this.jogador.x, this.jogador.y, portal.x, portal.y);
