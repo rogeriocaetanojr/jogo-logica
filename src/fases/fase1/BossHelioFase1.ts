@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { CORES_FASE1 } from './ArteFase1';
 import { ARENA_FASE1, BOSS_HELIO_FASE1 } from './constantesFase1';
 
 export type AtaqueHelio = 'rajada' | 'salto' | 'chuva';
@@ -459,47 +460,161 @@ export class BossHelioFase1 {
     this.renderizarEstado(g, tempo);
 
     for (const p of this.projeteis) {
-      if (p.tipo === 'onda') {
-        // Onda de vento rasteira: bloco azul forte com rastro e arcos brancos, legível no fundo claro
-        const frente = Math.sign(p.vx);
-        const esquerda = p.x - p.largura / 2;
-        const topo = p.y - p.altura / 2;
-        g.fillStyle(0x0ea5e9, 0.25);
-        g.fillRoundedRect(esquerda - frente * 30, topo + 8, p.largura, p.altura - 8, 10);
-        g.fillStyle(0x0284c7, 0.7);
-        g.fillRoundedRect(esquerda, topo, p.largura, p.altura, 12);
-        g.lineStyle(2, 0xffffff, 1);
-        g.strokeRoundedRect(esquerda, topo, p.largura, p.altura, 12);
-        g.lineStyle(4, 0xffffff, 0.95);
-        for (let i = 0; i < 3; i++) {
-          const yLinha = topo + 12 + i * 20;
-          g.beginPath();
-          g.arc(p.x - frente * 6, yLinha, 12, frente > 0 ? -1.2 : Math.PI - 0.9, frente > 0 ? 0.9 : Math.PI + 1.2);
-          g.strokePath();
-        }
-      } else if (p.tipo === 'choque') {
-        g.fillStyle(0x0284c7, 0.9);
-        g.fillEllipse(p.x, p.y + 4, p.largura, p.altura);
-        g.lineStyle(3, 0xffffff, 1);
-        g.strokeEllipse(p.x, p.y + 4, p.largura, p.altura);
-      } else if (p.esperaMs > 0) {
-        // Aviso de pena: linha tracejada vertical e sombra que crescem e escurecem até a queda
-        const urgencia = 1 - p.esperaMs / p.avisoTotalMs;
-        g.lineStyle(2, 0xf43f5e, 0.2 + urgencia * 0.5);
-        for (let y = 80; y < A.CHAO_Y - 10; y += 24) {
-          g.lineBetween(p.x, y, p.x, y + 12);
-        }
-        g.fillStyle(0x1e1b4b, 0.35 + urgencia * 0.5);
-        g.fillEllipse(p.x, A.CHAO_Y - 3, 34 + urgencia * 30, 10 + urgencia * 6);
-      } else {
-        g.fillStyle(0x1e1b4b, 0.65);
-        g.fillEllipse(p.x, A.CHAO_Y - 3, 46, 12);
-        g.fillStyle(0xffffff, 1);
-        g.fillEllipse(p.x, p.y, p.largura, p.altura);
-        g.lineStyle(2, 0xa78bfa, 1);
-        g.lineBetween(p.x, p.y - p.altura / 2, p.x, p.y + p.altura / 2);
-      }
+      if (p.tipo === 'onda') this.desenharOnda(g, p, tempo);
+      else if (p.tipo === 'choque') this.desenharChoque(g, p, tempo);
+      else if (p.esperaMs > 0) this.desenharAvisoPena(g, p, tempo);
+      else this.desenharPena(g, p, tempo);
     }
+  }
+
+  /**
+   * Onda de vento rasteira: um mini-tornado (anéis empilhados que balançam e alargam para cima),
+   * com núcleo ciano, riscos de rastro para trás e poeira no pé. Pule por cima.
+   */
+  private desenharOnda(g: Phaser.GameObjects.Graphics, p: ProjetilHelio, tempo: number): void {
+    const frente = Math.sign(p.vx) || 1;
+    const base = p.y + p.altura / 2;
+    const topo = p.y - p.altura / 2;
+    const aneis = 6;
+
+    // Rastro: riscos ondulados atrás do tornado
+    for (let k = 0; k < 4; k++) {
+      const y = topo + 12 + k * 13;
+      const comprimento = 30 + ((k * 17 + tempo / 8) % 30);
+      const inicio = p.x - frente * (p.largura / 2 + 4);
+      g.lineStyle(k % 2 ? 2 : 3, k % 2 ? CORES_FASE1.CIANO_CLARO : 0xffffff, 0.75 - k * 0.12);
+      g.beginPath();
+      g.moveTo(inicio, y);
+      g.lineTo(inicio - frente * comprimento * 0.5, y + Math.sin(tempo * 0.02 + k) * 3);
+      g.lineTo(inicio - frente * comprimento, y);
+      g.strokePath();
+    }
+
+    // Halo e núcleo
+    g.fillStyle(CORES_FASE1.CIANO, 0.22);
+    g.fillEllipse(p.x, p.y, p.largura + 22, p.altura + 10);
+    g.fillStyle(CORES_FASE1.VENTO, 0.85);
+    g.fillTriangle(p.x - p.largura / 2 - 4, topo, p.x + p.largura / 2 + 4, topo, p.x, base);
+
+    // Anéis girando: largos em cima, finos embaixo
+    for (let k = 0; k < aneis; k++) {
+      const t = k / (aneis - 1);
+      const y = base - 6 - t * (p.altura - 10);
+      const largura = 12 + t * (p.largura + 6);
+      const balanco = Math.sin(tempo * 0.02 + k * 0.9) * 5 * t;
+      g.lineStyle(3, CORES_FASE1.CIANO, 0.9);
+      g.strokeEllipse(p.x + balanco, y + 1, largura, 9);
+      g.lineStyle(2, 0xffffff, 1);
+      g.beginPath();
+      const giro = tempo * 0.015 + k;
+      g.arc(p.x + balanco, y, largura / 2, giro, giro + Math.PI * 0.9);
+      g.strokePath();
+    }
+
+    // Poeira e pedrinhas levantadas no pé
+    g.fillStyle(CORES_FASE1.MARMORE_SOMBRA, 0.8);
+    for (let k = 0; k < 4; k++) {
+      const angulo = tempo * 0.02 + (k * Math.PI) / 2;
+      g.fillCircle(p.x + Math.cos(angulo) * 16, base - 4 + Math.sin(angulo) * 3, 4 - (k % 2));
+    }
+  }
+
+  /**
+   * Onda de choque do pisão: estouro de poeira dourada rente ao chão, com arco de impacto e
+   * lascas de mármore pulando. Pule no tempo certo.
+   */
+  private desenharChoque(g: Phaser.GameObjects.Graphics, p: ProjetilHelio, tempo: number): void {
+    const frente = Math.sign(p.vx) || 1;
+    const base = p.y + p.altura / 2;
+
+    g.fillStyle(CORES_FASE1.OURO, 0.25);
+    g.fillEllipse(p.x - frente * 14, base - 4, p.largura + 34, 14);
+    g.fillStyle(CORES_FASE1.OURO_CLARO, 0.9);
+    g.fillEllipse(p.x, base - p.altura / 2 + 2, p.largura, p.altura);
+    g.fillStyle(CORES_FASE1.OURO, 1);
+    g.fillEllipse(p.x + frente * 4, base - p.altura / 2 + 4, p.largura * 0.7, p.altura * 0.7);
+
+    // Arco de impacto na frente
+    g.lineStyle(3, 0xffffff, 1);
+    g.beginPath();
+    g.arc(p.x, base, p.largura / 2 + 2, frente > 0 ? -Math.PI / 2 : Math.PI, frente > 0 ? 0 : -Math.PI / 2);
+    g.strokePath();
+    g.lineStyle(2, CORES_FASE1.OURO_ESCURO, 1);
+    g.beginPath();
+    g.arc(p.x - frente * 6, base, p.largura / 2 - 6, frente > 0 ? -Math.PI / 2 : Math.PI, frente > 0 ? 0 : -Math.PI / 2);
+    g.strokePath();
+
+    // Lascas de mármore saltando
+    for (let k = 0; k < 4; k++) {
+      const ciclo = ((tempo / 260 + k * 0.25) % 1);
+      const lx = p.x - frente * (6 + k * 7);
+      const ly = base - 6 - Math.sin(ciclo * Math.PI) * (16 + k * 4);
+      g.fillStyle(k % 2 ? CORES_FASE1.MARMORE : CORES_FASE1.MARMORE_ESCURO, 1);
+      g.fillRect(lx, ly, 4, 4);
+    }
+  }
+
+  /**
+   * Aviso de pena: feixe de luz dourada descendo até o ponto de queda, com losangos correndo
+   * para baixo e um alvo no chão que fecha e escurece até a queda.
+   */
+  private desenharAvisoPena(g: Phaser.GameObjects.Graphics, p: ProjetilHelio, tempo: number): void {
+    const urgencia = 1 - p.esperaMs / p.avisoTotalMs;
+    const chao = A.CHAO_Y - 3;
+
+    g.fillStyle(CORES_FASE1.OURO_CLARO, 0.08 + urgencia * 0.14);
+    g.fillTriangle(p.x - 4, 60, p.x + 4, 60, p.x + 22, chao);
+    g.fillTriangle(p.x - 4, 60, p.x - 22, chao, p.x + 22, chao);
+    g.fillStyle(CORES_FASE1.ALERTA, 0.35 + urgencia * 0.5);
+    for (let y = 70 + ((tempo * 0.25) % 40); y < chao - 20; y += 40) {
+      g.fillTriangle(p.x, y - 6, p.x + 4, y, p.x - 4, y);
+      g.fillTriangle(p.x, y + 6, p.x + 4, y, p.x - 4, y);
+    }
+
+    const raio = 30 - urgencia * 14;
+    g.fillStyle(0x1e1b4b, 0.3 + urgencia * 0.45);
+    g.fillEllipse(p.x, chao, 26 + urgencia * 28, 8 + urgencia * 6);
+    g.lineStyle(2, CORES_FASE1.ALERTA, 0.5 + urgencia * 0.5);
+    g.strokeEllipse(p.x, chao, raio * 2, raio * 0.5);
+    g.lineBetween(p.x - raio - 6, chao, p.x - raio + 2, chao);
+    g.lineBetween(p.x + raio - 2, chao, p.x + raio + 6, chao);
+  }
+
+  /**
+   * Pena caindo: haste dourada, barbas brancas em gomos inclinados com ponta magenta (a capa
+   * do Helio), balançando, com rastro de brilho e a sombra no chão.
+   */
+  private desenharPena(g: Phaser.GameObjects.Graphics, p: ProjetilHelio, tempo: number): void {
+    g.fillStyle(0x1e1b4b, 0.65);
+    g.fillEllipse(p.x, A.CHAO_Y - 3, 46, 12);
+
+    const meia = p.altura / 2;
+    const balanco = Math.sin(tempo * 0.03 + p.x) * 3;
+    const topoX = p.x + balanco;
+
+    // Rastro
+    g.fillStyle(CORES_FASE1.OURO_CLARO, 0.25);
+    g.fillTriangle(topoX - 6, p.y - meia, topoX + 6, p.y - meia, p.x, p.y - meia - 60);
+    g.fillStyle(0xffffff, 0.9);
+    for (let k = 1; k <= 3; k++) g.fillRect(p.x + Math.sin(tempo * 0.02 + k) * 6, p.y - meia - k * 16, 2, 2);
+
+    // Barbas da pena (gomos dos dois lados da haste)
+    const gomos = 6;
+    for (let k = 0; k < gomos; k++) {
+      const t = k / gomos;
+      const y = p.y - meia + 4 + t * (p.altura - 12);
+      const x = topoX + (p.x - topoX) * t;
+      const largura = (p.largura / 2) * Math.sin(Math.PI * (0.15 + t * 0.85));
+      const cor = k < 2 ? CORES_FASE1.HELIO_CAPA : k % 2 ? 0xffffff : CORES_FASE1.NUVEM_SOMBRA;
+      g.fillStyle(cor, 1);
+      g.fillTriangle(x, y, x - largura, y - 5, x - largura + 2, y + 6);
+      g.fillTriangle(x, y, x + largura, y - 5, x + largura - 2, y + 6);
+    }
+    // Haste dourada
+    g.lineStyle(2, CORES_FASE1.OURO_ESCURO, 1);
+    g.lineBetween(topoX, p.y - meia, p.x, p.y + meia);
+    g.fillStyle(CORES_FASE1.OURO, 1);
+    g.fillTriangle(p.x - 2, p.y + meia - 6, p.x + 2, p.y + meia - 6, p.x, p.y + meia + 2);
   }
 
   /**

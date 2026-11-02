@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
 import { SentinelaFase1 } from './SentinelaFase1';
 import { NpcFase1 } from './NpcFase1';
+import { criarIlhaFlutuante, criarPilarMarmore } from './CenarioFase1';
+import { CORES_FASE1 } from './ArteFase1';
 import type { VentoFase1 } from './VentoFase1';
 import { PlataformaMovelFase1, type PlataformasInstaveisFase1 } from './PlataformasFase1';
 import type { ConfigPlataforma, ConfigSentinela, TotemFase1 } from './tiposFase1';
@@ -14,7 +16,6 @@ import {
   type TextosTotemFase1,
 } from './DialogosFase1';
 import {
-  MUNDO_FASE1,
   NPCS_FASE1,
   OFFSET_PROMPT_TOTEM_Y,
   TOTEM_1_ALCOOLEMIA,
@@ -55,68 +56,40 @@ export interface ElementosNivelFase1 {
 const ESTILO_TEXTO_MONO = { fontFamily: 'Consolas, Courier New, monospace' } as const;
 
 /**
- * Constrói o fundo em degradê do Céu Partido (lilás/rosa luminoso) e nuvens em Parallax.
- */
-export function criarCenarioParallaxFase1(cena: Phaser.Scene): void {
-  const larguraMundo = MUNDO_FASE1.LARGURA;
-
-  const gradiente = cena.add.graphics();
-  gradiente.setDepth(-10);
-  gradiente.fillGradientStyle(0x8b5cf6, 0xa855f7, 0xf472b6, 0xfbcfe8, 1);
-  gradiente.fillRect(0, 0, 1280, 720);
-  gradiente.setScrollFactor(0);
-
-  // Camada 1: Névoa e nuvens distantes
-  const nuvensDistantes = cena.add.graphics();
-  nuvensDistantes.setDepth(-8);
-  nuvensDistantes.fillStyle(0xf5d0fe, 0.45);
-  for (let x = 40; x < larguraMundo; x += 360) {
-    nuvensDistantes.fillEllipse(x, 460, 280, 110);
-    nuvensDistantes.fillEllipse(x + 120, 420, 220, 90);
-  }
-  nuvensDistantes.setScrollFactor(0.15, 0.1);
-
-  // Camada 2: Ruínas celestiais e arcos de mármore
-  const ruinasDistantes = cena.add.graphics();
-  ruinasDistantes.setDepth(-6);
-  ruinasDistantes.fillStyle(0xffedd5, 0.55);
-  for (let x = 180; x < larguraMundo; x += 520) {
-    ruinasDistantes.fillRect(x, 320, 24, 180);
-    ruinasDistantes.fillRect(x + 60, 320, 24, 180);
-    ruinasDistantes.fillRect(x - 10, 310, 104, 16);
-    ruinasDistantes.fillCircle(x + 42, 280, 30);
-  }
-  ruinasDistantes.setScrollFactor(0.35, 0.2);
-
-  // Camada 3: Nuvens médias bem iluminadas
-  const nuvensMedias = cena.add.graphics();
-  nuvensMedias.setDepth(-4);
-  nuvensMedias.fillStyle(0xffffff, 0.65);
-  for (let x = 80; x < larguraMundo; x += 440) {
-    nuvensMedias.fillCircle(x, 540, 60);
-    nuvensMedias.fillCircle(x + 50, 520, 80);
-  }
-  nuvensMedias.setScrollFactor(0.55, 0.3);
-}
-
-/**
  * Desenha a barreira pulsante de vento do escudo da Sentinela A-01 (Desafio 1).
  */
 export function desenharEscudoSentinela(grafico: Phaser.GameObjects.Graphics, tempo: number): void {
   const { x, y, largura, altura } = TOTEM_1_ALCOOLEMIA.ESCUDO_VISUAL;
   const alfaOscilante = 0.5 + Math.sin(tempo * 0.006) * 0.25;
+  const meio = x + largura / 2;
 
   grafico.clear();
-  grafico.fillStyle(0x0284c7, alfaOscilante * 0.35);
+  // Cortina de energia: mais forte no meio, como o feixe das colunas de vento
+  grafico.fillStyle(CORES_FASE1.CIANO, alfaOscilante * 0.25);
   grafico.fillRect(x, y, largura, altura);
+  grafico.fillStyle(CORES_FASE1.CIANO_CLARO, alfaOscilante * 0.35);
+  grafico.fillRect(meio - largura / 4, y, largura / 2, altura);
 
-  grafico.lineStyle(2, 0x38bdf8, alfaOscilante);
-  grafico.strokeRect(x, y, largura, altura);
-
-  grafico.lineStyle(1.5, 0xa5f3fc, 0.8);
+  // Runas descendo pela barreira
+  grafico.fillStyle(CORES_FASE1.CIANO_BRILHO, 0.85);
   const deslocamentoY = (tempo * 0.1) % 40;
   for (let linhaY = y + 10 + deslocamentoY; linhaY < y + altura - 10; linhaY += 40) {
-    grafico.lineBetween(x + 2, linhaY, x + largura - 2, linhaY);
+    grafico.fillRect(x + 3, linhaY, largura - 6, 2);
+    grafico.fillRect(meio - 1, linhaY - 5, 2, 12);
+  }
+
+  grafico.lineStyle(2, CORES_FASE1.CIANO_CLARO, alfaOscilante + 0.2);
+  grafico.lineBetween(x, y, x, y + altura);
+  grafico.lineBetween(x + largura, y, x + largura, y + altura);
+
+  // Emissores dourados nas pontas
+  for (const emissorY of [y - 6, y + altura - 4]) {
+    grafico.fillStyle(CORES_FASE1.OURO, 1);
+    grafico.fillRect(x - 6, emissorY, largura + 12, 10);
+    grafico.fillStyle(CORES_FASE1.OURO_ESCURO, 1);
+    grafico.fillRect(x - 6, emissorY + 7, largura + 12, 3);
+    grafico.fillStyle(CORES_FASE1.CIANO_CLARO, 1);
+    grafico.fillRect(meio - 3, emissorY + 3, 6, 3);
   }
 }
 
@@ -138,8 +111,11 @@ export function construirNivelFase1(
   const npcs: NpcFase1[] = [];
   const totens: TotemFase1[] = [];
 
+  // O corpo de colisão fica invisível; o que se vê é a ilha flutuante desenhada no mesmo retângulo
   const plataforma = (cfg: ConfigPlataforma) => {
-    plataformasEstaticas.create(cfg.x, cfg.y, 'marmore-bloco').setScale(cfg.scaleX, cfg.scaleY).refreshBody();
+    const corpo = plataformasEstaticas.create(cfg.x, cfg.y, 'marmore-bloco') as Phaser.Physics.Arcade.Sprite;
+    corpo.setScale(cfg.scaleX, cfg.scaleY).refreshBody().setVisible(false);
+    criarIlhaFlutuante(cena, cfg.x, cfg.y - corpo.displayHeight / 2, corpo.displayWidth, cfg.x > ARENA_FASE1.PORTA.x);
   };
   const sentinela = (id: string, cfg: ConfigSentinela) => {
     const s = new SentinelaFase1(cena, id, cfg);
@@ -157,11 +133,13 @@ export function construirNivelFase1(
   // ===========================================================================
   for (const bloco of BLOCOS_NIVEL_FASE1) {
     for (const cfg of bloco.DECORACAO ?? []) {
-      cena.add.image(cfg.x, cfg.y, 'coluna-marmore').setScale(cfg.scaleX, cfg.scaleY).setDepth(2);
+      const textura = cfg.tipo === 'obelisco' ? 'obelisco-runico' : 'coluna-marmore';
+      cena.add.image(cfg.x, cfg.y, textura).setScale(cfg.scaleX, cfg.scaleY).setDepth(-0.5);
     }
     for (const cfg of bloco.PLATAFORMAS ?? []) plataforma(cfg);
     for (const cfg of bloco.PAREDES ?? []) {
-      plataformasEstaticas.create(cfg.x, cfg.y, 'coluna-marmore').setDisplaySize(cfg.largura, cfg.altura).refreshBody();
+      plataformasEstaticas.create(cfg.x, cfg.y, 'coluna-marmore').setDisplaySize(cfg.largura, cfg.altura).refreshBody().setVisible(false);
+      criarPilarMarmore(cena, cfg.x, cfg.y, cfg.largura, cfg.altura);
     }
     for (const pos of bloco.NUVENS ?? []) nuvensSolidas.create(pos.x, pos.y, 'nuvem-solida').refreshBody();
     for (const pos of bloco.RACHADOS ?? []) instaveis.criar(pos.x, pos.y, 'rachado');
@@ -333,8 +311,7 @@ export function construirNivelFase1(
     ease: 'Sine.easeInOut',
   });
 
-  const imagemTotemFinal = cena.add.image(a.TOTEM_FINAL.x, a.TOTEM_FINAL.y, 'totem-celestial');
-  imagemTotemFinal.setTint(0xfbbf24);
+  const imagemTotemFinal = cena.add.image(a.TOTEM_FINAL.x, a.TOTEM_FINAL.y, 'totem-nucleo');
   imagemTotemFinal.setAlpha(0);
   const totemFinal: TotemFase1 = {
     id: TOTEM_5_HELIO.ID,

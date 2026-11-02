@@ -10,9 +10,9 @@ import { gerarTexturasFase1 } from './TexturasFase1';
 import { BossHelioFase1 } from './BossHelioFase1';
 import { HudLutaFase1 } from './HudLutaFase1';
 import { TempestadeFase1 } from './TempestadeFase1';
+import { CenarioFase1 } from './CenarioFase1';
 import {
   construirNivelFase1,
-  criarCenarioParallaxFase1,
   desenharEscudoSentinela,
   type ElementosNivelFase1,
 } from './NivelFase1';
@@ -83,6 +83,7 @@ export class CenaFase1 extends CenaBase {
   private portalAberto: boolean = false;
   private falaAtual?: Phaser.GameObjects.Text;
   private tempestade!: TempestadeFase1;
+  private cenario!: CenarioFase1;
 
   // Placa de pressão do portão (Desafio 3): só troca o rótulo quando o estado muda
   private placaPisada: boolean = false;
@@ -135,7 +136,7 @@ export class CenaFase1 extends CenaBase {
 
     // 4. Texturas procedurais e cenário de fundo em parallax
     gerarTexturasFase1(this);
-    criarCenarioParallaxFase1(this);
+    this.cenario = new CenarioFase1(this);
 
     // 5. Sistemas da fase e jogador (criado antes de registrar colisores)
     this.vento = new VentoFase1(this);
@@ -216,6 +217,9 @@ export class CenaFase1 extends CenaBase {
     super.update(tempo, delta);
 
     if (!this.jogador?.sprite.body) return;
+
+    // O céu continua vivo mesmo com o terminal aberto
+    this.cenario.atualizar(delta);
 
     // 1. Congelamento Seguro no Terminal e Diálogos
     const emMenuOuDialogo = Boolean(

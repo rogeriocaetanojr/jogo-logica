@@ -10,6 +10,9 @@ import type {
   ZonaVentoContrario,
 } from './tiposFase1';
 import { TOTEM_4_SEQUENCIADOR, VENTO_FASE1 } from './constantesFase1';
+import { CORES_FASE1 as C } from './ArteFase1';
+import { poligono } from './TexturasFase1';
+import { desenharBandeira } from './CenarioFase1';
 
 interface AreaRetangular {
   x: number;
@@ -288,7 +291,7 @@ export class VentoFase1 {
   }
 
   public update(tempo: number, delta: number): void {
-    this.renderizarColunas(delta);
+    this.renderizarColunas(tempo, delta);
     this.renderizarZonasContrarias(tempo, delta);
     this.atualizarGeiseres(tempo, delta);
     this.atualizarCicloEscada(delta);
@@ -309,16 +312,37 @@ export class VentoFase1 {
       helice.angle += delta * (ligado ? GIRO_LIGADO : GIRO_DESLIGADO);
 
       grafico.clear();
-      // Grade no chão, por onde o vento sai
-      grafico.fillStyle(0x0f172a, 0.9);
-      grafico.fillRect(coluna.x - meiaLargura, piso - 6, meiaLargura * 2, 6);
-      grafico.fillStyle(ligado ? 0x7dd3fc : 0x334155, ligado ? 0.6 + Math.sin(tempo * 0.02) * 0.3 : 1);
-      for (let x = coluna.x - meiaLargura + 4; x < coluna.x + meiaLargura - 4; x += 10) {
-        grafico.fillRect(x, piso - 5, 5, 4);
+      // Respiradouro no chão: moldura dourada e aletas inclinadas, que acendem quando sopra
+      if (ligado) {
+        grafico.fillStyle(C.CIANO_CLARO, 0.22 + Math.sin(tempo * 0.02) * 0.08);
+        grafico.fillEllipse(coluna.x, piso - 6, meiaLargura * 2 + 16, 18);
       }
-      // Luz de estado na carcaça
-      grafico.fillStyle(ligado ? 0x22c55e : 0xef4444, 1);
-      grafico.fillCircle(coluna.x + 36, piso + ESPESSURA_LAJE + 10, 4);
+      grafico.fillStyle(C.OURO_ESCURO, 1);
+      grafico.fillRoundedRect(coluna.x - meiaLargura - 4, piso - 9, meiaLargura * 2 + 8, 9, 3);
+      grafico.fillStyle(C.OURO, 1);
+      grafico.fillRect(coluna.x - meiaLargura - 4, piso - 9, meiaLargura * 2 + 8, 2);
+      grafico.fillStyle(C.TECH, 1);
+      grafico.fillRect(coluna.x - meiaLargura, piso - 6, meiaLargura * 2, 5);
+      const brilho = ligado ? 0.65 + Math.sin(tempo * 0.02) * 0.3 : 1;
+      grafico.fillStyle(ligado ? C.CIANO_CLARO : C.TECH_CLARO, brilho);
+      for (let x = coluna.x - meiaLargura + 3; x < coluna.x + meiaLargura - 4; x += 8) {
+        poligono(grafico, [
+          { x, y: piso - 6 },
+          { x: x + 4, y: piso - 6 },
+          { x: x + 2, y: piso - 1 },
+          { x: x - 2, y: piso - 1 },
+        ]);
+      }
+      // Luz de estado na carcaça, com halo
+      const corLuz = ligado ? C.HACKEADO : C.ALERTA;
+      const luzX = coluna.x + 36;
+      const luzY = piso + ESPESSURA_LAJE + 10;
+      grafico.fillStyle(corLuz, 0.3);
+      grafico.fillCircle(luzX, luzY, 7);
+      grafico.fillStyle(corLuz, 1);
+      grafico.fillCircle(luzX, luzY, 4);
+      grafico.fillStyle(0xffffff, 0.8);
+      grafico.fillRect(luzX - 2, luzY - 2, 2, 2);
     }
   }
 
@@ -339,59 +363,118 @@ export class VentoFase1 {
 
       const desenho = geiser.grafico;
       const topo = geiser.yBase - geiser.altura;
+      const bocaY = geiser.yBase - 2;
       desenho.clear();
 
-      // Boca do gêiser no chão
-      desenho.fillStyle(g.COR_BOCA, 1);
-      desenho.fillEllipse(geiser.x, geiser.yBase - 2, g.LARGURA_BOCA, g.ALTURA_BOCA);
-
-      // Aviso: a boca brilha e solta bolhas antes de estourar
-      if (aviso) {
-        desenho.fillStyle(g.COR_AVISO, 0.35 + Math.sin(tempo * 0.02) * 0.25);
-        desenho.fillEllipse(geiser.x, geiser.yBase - 2, g.LARGURA_BOCA * 0.8, g.ALTURA_BOCA * 0.7);
-        desenho.fillStyle(g.COR_AVISO, 0.8);
-        for (const bolha of geiser.bolhas) {
-          bolha.y -= g.BOLHAS_VEL_Y * dt;
-          if (bolha.y < geiser.yBase - 80) bolha.y = geiser.yBase;
-          desenho.fillCircle(bolha.x, bolha.y, 3);
-        }
-      }
-
-      // Erupção: coluna clara com jatos subindo rápido por toda a área
+      // Erupção: o mesmo feixe com fitas das colunas, só que forte e rápido, com jatos e um
+      // estouro de nuvem no alto
       if (erupcao) {
-        desenho.fillStyle(g.COR_ERUPCAO, g.ALFA_ERUPCAO);
-        desenho.fillRect(geiser.x - geiser.largura / 2, topo, geiser.largura, geiser.altura);
-        desenho.lineStyle(2, 0xffffff, 0.85);
+        const fatorForca = geiser.forca / VENTO_FASE1.FORCA_REFERENCIA_PARTICULAS;
+        const sobe = Math.min(1, fase / g.SUBIDA_MS);
+        const topoAtual = geiser.yBase - geiser.altura * sobe;
+        this.desenharFeixe(desenho, geiser.x, topoAtual, geiser.yBase, geiser.largura, tempo, fatorForca);
+
+        desenho.fillStyle(0xffffff, 0.85);
         for (const jato of geiser.jatos) {
           jato.y -= g.JATOS_VEL_Y * dt;
           if (jato.y < topo) jato.y = geiser.yBase;
-          desenho.lineBetween(jato.x, jato.y, jato.x, jato.y + jato.comprimento);
+          if (jato.y < topoAtual) continue;
+          desenho.fillRect(jato.x, jato.y, 2, jato.comprimento);
+          if (jato.comprimento > 45) desenho.fillRect(jato.x - 3, jato.y + 4, 8, 2);
         }
+
+        const estouro = 1 - fase / geiser.duracaoMs;
+        desenho.fillStyle(C.NUVEM, 0.75 * estouro);
+        for (let k = 0; k < 5; k++) {
+          const angulo = (k / 5) * Math.PI * 2 + tempo * 0.004;
+          desenho.fillCircle(geiser.x + Math.cos(angulo) * 26, topoAtual + Math.sin(angulo) * 8, 10 + (1 - estouro) * 8);
+        }
+      }
+
+      // Boca de rocha: anel de pedras, garganta escura e brilho de vento lá dentro
+      desenho.fillStyle(C.ROCHA_ESCURA, 1);
+      desenho.fillEllipse(geiser.x, bocaY, g.LARGURA_BOCA + 18, g.ALTURA_BOCA + 10);
+      for (let k = 0; k < 9; k++) {
+        const angulo = Math.PI + (k / 8) * Math.PI;
+        const px = geiser.x + Math.cos(angulo) * (g.LARGURA_BOCA / 2 + 4);
+        const py = bocaY + Math.sin(angulo) * (g.ALTURA_BOCA / 2 + 2);
+        desenho.fillStyle(k % 2 ? C.ROCHA : C.ROCHA_CLARA, 1);
+        desenho.fillRoundedRect(px - 6, py - 4, 12, 8, 3);
+      }
+      desenho.fillStyle(C.TECH, 1);
+      desenho.fillEllipse(geiser.x, bocaY, g.LARGURA_BOCA - 6, g.ALTURA_BOCA - 2);
+      const pulso = aviso ? 0.55 + Math.sin(tempo * 0.025) * 0.35 : erupcao ? 0.9 : 0.25;
+      desenho.fillStyle(C.CIANO_CLARO, pulso);
+      desenho.fillEllipse(geiser.x, bocaY, g.LARGURA_BOCA * 0.6, g.ALTURA_BOCA * 0.45);
+      desenho.fillStyle(C.MUSGO, 1);
+      desenho.fillRect(geiser.x - g.LARGURA_BOCA / 2 + 2, bocaY - 3, 3, 6);
+      desenho.fillRect(geiser.x + g.LARGURA_BOCA / 2 - 6, bocaY - 2, 3, 5);
+
+      // Aviso: redemoinhos subindo da boca e o anel acendendo antes do estouro
+      if (aviso) {
+        for (const bolha of geiser.bolhas) {
+          bolha.y -= g.BOLHAS_VEL_Y * dt;
+          if (bolha.y < geiser.yBase - 80) bolha.y = geiser.yBase;
+          const subida = (geiser.yBase - bolha.y) / 80;
+          const x = bolha.x + Math.sin(tempo * 0.01 + bolha.y * 0.1) * 5;
+          desenho.lineStyle(2, C.CIANO_CLARO, 0.9 * (1 - subida));
+          desenho.strokeEllipse(x, bolha.y, 8 + subida * 10, 4 + subida * 3);
+        }
+        desenho.lineStyle(2, C.CIANO_CLARO, pulso);
+        desenho.strokeEllipse(geiser.x, bocaY, g.LARGURA_BOCA + 22, g.ALTURA_BOCA + 14);
       }
     }
   }
 
-  private renderizarColunas(delta: number): void {
+  /**
+   * Feixe de vento subindo: faixas sobrepostas (o centro fica mais forte), bordas finas e duas
+   * fitas em espiral na velocidade da força. Colunas e gêiser usam o mesmo desenho.
+   */
+  private desenharFeixe(
+    g: Phaser.GameObjects.Graphics,
+    x: number,
+    topoY: number,
+    baseY: number,
+    largura: number,
+    tempo: number,
+    fatorForca: number
+  ): void {
+    const metadeL = largura / 2;
+    const altura = baseY - topoY;
+    if (altura <= 0) return;
+
+    for (let faixa = 0; faixa < VENTO_FASE1.FAIXAS_FEIXE; faixa++) {
+      const recuo = (faixa * metadeL) / VENTO_FASE1.FAIXAS_FEIXE;
+      g.fillStyle(VENTO_FASE1.COR_FUNDO_COLUNA, VENTO_FASE1.ALFA_FUNDO_COLUNA);
+      g.fillRect(x - metadeL + recuo, topoY, largura - recuo * 2, altura);
+    }
+    g.lineStyle(VENTO_FASE1.ESPESSURA_BORDA_COLUNA, VENTO_FASE1.COR_BORDA_COLUNA, VENTO_FASE1.ALFA_BORDA_COLUNA);
+    g.lineBetween(x - metadeL, topoY, x - metadeL, baseY);
+    g.lineBetween(x + metadeL, topoY, x + metadeL, baseY);
+
+    const deslocamento = (tempo / 1000) * VENTO_FASE1.VELOCIDADE_FITA * fatorForca;
+    for (let fita = 0; fita < 2; fita++) {
+      g.lineStyle(VENTO_FASE1.ESPESSURA_FITA, VENTO_FASE1.COR_FITA, VENTO_FASE1.ALFA_FITA);
+      g.beginPath();
+      for (let y = baseY; y >= topoY; y -= VENTO_FASE1.PASSO_FITA) {
+        const angulo = (y + deslocamento) / VENTO_FASE1.COMPRIMENTO_ONDA_FITA + fita * Math.PI;
+        const px = x + Math.sin(angulo) * metadeL * 0.7;
+        if (y === baseY) g.moveTo(px, y);
+        else g.lineTo(px, y);
+      }
+      g.strokePath();
+    }
+  }
+
+  private renderizarColunas(tempo: number, delta: number): void {
     const dt = delta / 1000;
 
     for (const col of this.colunas) {
       col.grafico.clear();
       if (!col.ativa) continue;
 
-      const metadeL = col.largura / 2;
       const topoY = col.y - col.altura / 2;
       const baseColY = col.y + col.altura / 2;
-
-      col.grafico.fillStyle(VENTO_FASE1.COR_FUNDO_COLUNA, VENTO_FASE1.ALFA_FUNDO_COLUNA);
-      col.grafico.fillRect(col.x - metadeL, topoY, col.largura, col.altura);
-
-      col.grafico.lineStyle(
-        VENTO_FASE1.ESPESSURA_BORDA_COLUNA,
-        VENTO_FASE1.COR_BORDA_COLUNA,
-        VENTO_FASE1.ALFA_BORDA_COLUNA
-      );
-      col.grafico.lineBetween(col.x - metadeL, topoY, col.x - metadeL, baseColY);
-      col.grafico.lineBetween(col.x + metadeL, topoY, col.x + metadeL, baseColY);
 
       // Partículas mais rápidas quanto mais forte o vento: força fraca se vê fraca
       const fatorForca = Phaser.Math.Clamp(
@@ -399,6 +482,7 @@ export class VentoFase1 {
         VENTO_FASE1.FATOR_PARTICULAS_MIN,
         VENTO_FASE1.FATOR_PARTICULAS_MAX
       );
+      this.desenharFeixe(col.grafico, col.x, topoY, baseColY, col.largura, tempo, fatorForca);
 
       col.grafico.fillStyle(0xffffff, 0.7);
       for (const p of col.particulas) {
@@ -408,65 +492,104 @@ export class VentoFase1 {
           p.x = this.sortearXParticula(col.x, col.largura);
         }
         col.grafico.fillRect(p.x, p.y, VENTO_FASE1.LARGURA_PARTICULA, VENTO_FASE1.ALTURA_PARTICULA);
+        // Brilho em cruz (as partículas mais visíveis)
+        if (p.alfa > 0.65) col.grafico.fillRect(p.x - 3, p.y + 3, VENTO_FASE1.LARGURA_PARTICULA + 6, 2);
       }
     }
   }
 
+  /**
+   * Corrente de vento lateral: massa de ar visível (névoa em duas camadas com bolhas de nuvem
+   * rolando) cortada por fitas largas que afinam nas pontas, ondulam e terminam em caracol,
+   * como o vento desenhado em Zelda: Wind Waker.
+   */
   private renderizarZonasContrarias(tempo: number, delta: number): void {
     const c = VENTO_FASE1.CONTRARIO;
     const dt = delta / 1000;
-    const deslocamentoTracejado = (tempo * c.VELOCIDADE_TRACEJADO) % c.PERIODO_TRACEJADO;
 
     for (const zona of this.zonasContrarias) {
       const g = zona.grafico;
       const esquerda = zona.x - zona.largura / 2;
+      const direita = zona.x + zona.largura / 2;
       const topo = zona.y - zona.altura / 2;
-      const base = zona.y + zona.altura / 2;
 
       g.clear();
+      // Massa de ar: duas camadas arredondadas, o miolo mais denso
       g.fillStyle(c.COR_FUNDO, c.ALFA_FUNDO);
-      g.fillRect(esquerda, topo, zona.largura, zona.altura);
+      g.fillRoundedRect(esquerda, topo, zona.largura, zona.altura, Math.min(c.RAIO_NEVOA, zona.altura / 2));
+      g.fillStyle(c.COR_RASTRO, c.ALFA_MIOLO);
+      g.fillRoundedRect(esquerda + 24, topo + zona.altura * 0.22, zona.largura - 48, zona.altura * 0.56, Math.min(c.RAIO_NEVOA, zona.altura / 4));
 
-      // Bordas tracejadas que correm para a esquerda, como uma esteira de ar
-      g.lineStyle(c.ESPESSURA_BORDA, c.COR_BORDA, c.ALFA_BORDA);
-      for (let dx = -deslocamentoTracejado; dx < zona.largura; dx += c.PERIODO_TRACEJADO) {
-        const inicio = Math.max(0, dx);
-        const fim = Math.min(zona.largura, dx + c.COMPRIMENTO_TRACEJADO);
-        if (fim <= inicio) continue;
-        g.lineBetween(esquerda + inicio, topo, esquerda + fim, topo);
-        g.lineBetween(esquerda + inicio, base, esquerda + fim, base);
+      // Golfadas de nuvem rolando para a esquerda no meio da corrente
+      g.fillStyle(0xffffff, c.ALFA_GOLFADA);
+      for (let k = 0; k < c.GOLFADAS; k++) {
+        const ciclo = (tempo * c.GOLFADA_VELOCIDADE + (k * zona.largura) / c.GOLFADAS) % zona.largura;
+        const gx = direita - ciclo;
+        const gy = topo + zona.altura * (0.2 + 0.6 * ((k * 0.37) % 1)) + Math.sin(tempo * 0.002 + k) * 6;
+        const borda = Math.min(1, ciclo / c.FADE_BORDA, (zona.largura - ciclo) / c.FADE_BORDA);
+        g.fillStyle(0xffffff, c.ALFA_GOLFADA * borda);
+        g.fillEllipse(gx, gy, 54, 18);
+        g.fillEllipse(gx + 20, gy - 5, 30, 14);
+        g.fillEllipse(gx - 22, gy + 3, 26, 10);
       }
 
-      // Riscos de vento atravessando a zona da direita para a esquerda
-      for (const p of zona.particulas) {
+      zona.particulas.forEach((p, indice) => {
         p.x -= p.velX * dt;
         if (p.x + p.comprimento < esquerda) {
           Object.assign(p, this.sortearParticulaHorizontal(zona, false));
         }
-        g.lineStyle(c.PARTICULAS_ESPESSURA, c.COR_PARTICULA, p.alfa);
-        g.lineBetween(p.x, p.y, p.x + p.comprimento, p.y);
-      }
+        // Some suave perto das pontas da zona
+        const borda = Math.min(1, (p.x - esquerda) / c.FADE_BORDA, (direita - p.x - p.comprimento) / c.FADE_BORDA);
+        if (borda <= 0) return;
+        const alfa = Math.min(1, p.alfa * borda);
+
+        // Eixo ondulado da fita e a espessura, que afina nas duas pontas
+        const eixo: Phaser.Math.Vector2[] = [];
+        const lado: number[] = [];
+        for (let k = 0; k <= c.PONTOS_RISCO; k++) {
+          const t = k / c.PONTOS_RISCO;
+          const x = p.x + t * p.comprimento;
+          const onda = Math.sin(x * c.ONDA_FREQUENCIA + tempo * c.ONDA_VELOCIDADE + p.y) * c.ONDA_AMPLITUDE;
+          eixo.push(new Phaser.Math.Vector2(x, p.y + onda));
+          lado.push(Math.sin(Math.PI * t) * (c.ESPESSURA_MIN + p.alfa * c.ESPESSURA_EXTRA));
+        }
+        const contorno = (fator: number, deslocY: number) => [
+          ...eixo.map((e, k) => new Phaser.Math.Vector2(e.x, e.y - lado[k] * fator + deslocY)),
+          ...eixo.map((e, k) => new Phaser.Math.Vector2(e.x, e.y + lado[k] * fator + deslocY)).reverse(),
+        ];
+        // Contorno ciano, corpo branco, vinco claro no meio
+        g.fillStyle(c.COR_RASTRO, alfa * 0.6);
+        g.fillPoints(contorno(1.35, 1), true);
+        g.fillStyle(c.COR_PARTICULA, alfa);
+        g.fillPoints(contorno(1, 0), true);
+        g.lineStyle(1, c.COR_RASTRO, alfa);
+        g.strokePoints(eixo);
+
+        // Caracol na ponta da frente (a da esquerda, para onde o vento vai)
+        if (indice % c.CARACOL_A_CADA === 0) {
+          const ponta = eixo[0];
+          const raio = c.RAIO_CARACOL + lado[Math.floor(c.PONTOS_RISCO / 2)] * 0.5;
+          g.lineStyle(c.ESPESSURA_CARACOL, c.COR_PARTICULA, alfa);
+          g.beginPath();
+          g.arc(ponta.x, ponta.y - raio, raio, Math.PI / 2, Math.PI / 2 + Math.PI * 1.7, false);
+          g.strokePath();
+          g.lineStyle(1.5, c.COR_RASTRO, alfa);
+          g.beginPath();
+          g.arc(ponta.x, ponta.y - raio, raio * 0.5, Math.PI / 2, Math.PI / 2 + Math.PI * 1.4, false);
+          g.strokePath();
+        }
+      });
 
       this.desenharBiruta(g, esquerda, topo, tempo);
     }
   }
 
+  /**
+   * Bandeira da fase fincada na borda esquerda da zona, avisando de longe de onde vem o vento.
+   * O mastro desce do topo da zona (x, y) e o pedestal fica ALTURA_MASTRO abaixo.
+   */
   private desenharBiruta(g: Phaser.GameObjects.Graphics, x: number, y: number, tempo: number): void {
-    const b = VENTO_FASE1.CONTRARIO.BIRUTA;
-
-    g.lineStyle(3, b.COR_MASTRO, 1);
-    g.lineBetween(x, y, x, y + b.ALTURA_MASTRO);
-    g.fillStyle(b.COR_PONTA, 1);
-    g.fillCircle(x, y, 4);
-
-    // Faixas hasteadas para a esquerda, ondulando em fases diferentes
-    const larguraSegmento = b.COMPRIMENTO / b.SEGMENTOS;
-    for (let i = 0; i < b.SEGMENTOS; i++) {
-      const altura = b.ALTURA_BASE - i * b.ALTURA_REDUCAO;
-      const onda = Math.sin(tempo * b.ONDA_VELOCIDADE - i * 0.9) * b.ONDA_AMPLITUDE;
-      g.fillStyle(i % 2 === 0 ? b.COR_SEGMENTO_A : b.COR_SEGMENTO_B, 0.95);
-      g.fillRect(x - (i + 1) * larguraSegmento, y + 4 + onda, larguraSegmento, altura);
-    }
+    desenharBandeira(g, x, y + VENTO_FASE1.CONTRARIO.BIRUTA.ALTURA_MASTRO, VENTO_FASE1.CONTRARIO.BIRUTA.ALTURA_MASTRO, tempo);
   }
 
   private atualizarCicloEscada(delta: number): void {

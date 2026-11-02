@@ -76,11 +76,19 @@ export const VENTO_FASE1 = {
   ALTURA_PARTICULA: 10,
   DESCIDA_COLUNA_VEL: 60, // Velocidade de descida dentro da coluna ao soltar o pulo
   DESCIDA_COLUNA_SUAVIZACAO: 8, // Quanto maior, mais rápido a velocidade vertical converge para a descida
-  COR_FUNDO_COLUNA: 0x38bdf8,
-  ALFA_FUNDO_COLUNA: 0.22,
-  COR_BORDA_COLUNA: 0xa5f3fc,
-  ALFA_BORDA_COLUNA: 0.6,
-  ESPESSURA_BORDA_COLUNA: 1.5,
+  // Feixe da coluna: faixas sobrepostas (o centro fica mais forte) e fitas em espiral (Onda 6)
+  COR_FUNDO_COLUNA: 0x67e8f9,
+  ALFA_FUNDO_COLUNA: 0.07,
+  FAIXAS_FEIXE: 4,
+  COR_BORDA_COLUNA: 0xcffafe,
+  ALFA_BORDA_COLUNA: 0.45,
+  ESPESSURA_BORDA_COLUNA: 1,
+  COR_FITA: 0xffffff,
+  ALFA_FITA: 0.6,
+  ESPESSURA_FITA: 2,
+  PASSO_FITA: 10,
+  COMPRIMENTO_ONDA_FITA: 38,
+  VELOCIDADE_FITA: 160,
   PROFUNDIDADE_GRAFICO: 1,
   // A velocidade das partículas acompanha a força da coluna (força fraca = partículas lentas)
   FORCA_REFERENCIA_PARTICULAS: 450,
@@ -91,22 +99,33 @@ export const VENTO_FASE1 = {
   // Zonas de vento contrário: empurram o jogador devagar para a esquerda (andar e planar continuam possíveis)
   CONTRARIO: {
     COR_FUNDO: 0xe9d5ff,
-    ALFA_FUNDO: 0.1,
-    COR_BORDA: 0xffffff,
-    ALFA_BORDA: 0.55,
-    ESPESSURA_BORDA: 2,
-    COMPRIMENTO_TRACEJADO: 22,
-    PERIODO_TRACEJADO: 44,
-    VELOCIDADE_TRACEJADO: 0.08,
-    PARTICULAS_QUANTIDADE: 24,
-    PARTICULAS_VEL_X_MIN: 140,
-    PARTICULAS_VEL_X_MAX: 260,
-    PARTICULAS_COMPRIMENTO_MIN: 14,
-    PARTICULAS_COMPRIMENTO_MAX: 38,
-    PARTICULAS_ESPESSURA: 2,
-    PARTICULAS_ALFA_MIN: 0.3,
-    PARTICULAS_ALFA_MAX: 0.7,
+    ALFA_FUNDO: 0.18,
+    ALFA_MIOLO: 0.14,
+    RAIO_NEVOA: 60,
+    FADE_BORDA: 60,
+    PARTICULAS_QUANTIDADE: 14,
+    PARTICULAS_VEL_X_MIN: 170,
+    PARTICULAS_VEL_X_MAX: 300,
+    PARTICULAS_COMPRIMENTO_MIN: 110,
+    PARTICULAS_COMPRIMENTO_MAX: 220,
+    PARTICULAS_ALFA_MIN: 0.65,
+    PARTICULAS_ALFA_MAX: 1,
     COR_PARTICULA: 0xffffff,
+    COR_RASTRO: 0x67e8f9,
+    // Fitas: espessura máxima = MIN + alfa × EXTRA (só no meio; as pontas afinam até zero)
+    ESPESSURA_MIN: 2,
+    ESPESSURA_EXTRA: 5,
+    PONTOS_RISCO: 12,
+    ONDA_FREQUENCIA: 0.035,
+    ONDA_VELOCIDADE: 0.005,
+    ONDA_AMPLITUDE: 7,
+    CARACOL_A_CADA: 2,
+    RAIO_CARACOL: 7,
+    ESPESSURA_CARACOL: 3,
+    // Golfadas de nuvem rolando dentro da corrente
+    GOLFADAS: 6,
+    GOLFADA_VELOCIDADE: 0.2,
+    ALFA_GOLFADA: 0.5,
 
     // Biruta fixada na borda esquerda da zona, avisando de longe de onde vem o vento
     BIRUTA: {
@@ -114,13 +133,15 @@ export const VENTO_FASE1 = {
       COMPRIMENTO: 56,
       SEGMENTOS: 4,
       ALTURA_BASE: 20,
-      ALTURA_REDUCAO: 3,
+      ALTURA_PONTA: 9,
       ONDA_AMPLITUDE: 3,
       ONDA_VELOCIDADE: 0.01,
       COR_MASTRO: 0xf8fafc,
       COR_PONTA: 0xf59e0b,
-      COR_SEGMENTO_A: 0xf59e0b,
+      COR_SEGMENTO_A: 0xf97316,
       COR_SEGMENTO_B: 0xf8fafc,
+      COR_SOMBRA_A: 0xc2410c,
+      COR_SOMBRA_B: 0xd4cde0,
     },
   },
 
@@ -135,6 +156,7 @@ export const VENTO_FASE1 = {
     BOLHAS_QUANTIDADE: 10,
     BOLHAS_VEL_Y: 70,
     JATOS_QUANTIDADE: 14,
+    SUBIDA_MS: 120, // O feixe da erupção cresce do chão até o topo neste tempo
     JATOS_VEL_Y: 900,
   },
 } as const;
@@ -146,6 +168,9 @@ export const MARMORE_RACHADO_FASE1 = {
   TREMOR_VELOCIDADE: 0.08,
   TREMOR_AMPLITUDE: 2,
 } as const;
+
+// Plataformas móveis: só os 24 px de cima da textura colidem; o resto é casco e propulsor
+export const ALTURA_CORPO_PLATAFORMA_MOVEL = 24;
 
 export const NUVEM_EFEMERA_FASE1 = {
   TEMPO_DISSIPAR_MS: 800, // Tempo entre pisar e a nuvem sumir
@@ -242,9 +267,9 @@ export const ERROS_PARA_ESQUELETO = 3; // Erros no mesmo totem até o help mostr
 export const SENHA_MESTRA_FASE1 = 'senhamagicabrainrebase';
 
 export const NPCS_FASE1 = {
-  SUCATINHA: { ID: 'npc_sucatinha', X: 1240, Y: 440, TEXTURA: 'npc-sucatinha' },
-  MAGO_NUVEM: { ID: 'npc_mago_nuvem', X: 6648, Y: 264, TEXTURA: 'npc-mago-nuvem' },
-  POMBO: { ID: 'npc_pombo', X: 9398, Y: 534, TEXTURA: 'npc-pombo' },
+  SUCATINHA: { ID: 'npc_sucatinha', X: 1240, Y: 428, TEXTURA: 'npc-sucatinha' },
+  MAGO_NUVEM: { ID: 'npc_mago_nuvem', X: 6648, Y: 250, TEXTURA: 'npc-mago-nuvem' },
+  POMBO: { ID: 'npc_pombo', X: 9398, Y: 526, TEXTURA: 'npc-pombo' },
 } as const;
 
 // =============================================================================
@@ -328,8 +353,9 @@ export const TOTEM_5_HELIO = {
 } as const;
 
 export const ARENA_FASE1 = {
-  // Porta que sobe atrás do jogador ao entrar na arena (mesmo gatilho do checkpoint 5)
-  PORTA: { x: 9313, y: 430, escalaY: 1.3, deslocamentoAbertaY: 260, gatilhoX: 9498 },
+  // Porta que sobe atrás do jogador. O gatilho fica ~360 px depois do Pombo (x 9398) e do checkpoint 5:
+  // dá tempo de conversar com ele antes de a luta começar
+  PORTA: { x: 9313, y: 430, escalaY: 1.3, deslocamentoAbertaY: 260, gatilhoX: 9760 },
   PORTAL: { x: 10338, y: 480 },
   DISTANCIA_PORTAL: 60,
   COLUNAS_DOURADAS: [
@@ -463,9 +489,9 @@ export const BLOCO_1_LEVEL_DESIGN = {
   NUVENS: [{ x: 1240, y: 492 }], // topo 470, onde fica a Sucatinha
   COLUNAS_VENTO: [{ x: 1420, y: 410, largura: 90, altura: 500, forca: 400, ativa: true }],
   DECORACAO: [
-    { x: 100, y: 490, scaleX: 1, scaleY: 1 },
-    { x: 420, y: 490, scaleX: 1, scaleY: 1 },
-    { x: 1490, y: 162, scaleX: 0.8, scaleY: 0.6 }, // Obelisco do CP1
+    { x: 100, y: 490, scaleX: 1, scaleY: 1, tipo: 'coluna' },
+    { x: 420, y: 490, scaleX: 1, scaleY: 1, tipo: 'coluna' },
+    { x: 1490, y: 162, scaleX: 0.8, scaleY: 0.6, tipo: 'obelisco' }, // Obelisco do CP1
   ],
 } as const satisfies BlocoNivelFase1;
 
@@ -485,7 +511,7 @@ export const BLOCO_2_LEVEL_DESIGN = {
     { x: 3378, y: 382 }, // topo 360
   ],
   ZONAS_CONTRARIAS: [{ x: 3238, y: 380, largura: 600, altura: 360, forca: 75 }],
-  DECORACAO: [{ x: 5508, y: 112, scaleX: 0.8, scaleY: 0.6 }], // Obelisco do CP2
+  DECORACAO: [{ x: 5508, y: 112, scaleX: 0.8, scaleY: 0.6, tipo: 'obelisco' }], // Obelisco do CP2
 } as const satisfies BlocoNivelFase1;
 
 /**
@@ -534,8 +560,8 @@ export const BLOCO_3_LEVEL_DESIGN = {
     { x: 8938, y: 60, minX: 8938, maxX: 9158, velocidade: 90, podeDispararPulso: false, deteccao: 'respawn' },
   ],
   DECORACAO: [
-    { x: 7740, y: 342, scaleX: 0.8, scaleY: 0.6 }, // Obelisco do CP3
-    { x: 8643, y: 78, scaleX: 0.6, scaleY: 0.4 }, // Obelisco do CP4
+    { x: 7740, y: 342, scaleX: 0.8, scaleY: 0.6, tipo: 'obelisco' }, // Obelisco do CP3
+    { x: 8643, y: 78, scaleX: 0.6, scaleY: 0.4, tipo: 'obelisco' }, // Obelisco do CP4
   ],
 } as const satisfies BlocoNivelFase1;
 
@@ -544,7 +570,7 @@ export const BLOCO_3_LEVEL_DESIGN = {
  */
 export const BLOCO_4_LEVEL_DESIGN = {
   PLATAFORMAS: [{ x: 9938, y: 578, scaleX: 5.34, scaleY: 1 }], // Chão da arena até a borda do mundo, topo 560
-  DECORACAO: [{ x: 9528, y: 482, scaleX: 0.8, scaleY: 0.6 }], // Obelisco do CP5
+  DECORACAO: [{ x: 9528, y: 482, scaleX: 0.8, scaleY: 0.6, tipo: 'obelisco' }], // Obelisco do CP5
 } as const satisfies BlocoNivelFase1;
 
 export const BLOCOS_NIVEL_FASE1: readonly BlocoNivelFase1[] = [

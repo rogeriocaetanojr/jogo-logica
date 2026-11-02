@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import type { ConfigPlataformaMovel, PlataformaInstavel, TipoPlataformaInstavel } from './tiposFase1';
-import { JOGADOR_FASE1, MARMORE_RACHADO_FASE1, NUVEM_EFEMERA_FASE1 } from './constantesFase1';
+import { ALTURA_CORPO_PLATAFORMA_MOVEL, JOGADOR_FASE1, MARMORE_RACHADO_FASE1, NUVEM_EFEMERA_FASE1 } from './constantesFase1';
 
 const TEXTURA_POR_TIPO: Record<TipoPlataformaInstavel, string> = {
   rachado: 'marmore-rachado',
@@ -145,7 +145,11 @@ export class PlataformaMovelFase1 {
     this.ativa = ativa;
 
     this.sprite = cena.physics.add.sprite(cfg.x, cfg.y, textura);
+    // Origem no meio da faixa que colide: cfg.y continua sendo o centro da superfície
+    this.sprite.setOrigin(0.5, ALTURA_CORPO_PLATAFORMA_MOVEL / 2 / this.sprite.height);
     const corpo = this.corpo;
+    corpo.setSize(this.sprite.width, ALTURA_CORPO_PLATAFORMA_MOVEL, false);
+    corpo.setOffset(0, 0);
     corpo.setAllowGravity(false);
     corpo.setImmovable(true);
     corpo.checkCollision.down = false;

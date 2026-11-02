@@ -88,6 +88,13 @@ export interface ConfigPlataforma {
 }
 
 /**
+ * Peça de cenário sem colisão: coluna de mármore ou obelisco rúnico (marca de checkpoint).
+ */
+export interface ConfigDecoracao extends ConfigPlataforma {
+  tipo: 'coluna' | 'obelisco';
+}
+
+/**
  * Configuração imutável para criação de colunas de vento.
  */
 export interface ConfigColunaVento {
@@ -178,7 +185,7 @@ export interface BlocoNivelFase1 {
   GEISERES?: readonly ConfigGeiser[];
   SENTINELAS?: readonly ConfigSentinela[];
   /** Colunas de mármore e obeliscos de checkpoint, sem colisão. */
-  DECORACAO?: readonly ConfigPlataforma[];
+  DECORACAO?: readonly ConfigDecoracao[];
 }
 
 /**
