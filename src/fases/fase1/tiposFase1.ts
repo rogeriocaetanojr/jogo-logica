@@ -157,6 +157,7 @@ export interface ConfigZonaVentoContrario {
   y: number;
   largura: number;
   altura: number;
+  /** Positiva empurra para a esquerda (vento contra); negativa, para a direita (vento a favor). */
   forca: number;
 }
 

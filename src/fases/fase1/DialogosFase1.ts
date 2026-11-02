@@ -187,14 +187,14 @@ export function falasPombo(ctx: ContextoDialogoFase1, visita: number): LinhaDial
       'Conselho de quem tá em greve: o Helio é repetitivo. Rajada rasteira, salto com pisão, chuva de penas. Depois ele fica tonto, e cabeça de deus tonto é pra pisar.'
     );
     falas.push(
-      'O núcleo dele só desliga se ele estiver tonto E sem escudo. Pense em "and not". Mais pra frente, no meio da arena, a porta fecha e não tem volta. Eu estarei bem longe.'
+      'O núcleo dele só desliga se ele estiver tonto E sem escudo. Pense em "and not". Passou daquela porta, ela fecha e não tem volta. Eu estarei bem longe.'
     );
     return linhas(FALANTE_POMBO, falas);
   }
   const curtas = [
     'Não me atrasa, tô em greve. Mas tô com a carta no bico, então tecnicamente, trabalhando.',
     'Tonto E sem escudo. Rajada, salto, chuva. Decora. Eu cobro por repetição.',
-    'A porta fecha lá no meio. Eu vou pra bem longe. Questão de sindicato.',
+    'Passou da porta, ela fecha. Eu vou pra bem longe. Questão de sindicato.',
   ];
   return linhas(FALANTE_POMBO, [curtas[(visita - 1) % curtas.length]]);
 }

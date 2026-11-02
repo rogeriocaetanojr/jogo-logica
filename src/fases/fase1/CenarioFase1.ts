@@ -494,11 +494,11 @@ export class CenarioFase1 {
 }
 
 /**
- * Bandeira de mármore e ouro com pano tremulando para a esquerda (contra o jogador). É a única
+ * Bandeira de mármore e ouro com pano tremulando para o lado do vento (`sentido`: -1 esquerda, 1 direita). É a única
  * bandeira da fase: os mirantes dos checkpoints e as birutas das correntes de vento usam esta.
  * `base` é onde o pedestal toca o chão e `altura`, do chão até a ponta do mastro.
  */
-export function desenharBandeira(g: Grafico, x: number, base: number, altura: number, tempo: number): void {
+export function desenharBandeira(g: Grafico, x: number, base: number, altura: number, tempo: number, sentido: number = -1): void {
   const topo = base - altura;
 
   // Pedestal de mármore com friso dourado
@@ -535,7 +535,7 @@ export function desenharBandeira(g: Grafico, x: number, base: number, altura: nu
     const t = i / segmentos;
     const fase = tempo * 0.008 - i * 0.8;
     const onda = Math.sin(fase) * 5 * t;
-    const px = x - 2 - t * comprimento + Math.abs(Math.cos(fase)) * 2 * t;
+    const px = x + sentido * (2 + t * comprimento - Math.abs(Math.cos(fase)) * 2 * t);
     cima.push({ x: px, y: topo + 2 + onda + t * 2 });
     baixo.push({ x: px, y: topo + 2 + alturaPano + onda - t * 5 });
     inclinacao.push(Math.cos(fase));

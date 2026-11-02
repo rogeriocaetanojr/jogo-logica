@@ -12,7 +12,7 @@ import type { BlocoNivelFase1 } from './tiposFase1';
  */
 
 export const MUNDO_FASE1 = {
-  LARGURA: 10578,
+  LARGURA: 13168,
   ALTURA: 720,
   PADDING_INFERIOR: 200,
   COR_FUNDO: '#a855f7',
@@ -289,24 +289,31 @@ export const CHECKPOINTS_FASE1 = {
   },
   CP3: {
     ID: 'cp3_gerador',
-    GATILHO_X: 7700,
+    GATILHO_X: 7950,
     GATILHO_Y_MAX: 400,
-    PONTO: { x: 7700, y: 332 },
-    NOME: 'CHECKPOINT 3 // GERADOR TRIPLO',
+    PONTO: { x: 7950, y: 332 },
+    NOME: 'CHECKPOINT 3 // PORTÃO MILENAR',
+  },
+  CP3B: {
+    ID: 'cp3b_gerador',
+    GATILHO_X: 8880,
+    GATILHO_Y_MAX: 400,
+    PONTO: { x: 8900, y: 332 },
+    NOME: 'CHECKPOINT 4 // GERADOR TRIPLO',
   },
   CP4: {
     ID: 'cp4_topo_escada',
-    GATILHO_X: 8638,
+    GATILHO_X: 9788,
     GATILHO_Y_MAX: 120,
-    PONTO: { x: 8668, y: 60 },
-    NOME: 'CHECKPOINT 4 // TOPO DA ESCADA DE RAJADAS',
+    PONTO: { x: 9818, y: 60 },
+    NOME: 'CHECKPOINT 5 // TOPO DA ESCADA DE RAJADAS',
   },
   CP5: {
     ID: 'cp5_arena',
-    GATILHO_X: 9498,
+    GATILHO_X: 12088,
     GATILHO_Y_MAX: 540,
-    PONTO: { x: 9538, y: 472 },
-    NOME: 'CHECKPOINT 5 // ARENA DO HELIO',
+    PONTO: { x: 12128, y: 472 },
+    NOME: 'CHECKPOINT 6 // ARENA DO HELIO',
   },
   LIMITE_QUEDA_Y: 690,
   MARGEM_ALTURA_SEGURA: 120, // Só salva checkpoint se o jogador estiver acima de LIMITE_QUEDA_Y - margem
@@ -324,8 +331,8 @@ export const SENHA_MESTRA_FASE1 = 'senhamagicabrainrebase';
 
 export const NPCS_FASE1 = {
   SUCATINHA: { ID: 'npc_sucatinha', X: 1240, Y: 428, TEXTURA: 'npc-sucatinha' },
-  MAGO_NUVEM: { ID: 'npc_mago_nuvem', X: 6648, Y: 250, TEXTURA: 'npc-mago-nuvem' },
-  POMBO: { ID: 'npc_pombo', X: 9398, Y: 526, TEXTURA: 'npc-pombo' },
+  MAGO_NUVEM: { ID: 'npc_mago_nuvem', X: 6898, Y: 250, TEXTURA: 'npc-mago-nuvem' },
+  POMBO: { ID: 'npc_pombo', X: 11680, Y: 386, TEXTURA: 'npc-pombo' },
 } as const;
 
 // =============================================================================
@@ -366,24 +373,24 @@ export const TOTEM_2_BALANCA = {
 
 export const TOTEM_3_PORTAO = {
   ID: 'totem_3_portao_existencial',
-  X: 7408,
+  X: 7658,
   Y: 385,
-  X_PORTAO: 7608,
+  X_PORTAO: 7858,
   Y_PORTAO: 290,
   ESCALA_Y_PORTAO: 1.3, // 260 px de altura: alto demais para pular por cima
   DESLOCAMENTO_ABERTO_Y: 240,
   ALFA_ABERTO: 0.15,
   // Os três sensores da condição aparecem no cenário, cada um com o nome da variável
-  PLACA: { x: 7505, y: 420, largura: 70 }, // Placa de pressão no chão, entre o totem e o portão
-  CRISTAL: { x: 7556, y: 112 }, // energia_sol: cristal carregado à esquerda do topo do portão
-  TURBINA: { x: 7664, y: 118 }, // energia_vento: turbina parada à direita do topo do portão
+  PLACA: { x: 7755, y: 420, largura: 70 }, // Placa de pressão no chão, entre o totem e o portão
+  CRISTAL: { x: 7806, y: 112 }, // energia_sol: cristal carregado à esquerda do topo do portão
+  TURBINA: { x: 7914, y: 118 }, // energia_vento: turbina parada à direita do topo do portão
   COR_SENSOR_LIGADO: '#34d399',
   COR_SENSOR_DESLIGADO: '#94a3b8',
 } as const;
 
 export const TOTEM_4_SEQUENCIADOR = {
   ID: 'totem_4_sequenciador_rajadas',
-  X: 7780,
+  X: 8930,
   Y: 385,
   PERIODO_PADRAO_MS: 1500,
   FORCA_PADRAO: 450,
@@ -399,9 +406,9 @@ export const TOTEM_4_SEQUENCIADOR = {
   // gerador no chão, na ponta direita da sala, e leva o jogador por cima do pilar seguinte.
   // Do chão (420) o pulo chega a 220 e não passa o pilar; planando do alto de uma coluna o jogador
   // perde 54 px de altura em ~150 px, e as salas têm 300 px: a ordem 1 → 2 → 3 é obrigatória.
-  COLUNA_ESCADA_1: { x: 7908, y: 275, largura: 80, altura: 290, forca: 450, ativa: false },
-  COLUNA_ESCADA_2: { x: 8248, y: 275, largura: 80, altura: 290, forca: 450, ativa: false },
-  COLUNA_ESCADA_3: { x: 8588, y: 260, largura: 80, altura: 320, forca: 450, ativa: false },
+  COLUNA_ESCADA_1: { x: 9058, y: 275, largura: 80, altura: 290, forca: 450, ativa: false },
+  COLUNA_ESCADA_2: { x: 9398, y: 275, largura: 80, altura: 290, forca: 450, ativa: false },
+  COLUNA_ESCADA_3: { x: 9738, y: 260, largura: 80, altura: 320, forca: 450, ativa: false },
 } as const;
 
 export const TOTEM_5_HELIO = {
@@ -409,27 +416,27 @@ export const TOTEM_5_HELIO = {
 } as const;
 
 export const ARENA_FASE1 = {
-  // Porta que sobe atrás do jogador. O gatilho fica ~360 px depois do Pombo (x 9398) e do checkpoint 5:
-  // dá tempo de conversar com ele antes de a luta começar
-  PORTA: { x: 9313, y: 430, escalaY: 1.3, deslocamentoAbertaY: 260, gatilhoX: 9760 },
-  PORTAL: { x: 10338, y: 480 },
+  // Porta que sobe atrás do jogador ao entrar na arena (mesmo gatilho do checkpoint da arena).
+  // O Pombo fica do lado de fora, na ilha dele, e dá para conversar com calma
+  PORTA: { x: 11903, y: 430, escalaY: 1.3, deslocamentoAbertaY: 260, gatilhoX: 12088 },
+  PORTAL: { x: 12928, y: 480 },
   DISTANCIA_PORTAL: 60,
   COLUNAS_DOURADAS: [
-    { x: 10218, y: 400 },
-    { x: 10458, y: 400 },
+    { x: 12808, y: 400 },
+    { x: 13048, y: 400 },
   ],
   FEIXES_LUZ: [
-    { topoX: 10218, baseX1: 10138, baseX2: 10298, baseY: 560 },
-    { topoX: 10458, baseX1: 10378, baseX2: 10538, baseY: 560 },
+    { topoX: 12808, baseX1: 12728, baseX2: 12888, baseY: 560 },
+    { topoX: 13048, baseX1: 12968, baseX2: 13128, baseY: 560 },
   ],
   // A arena (9298 → 10578) tem a largura exata da tela: durante a luta a câmera fica parada nela
-  CAMERA_CENTRO: { x: 9938, y: 360 },
+  CAMERA_CENTRO: { x: 12528, y: 360 },
   CHAO_Y: 560,
   // Por onde o Helio anda e até onde os projéteis vão
-  LIMITE_ESQUERDO: 9560,
-  LIMITE_DIREITO: 10510,
+  LIMITE_ESQUERDO: 12150,
+  LIMITE_DIREITO: 13100,
   // Totem do núcleo, que só aparece quando o Helio cai de joelhos
-  TOTEM_FINAL: { x: 9960, y: 525 },
+  TOTEM_FINAL: { x: 12550, y: 525 },
 } as const;
 
 // =============================================================================
@@ -437,7 +444,7 @@ export const ARENA_FASE1 = {
 // =============================================================================
 
 export const BOSS_HELIO_FASE1 = {
-  X_INICIAL: 10300,
+  X_INICIAL: 12890,
   LARGURA_CORPO: 90,
   ALTURA_CORPO: 120,
   VIDA: 3,
@@ -567,6 +574,10 @@ export const BLOCO_2_LEVEL_DESIGN = {
     { x: 3378, y: 382 }, // topo 360
   ],
   ZONAS_CONTRARIAS: [{ x: 3238, y: 380, largura: 600, altura: 360, forca: 75 }],
+  // Pilar depois do mirante (topo 300): do platô do Totem 2 (topo 400) o pulo + planeio alcança
+  // ~455 px acima de 300 e o pilar está a 762 px; do mirante (topo 190) ele fica a 272 px.
+  // Sem o elevador, não tem como seguir para o cânion.
+  PAREDES: [{ x: 6020, y: 610, largura: 40, altura: 620 }],
   DECORACAO: [{ x: 5508, y: 112, scaleX: 0.8, scaleY: 0.6, tipo: 'obelisco' }], // Obelisco do CP2
 } as const satisfies BlocoNivelFase1;
 
@@ -577,16 +588,17 @@ export const BLOCO_2_LEVEL_DESIGN = {
  */
 export const BLOCO_3_LEVEL_DESIGN = {
   PLATAFORMAS: [
-    { x: 6098, y: 618, scaleX: 2.1, scaleY: 1 }, // Fundo do cânion, topo 600
-    { x: 6608, y: 318, scaleX: 1, scaleY: 1 }, // Platô do Mago, topo 300: só pelo gêiser
-    { x: 7648, y: 438, scaleX: 2.5, scaleY: 1 }, // Platô do portão e do Totem 4 (CP3), topo 420
-    { x: 8138, y: 438, scaleX: 1.25, scaleY: 1 }, // Sala 2 da escada, topo 420
-    { x: 8478, y: 438, scaleX: 1.25, scaleY: 1 }, // Sala 3 da escada, topo 420
-    { x: 8928, y: 148, scaleX: 2.5, scaleY: 1 }, // Topo da escada (CP4), topo 130: só pela coluna 3
+    { x: 6348, y: 618, scaleX: 2.1, scaleY: 1 }, // Fundo do cânion, topo 600
+    { x: 6858, y: 318, scaleX: 1, scaleY: 1 }, // Platô do Mago, topo 300: só pelo gêiser
+    { x: 7804, y: 438, scaleX: 1.72, scaleY: 1 }, // Platô do portão (CP3), topo 420
+    { x: 8979, y: 438, scaleX: 0.99, scaleY: 1 }, // Platô do Totem 4 (CP4), topo 420
+    { x: 9288, y: 438, scaleX: 1.25, scaleY: 1 }, // Sala 2 da escada, topo 420
+    { x: 9628, y: 438, scaleX: 1.25, scaleY: 1 }, // Sala 3 da escada, topo 420
+    { x: 10078, y: 148, scaleX: 2.5, scaleY: 1 }, // Topo da escada (CP5), topo 130: só pela coluna 3
   ],
   GEISERES: [
     {
-      x: 6308,
+      x: 6558,
       yBase: 600,
       largura: 80,
       altura: 400,
@@ -597,27 +609,34 @@ export const BLOCO_3_LEVEL_DESIGN = {
       defasagemMs: 0,
     },
   ],
+  // Entre o portão e o gerador: mármore rachado, elevador em trilho vertical e nuvem efêmera.
+  // O pilar em x 8760 (topo 250) só se passa de cima: do chão (topo 420) o pulo não chega.
+  RACHADOS: [{ x: 8130, y: 436 }], // topo 420
+  EFEMERAS: [{ x: 8560, y: 232 }], // topo 210
   TRILHOS: [
-    { x: 6828, y: 312, deslocamentoX: 360, deslocamentoY: 0, velocidade: 110, pausaMs: 500 }, // topo 300
+    { x: 8350, y: 412, deslocamentoX: 0, deslocamentoY: -170, velocidade: 90, pausaMs: 700 }, // sobe do topo 400 ao 230
+    { x: 7078, y: 312, deslocamentoX: 360, deslocamentoY: 0, velocidade: 110, pausaMs: 500 }, // topo 300
   ],
   // Pilares de mármore que separam as salas da escada (topo 150, até o fundo do mundo).
   // O terceiro sustenta o topo da escada e fecha a sala 3: sem ele dava para planar por baixo
   // do topo direto até a arena.
   PAREDES: [
-    { x: 7968, y: 435, largura: 40, altura: 570 },
-    { x: 8308, y: 435, largura: 40, altura: 570 },
-    { x: 8648, y: 443, largura: 40, altura: 554 },
+    { x: 8760, y: 485, largura: 40, altura: 470 }, // Pilar do trecho novo, topo 250
+    { x: 9118, y: 435, largura: 40, altura: 570 },
+    { x: 9458, y: 435, largura: 40, altura: 570 },
+    { x: 9798, y: 443, largura: 40, altura: 554 },
   ],
-  ZONAS_CONTRARIAS: [{ x: 7018, y: 300, largura: 560, altura: 300, forca: 75 }],
+  ZONAS_CONTRARIAS: [{ x: 7268, y: 300, largura: 560, altura: 300, forca: 75 }],
   SENTINELAS: [
     // S-02: patrulha sobre o trilho, solta pulso eólico e sopra quem ela vê
-    { x: 6828, y: 180, minX: 6828, maxX: 7188, velocidade: 80, podeDispararPulso: true, deteccao: 'rajada' },
+    { x: 7078, y: 180, minX: 7078, maxX: 7438, velocidade: 80, podeDispararPulso: true, deteccao: 'rajada' },
     // S-03: alerta máximo no topo da escada; quem for visto volta ao checkpoint
-    { x: 8938, y: 60, minX: 8938, maxX: 9158, velocidade: 90, podeDispararPulso: false, deteccao: 'respawn' },
+    { x: 10088, y: 60, minX: 10088, maxX: 10408, velocidade: 104, podeDispararPulso: false, deteccao: 'respawn' },
   ],
   DECORACAO: [
-    { x: 7740, y: 342, scaleX: 0.8, scaleY: 0.6, tipo: 'obelisco' }, // Obelisco do CP3
-    { x: 8643, y: 78, scaleX: 0.6, scaleY: 0.4, tipo: 'obelisco' }, // Obelisco do CP4
+    { x: 7990, y: 342, scaleX: 0.8, scaleY: 0.6, tipo: 'obelisco' }, // Obelisco do CP3
+    { x: 8875, y: 342, scaleX: 0.8, scaleY: 0.6, tipo: 'obelisco' }, // Obelisco do CP4 (gerador)
+    { x: 9793, y: 78, scaleX: 0.6, scaleY: 0.4, tipo: 'obelisco' }, // Obelisco do CP4
   ],
 } as const satisfies BlocoNivelFase1;
 
@@ -625,8 +644,15 @@ export const BLOCO_3_LEVEL_DESIGN = {
  * BLOCO 4: Arena do boss (x 9228 → 10578): a luta contra o Helio e o portal de saída.
  */
 export const BLOCO_4_LEVEL_DESIGN = {
-  PLATAFORMAS: [{ x: 9938, y: 578, scaleX: 5.34, scaleY: 1 }], // Chão da arena até a borda do mundo, topo 560
-  DECORACAO: [{ x: 9528, y: 482, scaleX: 0.8, scaleY: 0.6, tipo: 'obelisco' }], // Obelisco do CP5
+  PLATAFORMAS: [
+    // Ilha do Pombo, topo 420, a 1150 px do topo da escada (topo 130). Planando sem vento o
+    // jogador alcança ~900 px; a corrente a favor no fim do vão é o que leva até a ilha.
+    { x: 11708, y: 438, scaleX: 1.5, scaleY: 1 },
+    { x: 12528, y: 578, scaleX: 5.34, scaleY: 1 }, // Chão da arena até a borda do mundo, topo 560
+  ],
+  // Força negativa = vento a favor (empurra para a direita)
+  ZONAS_CONTRARIAS: [{ x: 11114, y: 290, largura: 828, altura: 300, forca: -200 }], // de 10700 até a borda da ilha
+  DECORACAO: [{ x: 12118, y: 482, scaleX: 0.8, scaleY: 0.6, tipo: 'obelisco' }], // Obelisco do CP5
 } as const satisfies BlocoNivelFase1;
 
 export const BLOCOS_NIVEL_FASE1: readonly BlocoNivelFase1[] = [

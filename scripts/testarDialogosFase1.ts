@@ -54,7 +54,7 @@ checar('Mago comenta muitos erros', texto(falasMagoNuvem(ctx({ erros: 7 }), 0)).
 const pombo = texto(falasPombo(ctx({}), 0));
 checar('Pombo entrega o padrão do Helio', pombo.includes('Rajada rasteira') && pombo.includes('chuva de penas'));
 checar('Pombo dá a pista "and not" do núcleo', pombo.includes('and not'));
-checar('Pombo avisa que a porta fecha', pombo.includes('porta fecha'));
+checar('Pombo avisa que a porta fecha', pombo.includes('porta') && pombo.includes('fecha'));
 checar('Pombo cobra quem ignorou o Mago', texto(falasPombo(ctx({ conversouCom: () => false }), 0)).includes('Mago'));
 checar('Carta do Helio cita as quedas', texto(falasPombo(ctx({ mortes: 4 }), 0)).includes('4 quedas'));
 

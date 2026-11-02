@@ -150,20 +150,20 @@ export const AMBIENTE_FASE1 = {
   // Estátuas quebradas sobre pedestal (atrás do jogador)
   ESTATUAS: [
     { x: 260, base: 620, escala: 1, espelhar: false },
-    { x: 9680, base: 560, escala: 1.15, espelhar: false },
-    { x: 10090, base: 560, escala: 1.15, espelhar: true },
+    { x: 12270, base: 560, escala: 1.15, espelhar: false },
+    { x: 12680, base: 560, escala: 1.15, espelhar: true },
   ],
   // Cachoeiras que caem de baixo das ilhas para o vazio (topo = topo da plataforma)
   CACHOEIRAS: [
     { x: 1560, topo: 240 },
     { x: 2850, topo: 400 },
     { x: 5540, topo: 190 },
-    { x: 9150, topo: 130 },
+    { x: 10300, topo: 130 },
   ],
   // Bandeiras nos mirantes dos checkpoints: tremulam com o vento
   BANDEIRAS: [
     { x: 1760, base: 240 },
     { x: 5680, base: 190 },
-    { x: 9200, base: 130 },
+    { x: 10350, base: 130 },
   ],
 } as const;

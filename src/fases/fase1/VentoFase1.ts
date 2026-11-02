@@ -525,11 +525,14 @@ export class VentoFase1 {
       g.fillStyle(c.COR_RASTRO, c.ALFA_MIOLO);
       g.fillRoundedRect(esquerda + 24, topo + zona.altura * 0.22, zona.largura - 48, zona.altura * 0.56, Math.min(c.RAIO_NEVOA, zona.altura / 4));
 
-      // Golfadas de nuvem rolando para a esquerda no meio da corrente
+      // Para onde o vento vai: -1 esquerda (contra o jogador), 1 direita (a favor)
+      const sentido = zona.forca >= 0 ? -1 : 1;
+
+      // Golfadas de nuvem rolando no sentido do vento no meio da corrente
       g.fillStyle(0xffffff, c.ALFA_GOLFADA);
       for (let k = 0; k < c.GOLFADAS; k++) {
         const ciclo = (tempo * c.GOLFADA_VELOCIDADE + (k * zona.largura) / c.GOLFADAS) % zona.largura;
-        const gx = direita - ciclo;
+        const gx = sentido < 0 ? direita - ciclo : esquerda + ciclo;
         const gy = topo + zona.altura * (0.2 + 0.6 * ((k * 0.37) % 1)) + Math.sin(tempo * 0.002 + k) * 6;
         const borda = Math.min(1, ciclo / c.FADE_BORDA, (zona.largura - ciclo) / c.FADE_BORDA);
         g.fillStyle(0xffffff, c.ALFA_GOLFADA * borda);
@@ -539,8 +542,8 @@ export class VentoFase1 {
       }
 
       zona.particulas.forEach((p, indice) => {
-        p.x -= p.velX * dt;
-        if (p.x + p.comprimento < esquerda) {
+        p.x += sentido * p.velX * dt;
+        if (sentido < 0 ? p.x + p.comprimento < esquerda : p.x > direita) {
           Object.assign(p, this.sortearParticulaHorizontal(zona, false));
         }
         // Some suave perto das pontas da zona
@@ -570,22 +573,23 @@ export class VentoFase1 {
         g.lineStyle(1, c.COR_RASTRO, alfa);
         g.strokePoints(eixo);
 
-        // Caracol na ponta da frente (a da esquerda, para onde o vento vai)
+        // Caracol na ponta da frente (para onde o vento vai)
         if (indice % c.CARACOL_A_CADA === 0) {
-          const ponta = eixo[0];
+          const ponta = sentido < 0 ? eixo[0] : eixo[eixo.length - 1];
+          const giro = sentido < 0 ? 1 : -1;
           const raio = c.RAIO_CARACOL + lado[Math.floor(c.PONTOS_RISCO / 2)] * 0.5;
           g.lineStyle(c.ESPESSURA_CARACOL, c.COR_PARTICULA, alfa);
           g.beginPath();
-          g.arc(ponta.x, ponta.y - raio, raio, Math.PI / 2, Math.PI / 2 + Math.PI * 1.7, false);
+          g.arc(ponta.x, ponta.y - raio, raio, Math.PI / 2, Math.PI / 2 + giro * Math.PI * 1.7, giro < 0);
           g.strokePath();
           g.lineStyle(1.5, c.COR_RASTRO, alfa);
           g.beginPath();
-          g.arc(ponta.x, ponta.y - raio, raio * 0.5, Math.PI / 2, Math.PI / 2 + Math.PI * 1.4, false);
+          g.arc(ponta.x, ponta.y - raio, raio * 0.5, Math.PI / 2, Math.PI / 2 + giro * Math.PI * 1.4, giro < 0);
           g.strokePath();
         }
       });
 
-      this.desenharBiruta(g, esquerda, topo, tempo);
+      this.desenharBiruta(g, esquerda, topo, tempo, sentido);
     }
   }
 
@@ -593,8 +597,9 @@ export class VentoFase1 {
    * Bandeira da fase fincada na borda esquerda da zona, avisando de longe de onde vem o vento.
    * O mastro desce do topo da zona (x, y) e o pedestal fica ALTURA_MASTRO abaixo.
    */
-  private desenharBiruta(g: Phaser.GameObjects.Graphics, x: number, y: number, tempo: number): void {
-    desenharBandeira(g, x, y + VENTO_FASE1.CONTRARIO.BIRUTA.ALTURA_MASTRO, VENTO_FASE1.CONTRARIO.BIRUTA.ALTURA_MASTRO, tempo);
+  private desenharBiruta(g: Phaser.GameObjects.Graphics, x: number, y: number, tempo: number, sentido: number): void {
+    const altura = VENTO_FASE1.CONTRARIO.BIRUTA.ALTURA_MASTRO;
+    desenharBandeira(g, x, y + altura, altura, tempo, sentido);
   }
 
   private atualizarCicloEscada(delta: number): void {
@@ -627,16 +632,21 @@ export class VentoFase1 {
   /**
    * Sorteia um risco de vento: espalhado pela zona na criação, ou na borda direita ao reaparecer.
    */
-  private sortearParticulaHorizontal(zona: AreaRetangular, espalhar: boolean): ParticulaVentoHorizontal {
+  private sortearParticulaHorizontal(
+    zona: AreaRetangular & { forca: number },
+    espalhar: boolean
+  ): ParticulaVentoHorizontal {
     const c = VENTO_FASE1.CONTRARIO;
     const esquerda = zona.x - zona.largura / 2;
+    const comprimento =
+      c.PARTICULAS_COMPRIMENTO_MIN + Math.random() * (c.PARTICULAS_COMPRIMENTO_MAX - c.PARTICULAS_COMPRIMENTO_MIN);
+    // Reaparece na borda de onde o vento vem
+    const entrada = zona.forca >= 0 ? esquerda + zona.largura : esquerda - comprimento;
     return {
-      x: espalhar ? esquerda + Math.random() * zona.largura : esquerda + zona.largura,
+      x: espalhar ? esquerda + Math.random() * zona.largura : entrada,
       y: zona.y - zona.altura / 2 + Math.random() * zona.altura,
       velX: c.PARTICULAS_VEL_X_MIN + Math.random() * (c.PARTICULAS_VEL_X_MAX - c.PARTICULAS_VEL_X_MIN),
-      comprimento:
-        c.PARTICULAS_COMPRIMENTO_MIN +
-        Math.random() * (c.PARTICULAS_COMPRIMENTO_MAX - c.PARTICULAS_COMPRIMENTO_MIN),
+      comprimento,
       alfa: c.PARTICULAS_ALFA_MIN + Math.random() * (c.PARTICULAS_ALFA_MAX - c.PARTICULAS_ALFA_MIN),
     };
   }
