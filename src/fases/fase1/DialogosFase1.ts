@@ -1,5 +1,11 @@
 import type { LinhaDialogo } from '../../compartilhado/tipos';
-import { TOTEM_2_BALANCA, TOTEM_4_SEQUENCIADOR } from './constantesFase1';
+import {
+  TOTEM_1_ALCOOLEMIA,
+  TOTEM_2_BALANCA,
+  TOTEM_3_PORTAO,
+  TOTEM_4_SEQUENCIADOR,
+  TOTEM_5_HELIO,
+} from './constantesFase1';
 
 /**
  * Fonte única de textos da Fase 1: Céu Partido.
@@ -27,83 +33,254 @@ export interface TextosTotemFase1 {
   STATUS: string;
 }
 
+/**
+ * O que o jogo sabe sobre a jogatina até agora. Os NPCs, o Helio e o terminal usam isso para
+ * reagir: quantas vezes o jogador morreu, quantos comandos errou e com quem já conversou.
+ */
+export interface ContextoDialogoFase1 {
+  mortes: number;
+  erros: number;
+  totensResolvidos: number;
+  conversouCom: (idNpc: string) => boolean;
+}
+
+export const CONTEXTO_NEUTRO_FASE1: ContextoDialogoFase1 = {
+  mortes: 0,
+  erros: 0,
+  totensResolvidos: 0,
+  conversouCom: () => true,
+};
+
+const plural = (n: number, singular: string, pluralForma: string): string => (n === 1 ? singular : pluralForma);
+
 const FALANTE_RADIO = '> CANAL REBELDE // TRANSMISSÃO CELESTIAL';
 
 export const DIALOGO_RADIO_ABERTURA: LinhaDialogo[] = [
   {
     falante: FALANTE_RADIO,
-    texto:
-      'Atenção, Hacker! Você alcançou o Céu Partido, o setor aerodinâmico controlado pela IA.',
+    texto: 'Atenção, Hacker! Você chegou ao Céu Partido, o setor aéreo da IA. Aqui o chão é opcional e a queda é obrigatória.',
   },
   {
     falante: FALANTE_RADIO,
     texto:
-      'Utilize as correntes de vento verticais para planar segurando o pulo. Cuidado com o mármore rachado, os pulsos das sentinelas e converse com os desertores locais!',
+      'Setas andam, [ESPAÇO] pula, e segurar [ESPAÇO] no ar vira paraquedas. Chegue perto de um totem ou de alguém e aperte [E].',
+  },
+  {
+    falante: FALANTE_RADIO,
+    texto: 'Os desertores locais falam muito, mas às vezes falam algo útil. Dica de graça: não é a regra.',
   },
 ];
 
-export const DIALOGO_RADIO_VITORIA: LinhaDialogo[] = [
-  {
-    falante: FALANTE_RADIO,
-    texto:
-      'Magnífico, Hacker! Você superou as sentinelas, interagiu com os desertores e sincronizou todos os puzzles do Céu Partido.',
-  },
-  {
-    falante: FALANTE_RADIO,
-    texto:
-      'O setor 1 foi totalmente liberado. Pressione ENTER para retornar vitorioso ao Hub!',
-  },
-];
+/**
+ * Despedida da fase, com o placar: o rádio comenta o que o jogador fez de verdade.
+ */
+export function dialogoRadioVitoria(ctx: ContextoDialogoFase1): LinhaDialogo[] {
+  let placar: string;
+  if (ctx.mortes === 0 && ctx.erros === 0) {
+    placar = 'Zero quedas, zero erros no terminal. Isso é perfeição ou a tal da senha-mestra. Eu não vou perguntar.';
+  } else if (ctx.mortes === 0) {
+    placar = `Nenhuma queda e ${ctx.erros} ${plural(ctx.erros, 'erro', 'erros')} de terminal. Pés no chão, dedos no caos.`;
+  } else {
+    placar = `${ctx.mortes} ${plural(ctx.mortes, 'queda', 'quedas')} e ${ctx.erros} ${plural(ctx.erros, 'erro', 'erros')} no terminal. O estagiário que programou isso ficaria orgulhoso.`;
+  }
+  return [
+    {
+      falante: FALANTE_RADIO,
+      texto: 'Magnífico, Hacker! O Helio virou um if desligado e o céu voltou a ser céu.',
+    },
+    { falante: FALANTE_RADIO, texto: placar },
+    {
+      falante: FALANTE_RADIO,
+      texto: 'Setor 1 liberado. Pressione ENTER para voltar ao Hub.',
+    },
+  ];
+}
 
 // =============================================================================
 // NPCs
 // =============================================================================
 
+const FALANTE_SUCATINHA = '> SUCATINHA // DRONE DESERTOR';
+const FALANTE_MAGO = '> MAGO DA NUVEM // LISO E DEVENDO';
+const FALANTE_POMBO = '> POMBO-CORREIO // SINDICATO DOS ENTREGADORES AÉREOS';
+
+const linhas = (falante: string, textos: readonly string[]): LinhaDialogo[] => textos.map((texto) => ({ falante, texto }));
+
+/**
+ * Sucatinha ensina a mecânica de planar. Na primeira conversa fala o tutorial inteiro;
+ * nas seguintes só comenta a sua situação.
+ */
+export function falasSucatinha(ctx: ContextoDialogoFase1, visita: number): LinhaDialogo[] {
+  if (visita === 0) {
+    const abertura =
+      ctx.mortes > 0
+        ? `Psst! Carne com osso! Você já caiu ${ctx.mortes} ${plural(ctx.mortes, 'vez', 'vezes')} e nem saiu do começo. Eu sou o Sucatinha, desertor da tropa do Helio.`
+        : 'Psst! Carne com osso! Eu sou o Sucatinha, desertor da tropa do Helio. Salário? Nunca vi.';
+    return linhas(FALANTE_SUCATINHA, [
+      abertura,
+      'Vento é elevador, planar é paraquedas. Caindo, segure [ESPAÇO] e você desce devagar. Dentro da corrente azul, segure e você sobe.',
+      'Mármore rachado treme e some. Pisou, correu. Quem fica pensando vira adubo lá embaixo.',
+    ]);
+  }
+  if (ctx.mortes >= 5) {
+    return linhas(FALANTE_SUCATINHA, [
+      `Você já caiu ${ctx.mortes} vezes desde a primeira conversa. Eu anotei. É meu hobby novo.`,
+    ]);
+  }
+  const curtas = [
+    'De novo? Segure [ESPAÇO] no ar. É só isso. Eu falei a mesma coisa pra tropa e olha onde eu fui parar.',
+    'Já te expliquei tudo. Se quiser repetição, tem o terminal.',
+    'Boa sorte lá na frente. Eu fico aqui, de rotor parado, sem salário.',
+  ];
+  return linhas(FALANTE_SUCATINHA, [curtas[(visita - 1) % curtas.length]]);
+}
+
+/**
+ * Mago da Nuvem: pista do portão (precedência com parênteses) e quarta parede sobre o "estagiário".
+ */
+export function falasMagoNuvem(ctx: ContextoDialogoFase1, visita: number): LinhaDialogo[] {
+  if (visita === 0) {
+    const falas: string[] = [];
+    if (!ctx.conversouCom('npc_sucatinha')) {
+      falas.push('Você nem falou com o Sucatinha, né? Ele ficou lá de antena baixa. Mal-educado.');
+    }
+    falas.push('Mago da Nuvem Sem Salário, às ordens. Ordens que ninguém paga.');
+    falas.push(
+      'Lá na frente tem um portão com três sensores. Se quiser um conselho, parêntese é arrumar a mesa antes do jantar: sem ele, o "and" come o pão que o Mega Brain amassou.'
+    );
+    if (ctx.erros >= 6) {
+      falas.push(`Vi seus ${ctx.erros} erros no terminal. Aceito você no sindicato dos magos. A mensalidade é um bug por mês.`);
+    } else {
+      falas.push('Quem programou essa fase foi um estagiário. Dá pra ver pelo comentário "TODO: consertar depois".');
+    }
+    return linhas(FALANTE_MAGO, falas);
+  }
+  if (ctx.mortes >= 6) {
+    return linhas(FALANTE_MAGO, [
+      `${ctx.mortes} quedas. Eu faço previsão do tempo, não resgate. Mas por você eu abro uma exceção.`,
+    ]);
+  }
+  const curtas = [
+    'O portão. Sol OU vento, E a placa. Parênteses. Eu repito de graça porque não recebo.',
+    'Se travar, digite help no terminal. Depois de três erros ele te dá um esqueleto da resposta.',
+    'Nuvem boa é nuvem sem prazo de entrega.',
+  ];
+  return linhas(FALANTE_MAGO, [curtas[(visita - 1) % curtas.length]]);
+}
+
+/**
+ * Pombo-Correio, antes da arena: entrega o recado do Helio, entrega o padrão dele e avisa
+ * que a porta da arena fecha. Também cobra quem passou direto pelo Mago.
+ */
+export function falasPombo(ctx: ContextoDialogoFase1, visita: number): LinhaDialogo[] {
+  if (visita === 0) {
+    const falas: string[] = [];
+    if (!ctx.conversouCom('npc_mago_nuvem')) {
+      falas.push('Passou batido pelo Mago? Ele vai ficar sabendo. Ele sabe de tudo, só não recebe.');
+    }
+    falas.push(
+      ctx.mortes === 0
+        ? 'Carta pra você, assinada pelo Helio: "Vai ser rápido." Eu só entrego, não leio. Mas li.'
+        : `Carta pra você, assinada pelo Helio: "Vi ${ctx.mortes} ${plural(ctx.mortes, 'queda', 'quedas')} suas até aqui. Torci por todas." Eu só entrego, não leio. Mas li.`
+    );
+    falas.push(
+      'Conselho de quem tá em greve: o Helio é repetitivo. Rajada rasteira, salto com pisão, chuva de penas. Depois ele fica tonto, e cabeça de deus tonto é pra pisar.'
+    );
+    falas.push(
+      'O núcleo dele só desliga se ele estiver tonto E sem escudo. Pense em "and not". Mais pra frente, no meio da arena, a porta fecha e não tem volta. Eu estarei bem longe.'
+    );
+    return linhas(FALANTE_POMBO, falas);
+  }
+  const curtas = [
+    'Não me atrasa, tô em greve. Mas tô com a carta no bico, então tecnicamente, trabalhando.',
+    'Tonto E sem escudo. Rajada, salto, chuva. Decora. Eu cobro por repetição.',
+    'A porta fecha lá no meio. Eu vou pra bem longe. Questão de sindicato.',
+  ];
+  return linhas(FALANTE_POMBO, [curtas[(visita - 1) % curtas.length]]);
+}
+
 export const TEXTOS_NPCS_FASE1 = {
   SUCATINHA: {
     NOME: 'Sucatinha',
     PROMPT: '[E] FALAR COM SUCATINHA',
-    DIALOGO: [
-      {
-        falante: '> SUCATINHA // DRONE DESERTOR',
-        texto:
-          'Psiu, carne com osso! Se você continuar pulando desse jeito sem usar o vento, vai virar adubo lá embaixo. Eu fugi da tropa do Helio porque o código de segurança dele é uma vergonha alheia. Dica de graça: se o terminal falar grosso com você, devolve lógica pura, senão ele vai te humilhar.',
-      },
-    ] as LinhaDialogo[],
+    FALAS: falasSucatinha,
   },
   MAGO_NUVEM: {
     NOME: 'Mago da Nuvem Sem Salário',
     PROMPT: '[E] FALAR COM MAGO DA NUVEM',
-    DIALOGO: [
-      {
-        falante: '> MAGO DA NUVEM // SEM SALÁRIO',
-        texto:
-          'Você demorou tudo isso pra passar daquela sentinela? Eu já vi lesmas com compilação mais rápida. O santuário do Helio tá logo na frente. Ele acha que manda nos ventos só porque usa uma capa dramática. Vai lá e desconfigura a inteligência dele.',
-      },
-    ] as LinhaDialogo[],
+    FALAS: falasMagoNuvem,
   },
   POMBO: {
     NOME: 'Pombo-Correio Sindicalizado',
     PROMPT: '[E] FALAR COM O POMBO',
-    DIALOGO: [
-      {
-        falante: '> POMBO-CORREIO // SINDICATO DOS ENTREGADORES ALADOS',
-        texto:
-          'Entrega pra você: um aviso do Helio. Diz que vai te soprar daqui até o rodapé da tela. Eu só entrego, não leio. Mas li.',
-      },
-      {
-        falante: '> POMBO-CORREIO // SINDICATO DOS ENTREGADORES ALADOS',
-        texto:
-          'Conselho de quem tá em greve: o Helio é velho e repetitivo. Rajada rasteira, salto com pisão, chuva de penas. Sempre. Depois disso ele fica tonto, e cabeça de deus tonto é pra pisar.',
-      },
-      {
-        falante: '> POMBO-CORREIO // SINDICATO DOS ENTREGADORES ALADOS',
-        texto:
-          'Passou da porta, ela fecha e não tem volta. Eu, como representante sindical, vou estar bem longe daqui.',
-      },
-    ] as LinhaDialogo[],
+    FALAS: falasPombo,
   },
 } as const;
+
+// =============================================================================
+// QUARTA PAREDE: MORTES, TERMINAL PARADO E ERROS INSISTENTES
+// =============================================================================
+
+const PIADAS_MORTE_MARCOS: Readonly<Record<number, string>> = {
+  3: 'Três quedas. O Sucatinha anotou.',
+  5: 'Quinta queda. O sindicato dos pombos abriu um bolão.',
+  8: 'Oito. O estagiário que fez a fase agradece o tráfego.',
+  12: 'Doze quedas. Já tem gente chamando isso de "estratégia".',
+};
+
+const PIADAS_MORTE_EXTRAS: readonly string[] = [
+  'Isso já virou um padrão. Na verdade, um bug.',
+  'O chão é seu amigo. Você só não sabe disso ainda.',
+  'Até a gravidade está com pena.',
+  'A morte te manda um abraço. Ela tá sem mais assunto.',
+];
+
+/**
+ * Piada que acompanha o aviso de "voltou ao checkpoint" em certas mortes.
+ * Retorna undefined nas mortes comuns, para o humor não virar ruído.
+ */
+export function piadaDeMorte(mortes: number): string | undefined {
+  if (PIADAS_MORTE_MARCOS[mortes]) return PIADAS_MORTE_MARCOS[mortes];
+  if (mortes > 12 && mortes % 5 === 0) {
+    return PIADAS_MORTE_EXTRAS[(mortes / 5) % PIADAS_MORTE_EXTRAS.length | 0];
+  }
+  return undefined;
+}
+
+/** Linhas do terminal quando o jogador fica um bom tempo sem digitar nada. */
+export const TERMINAL_OCIOSO_FASE1: readonly string[] = [
+  '[SILÊNCIO] Tá vivo aí? O vento não espera, mas eu espero. Eu literalmente não tenho nada melhor pra fazer.',
+  '[SILÊNCIO] Pensar demora? Tudo bem. O cursor piscando é só o meu jeito de torcer por você.',
+  '[SILÊNCIO] Digite help. Digitar não machuca. Ficar olhando pra tela é que gasta o teclado de ansiedade.',
+  '[SILÊNCIO] O estagiário que programou isso também travou aqui. Ele resolveu copiando do Stack Overflow (se é que alguém lembra desse site).',
+];
+
+/** Comentários sobre erros no mesmo totem: o deboche cresce com a insistência. */
+export const ERROS_INSISTENTES_FASE1: Readonly<Record<number, string>> = {
+  6: '[AVISO] Seis erros neste totem. Respira. Lê o enunciado de novo com "enunciado".',
+  10: '[AVISO] Dez erros. O estagiário que escreveu isso errou menos. E ele nem sabia a linguagem.',
+  15: '[AVISO] Quinze. Se isso fosse um teste de colégio, a professora já tinha chamado seus pais.',
+};
+
+/**
+ * Comentário que o totem faz na primeira vez que o jogador o abre, só quando o histórico dá pano:
+ * muitas quedas ou muitos erros acumulados.
+ */
+export function comentarioEntradaTotem(idTotem: string, ctx: ContextoDialogoFase1): string | undefined {
+  switch (idTotem) {
+    case TOTEM_2_BALANCA.ID:
+      return ctx.mortes >= 3 ? `[A-02] Chegou aqui com ${ctx.mortes} quedas nas costas. O elevador vê tudo.` : undefined;
+    case TOTEM_3_PORTAO.ID:
+      return ctx.erros >= 5 ? `[PORTÃO] Li seu histórico: ${ctx.erros} erros até agora. Estou com medo, de verdade.` : undefined;
+    case TOTEM_4_SEQUENCIADOR.ID:
+      return ctx.mortes >= 6 ? `[GERADOR] ${ctx.mortes} quedas. Posso começar a cobrar pedágio?` : undefined;
+    case TOTEM_5_HELIO.ID:
+      return ctx.erros >= 8 ? '[NÚCLEO] Você errou tanto até aqui que eu juro que dá pra ouvir a fase suspirar.' : undefined;
+    case TOTEM_1_ALCOOLEMIA.ID:
+    default:
+      return undefined;
+  }
+}
 
 // =============================================================================
 // BOSS: HELIO
@@ -112,17 +289,6 @@ export const TEXTOS_NPCS_FASE1 = {
 const FALANTE_HELIO = '> HELIO // SENHOR DOS VENTOS';
 
 export const TEXTOS_HELIO = {
-  INTRO: [
-    {
-      falante: FALANTE_HELIO,
-      texto:
-        'Então é você o "hacker" que andou desconfigurando meus totens. Eu vi seu código. Vi as tentativas erradas também. Todas elas.',
-    },
-    {
-      falante: FALANTE_HELIO,
-      texto: 'Aqui não tem terminal pra te salvar, gênio. Aqui é vento, reflexo e humilhação ao vivo. Pula se for capaz.',
-    },
-  ] as LinhaDialogo[],
   // Frases curtas que flutuam sobre o Helio durante a luta (não pausam o jogo)
   GOLPES: [
     'Isso foi sorte. Sorte estatisticamente irrelevante.',
@@ -138,6 +304,22 @@ export const TEXTOS_HELIO = {
     'Ok... meus ventos tão fracos. Mas só me desliga quem acertar a condição do meu núcleo. Duvido.',
   DESLIGADO: 'Desligado por um if. Que fim mais... didático.',
 } as const;
+
+/**
+ * Provocação de abertura: o Helio cita o que viu, porque ele "vê todas as tentativas".
+ */
+export function introHelio(ctx: ContextoDialogoFase1): LinhaDialogo[] {
+  const falas: string[] = [
+    'Então é você o "hacker" que andou desconfigurando meus totens. Eu vi seu código. Vi as tentativas erradas também. Todas elas.',
+  ];
+  if (ctx.mortes > 0 || ctx.erros > 0) {
+    const quedas = `${ctx.mortes} ${plural(ctx.mortes, 'queda', 'quedas')}`;
+    const erros = `${ctx.erros} ${plural(ctx.erros, 'erro', 'erros')} de terminal`;
+    falas.push(`Contei ${quedas} e ${erros}. Guardei tudo num arquivo chamado "esculacho.txt".`);
+  }
+  falas.push('Aqui não tem terminal pra te salvar, gênio. Aqui é vento, reflexo e humilhação ao vivo. Pula se for capaz.');
+  return linhas(FALANTE_HELIO, falas);
+}
 
 // =============================================================================
 // OS 4 DESAFIOS LÓGICOS DA FASE 1
@@ -160,8 +342,10 @@ export const TEXTOS_TOTEM_1_ALCOOLEMIA: TextosTotemFase1 = {
   ],
   MENSAGENS_ERRO: [
     'Você acabou de mandar a sentinela atirar com o dobro de força. Parabéns pelo brilhantismo, Einstein. Tente de novo antes que ela perceba que o seu código é pior que a mira dela.',
-    "Operador errado. O alarme tá berrando no teto e você achou que um 'and' solto ia te camuflar? Desligue o interruptor primeiro ou aprenda o que 'not' faz.",
+    'Operador errado ou faltando. A sentinela quer o alarme desligado E você desarmado ao mesmo tempo. "not" e "and" são ferramentas, não enfeite.',
     'A sentinela nem se mexeu. Ela tá olhando para a tela do seu terminal e sentindo pena de quem te ensinou lógica booleana.',
+    'Lógica booleana não é opinião: cada combinação de alarme e arma tem UMA resposta certa. A sua errou em pelo menos uma.',
+    'Cada sensor é um sim ou um não. "not" troca o sim pelo não, "and" exige dois sins. Misture na ordem certa e a sentinela deixa você passar.',
   ],
   ERROS_ESPECIFICOS: {
     INVERTIDA:
@@ -200,6 +384,8 @@ export const TEXTOS_TOTEM_2_BALANCA: TextosTotemFase1 = {
     'A plataforma decolou direto para a estratosfera. Se a sua intenção era construir um foguete amador, parabéns. Agora calibra essa pressão direito.',
     "Caiu feito pedra no abismo. Faltou um 'elif' ou você achou que a gravidade ia ignorar esse número ridículo?",
     'Você estabilizou a plataforma na altura errada. Agora ela serve de mesa de centro para urubus. Leia a placa de altitude antes de chutar código, gênio.',
+    'if/elif/else é fila de guichê: o primeiro que servir atende e os outros nem levantam. Na ordem errada, atende errado.',
+    'Comparar altitude com a placa só tem três casos: abaixo, acima ou igual. Seu código cobre uns dois e meio.',
   ],
   ERROS_ESPECIFICOS: {
     NADA_ACONTECE:
@@ -237,6 +423,8 @@ export const TEXTOS_TOTEM_3_PORTAO: TextosTotemFase1 = {
     'Faltaram os parênteses e a porta tentou explodir em vez de abrir. Volte para as aulas de matemática básica do ensino fundamental, por favor.',
     'Esqueceu de checar a placa de pressão no chão? Achar que só acender a luz resolvia a vida é puro privilégio de protagonista.',
     'A porta analisou sua expressão booleana e entrou em crise existencial. Ela só quer que você agrupe as condições direito.',
+    'O "and" é mais mandão que o "or", igual multiplicação com soma. Sem parênteses, a conta sai do jeito que ele quer, não do seu.',
+    'Sol OU vento serve qualquer um. A placa, não: ela é obrigatória. "ou" e "e" não são sinônimos, apesar do que o seu professor de português sugeriu.',
   ],
   ERROS_ESPECIFICOS: {
     PRECEDENCIA:
@@ -279,6 +467,8 @@ export const TEXTOS_TOTEM_4_SEQUENCIADOR: TextosTotemFase1 = {
     'Intervalo curto demais! Nem o Sonic com overclock conseguiria pular de uma nuvem para a outra nesse ritmo. Dá um respiro entre as rajadas.',
     'Força insuficiente. O vento gerado não move nem folha seca, quem dirá seu personagem. Aumente essa potência.',
     'Todas as turbinas ligaram juntas e queimaram a fiação celeste. É uma sequência crescente, não um show de fogos de artifício.',
+    'Função com parâmetros é pedir pizza: sabor, tamanho e endereço. Faltou um, e a pizza que chegou foi uma queda.',
+    'São três geradores e uma ordem. Eles não são DJs, não fazem improviso.',
   ],
   ERROS_ESPECIFICOS: {
     ORDEM:
@@ -319,6 +509,7 @@ export const TEXTOS_TOTEM_5_HELIO: TextosTotemFase1 = {
     'O núcleo leu sua condição e riu. Riu alto. Os ventos riram junto.',
     'Quase. Quase é a palavra favorita de quem perde pro chefão no último segundo.',
     'Você revisou a fase inteira até aqui pra errar justo o and? Poético.',
+    'Tonto e sem escudo são dois fatos, e o "and" exige os dois. "not" fica de plantão no escudo.',
   ],
   ERROS_ESPECIFICOS: {
     INVERTIDA:

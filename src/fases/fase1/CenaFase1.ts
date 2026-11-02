@@ -18,9 +18,15 @@ import {
 } from './NivelFase1';
 import {
   DIALOGO_RADIO_ABERTURA,
-  DIALOGO_RADIO_VITORIA,
+  ERROS_INSISTENTES_FASE1,
+  TERMINAL_OCIOSO_FASE1,
   TEXTOS_HELIO,
   TEXTOS_TERMINAL_FASE1,
+  comentarioEntradaTotem,
+  dialogoRadioVitoria,
+  introHelio,
+  piadaDeMorte,
+  type ContextoDialogoFase1,
 } from './DialogosFase1';
 import type {
   Coordenada2D,
@@ -35,6 +41,7 @@ import {
   CHECKPOINTS_FASE1,
   DISTANCIA_INTERACAO_TOTEM_PADRAO,
   ERROS_PARA_ESQUELETO,
+  TERMINAL_OCIOSO_MS,
   SENTINELAS_FASE1,
   TOTEM_1_ALCOOLEMIA,
   TOTEM_2_BALANCA,
@@ -93,6 +100,14 @@ export class CenaFase1 extends CenaBase {
   private errosPorTotem = new Map<string, number>();
   private simulacaoRajadas: 'nenhuma' | 'agendada' | 'rodando' = 'nenhuma';
 
+  // Memória da jogatina para as falas reativas (NPCs, Helio, terminal e rádio)
+  private mortes: number = 0;
+  private errosTotais: number = 0;
+  private conversasNpcs = new Set<string>();
+  private totensComentados = new Set<string>();
+  private terminalOciosoMs: number = 0;
+  private falasOciosasUsadas: number = 0;
+
   // Flag de congelamento seguro do mundo durante terminal ou diálogos
   private jogoCongeladoPorMenu: boolean = false;
 
@@ -117,6 +132,12 @@ export class CenaFase1 extends CenaBase {
     this.errosPorTotem = new Map<string, number>();
     this.simulacaoRajadas = 'nenhuma';
     this.jogoCongeladoPorMenu = false;
+    this.mortes = 0;
+    this.errosTotais = 0;
+    this.conversasNpcs = new Set<string>();
+    this.totensComentados = new Set<string>();
+    this.terminalOciosoMs = 0;
+    this.falasOciosasUsadas = 0;
 
     // 1. Inicializa o Snapshot com o Checkpoint 0
     this.snapshotAtual = {
@@ -144,7 +165,10 @@ export class CenaFase1 extends CenaBase {
     this.jogador = new JogadorFase1(this, this.snapshotAtual.pontoSpawn);
 
     // 6. Construção dos 4 blocos de level design com os 4 desafios, sentinelas e NPCs
-    this.nivel = construirNivelFase1(this, this.jogador.sprite, this.vento, this.instaveis);
+    this.nivel = construirNivelFase1(this, this.jogador.sprite, this.vento, this.instaveis, {
+      contexto: () => this.contextoDialogos(),
+      aoConversar: (idNpc) => this.conversasNpcs.add(idNpc),
+    });
 
     // 7. Colisões com o Jogador
     const spriteJogador = this.jogador.sprite;
@@ -190,6 +214,7 @@ export class CenaFase1 extends CenaBase {
     this.terminal.definirInterpretador(interpretarComandoFase1);
 
     this.terminal.definirAoSubmeter((resultado: ResultadoComando) => {
+      this.terminalOciosoMs = 0;
       switch (resultado.acao) {
         case 'DESATIVAR_ESCUDO_SENTINELA':
           this.executarDesativarEscudoSentinela();
@@ -213,6 +238,34 @@ export class CenaFase1 extends CenaBase {
     });
   }
 
+  /**
+   * O que os textos reativos precisam saber da jogatina.
+   */
+  private contextoDialogos(): ContextoDialogoFase1 {
+    return {
+      mortes: this.mortes,
+      erros: this.errosTotais,
+      totensResolvidos: this.totensResolvidos.size,
+      conversouCom: (idNpc) => this.conversasNpcs.has(idNpc),
+    };
+  }
+
+  /**
+   * Terminal aberto e parado por muito tempo: ele puxa assunto (uma fala por vez, sem repetir em seguida).
+   */
+  private vigiarTerminalOcioso(delta: number): void {
+    if (!this.terminal?.estaAberto || this.simulacaoRajadas !== 'nenhuma') {
+      this.terminalOciosoMs = 0;
+      return;
+    }
+    this.terminalOciosoMs += delta;
+    if (this.terminalOciosoMs < TERMINAL_OCIOSO_MS) return;
+    this.terminalOciosoMs = 0;
+    const fala = TERMINAL_OCIOSO_FASE1[this.falasOciosasUsadas % TERMINAL_OCIOSO_FASE1.length];
+    this.falasOciosasUsadas++;
+    this.terminal.imprimirLinha(fala, 'info');
+  }
+
   override update(tempo: number, delta: number): void {
     super.update(tempo, delta);
 
@@ -220,6 +273,7 @@ export class CenaFase1 extends CenaBase {
 
     // O céu continua vivo mesmo com o terminal aberto
     this.cenario.atualizar(delta);
+    this.vigiarTerminalOcioso(delta);
 
     // 1. Congelamento Seguro no Terminal e Diálogos
     const emMenuOuDialogo = Boolean(
@@ -384,6 +438,14 @@ export class CenaFase1 extends CenaBase {
     });
 
     this.terminal.abrir({ titulo: totem.textos.TITULO, linhasIniciais: this.linhasEnunciado(totem) });
+    this.terminalOciosoMs = 0;
+
+    // Na primeira visita, o totem comenta o histórico do jogador (se houver o que comentar)
+    if (!this.totensComentados.has(totem.id)) {
+      this.totensComentados.add(totem.id);
+      const comentario = comentarioEntradaTotem(totem.id, this.contextoDialogos());
+      if (comentario) linhasExtras = [comentario, ...linhasExtras];
+    }
 
     // Avisos extras ficam fora do enunciado, que o comando "enunciado" reimprime
     for (const linha of linhasExtras) {
@@ -438,6 +500,9 @@ export class CenaFase1 extends CenaBase {
 
     const erros = (this.errosPorTotem.get(totem.id) ?? 0) + 1;
     this.errosPorTotem.set(totem.id, erros);
+    this.errosTotais++;
+    const insistente = ERROS_INSISTENTES_FASE1[erros];
+    if (insistente) this.terminal.imprimirLinha(insistente, 'info');
     this.terminal.definirContexto({ totemAtivo: totem.id, errosNoTotem: erros });
     if (erros === ERROS_PARA_ESQUELETO) {
       this.terminal.imprimirLinha(TEXTOS_TERMINAL_FASE1.AVISO_ESQUELETO, 'info');
@@ -639,7 +704,7 @@ export class CenaFase1 extends CenaBase {
       ease: 'Cubic.easeIn',
       onComplete: () => {
         this.cameras.main.shake(300, 0.01);
-        this.comunicador.iniciarDialogo(TEXTOS_HELIO.INTRO, () => this.comecarLuta());
+        this.comunicador.iniciarDialogo(introHelio(this.contextoDialogos()), () => this.comecarLuta());
       },
     });
   }
@@ -917,7 +982,9 @@ export class CenaFase1 extends CenaBase {
     }
 
     if (comFlash) this.cameras.main.flash(200, 255, 255, 255);
-    this.mostrarNotificacaoCurta(motivo);
+    this.mortes++;
+    const piada = piadaDeMorte(this.mortes);
+    this.mostrarNotificacaoCurta(piada ? `${motivo}\n${piada}` : motivo);
 
     // Morrer durante a luta (corações ou queda) recomeça o Helio do zero
     if (this.lutaHelio === 'lutando') {
@@ -978,6 +1045,7 @@ export class CenaFase1 extends CenaBase {
       color: '#fbbf24',
       backgroundColor: '#090d16',
       padding: { x: 8, y: 4 },
+      align: 'center',
     });
     txt.setOrigin(0.5);
     txt.setDepth(9995);
@@ -991,7 +1059,8 @@ export class CenaFase1 extends CenaBase {
       targets: txt,
       y: txt.y - 30,
       alpha: 0,
-      duration: 1600,
+      // Aviso com piada (duas linhas) fica mais tempo para dar tempo de ler
+      duration: mensagem.includes('\n') ? 3200 : 1600,
       onComplete: () => txt.destroy(),
     });
   }
@@ -1016,7 +1085,7 @@ export class CenaFase1 extends CenaBase {
       ease: 'Cubic.easeInOut',
       onComplete: () => {
         this.concluirFaseAtual();
-        this.comunicador.iniciarDialogo(DIALOGO_RADIO_VITORIA, () => {
+        this.comunicador.iniciarDialogo(dialogoRadioVitoria(this.contextoDialogos()), () => {
           this.retornarAoHub();
         });
       },

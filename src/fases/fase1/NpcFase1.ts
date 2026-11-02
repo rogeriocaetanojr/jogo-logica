@@ -17,6 +17,12 @@ export class NpcFase1 {
   public x: number;
   public y: number;
   public raioInteracao: number;
+  /** Quantas vezes o jogador já conversou com este NPC. */
+  public visitas: number = 0;
+  /** Quando definido, gera as falas na hora (reagindo a mortes, erros e visitas) no lugar de `dialogo`. */
+  public gerarDialogo?: (visita: number) => LinhaDialogo[];
+  /** Avisa a cena que a conversa aconteceu (outros NPCs comentam quem foi ignorado). */
+  public aoConversar?: (id: string) => void;
 
   constructor(
     cena: Phaser.Scene,
@@ -81,7 +87,10 @@ export class NpcFase1 {
 
     if (perto && teclaInteragirPressionada && !comunicador.estaAtivo) {
       this.promptTexto.setVisible(false);
-      comunicador.iniciarDialogo(this.dialogo);
+      const falas = this.gerarDialogo ? this.gerarDialogo(this.visitas) : this.dialogo;
+      this.visitas++;
+      this.aoConversar?.(this.id);
+      comunicador.iniciarDialogo(falas);
       return true;
     }
 

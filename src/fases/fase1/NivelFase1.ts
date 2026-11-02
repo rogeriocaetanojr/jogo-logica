@@ -13,6 +13,7 @@ import {
   TEXTOS_TOTEM_3_PORTAO,
   TEXTOS_TOTEM_4_SEQUENCIADOR,
   TEXTOS_TOTEM_5_HELIO,
+  type ContextoDialogoFase1,
   type TextosTotemFase1,
 } from './DialogosFase1';
 import {
@@ -102,7 +103,8 @@ export function construirNivelFase1(
   cena: Phaser.Scene,
   jogador: Phaser.Physics.Arcade.Sprite,
   vento: VentoFase1,
-  instaveis: PlataformasInstaveisFase1
+  instaveis: PlataformasInstaveisFase1,
+  dialogos: { contexto: () => ContextoDialogoFase1; aoConversar: (idNpc: string) => void }
 ): ElementosNivelFase1 {
   const plataformasEstaticas = cena.physics.add.staticGroup();
   const nuvensSolidas = cena.physics.add.staticGroup();
@@ -157,7 +159,10 @@ export function construirNivelFase1(
   for (const chave of ['SUCATINHA', 'MAGO_NUVEM', 'POMBO'] as const) {
     const cfg = NPCS_FASE1[chave];
     const textos = TEXTOS_NPCS_FASE1[chave];
-    npcs.push(new NpcFase1(cena, cfg.ID, textos.NOME, cfg.X, cfg.Y, cfg.TEXTURA, textos.PROMPT, [...textos.DIALOGO]));
+    const npc = new NpcFase1(cena, cfg.ID, textos.NOME, cfg.X, cfg.Y, cfg.TEXTURA, textos.PROMPT, []);
+    npc.gerarDialogo = (visita) => textos.FALAS(dialogos.contexto(), visita);
+    npc.aoConversar = dialogos.aoConversar;
+    npcs.push(npc);
   }
 
   // ===========================================================================

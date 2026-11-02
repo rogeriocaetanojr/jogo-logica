@@ -262,6 +262,9 @@ export const CHECKPOINTS_FASE1 = {
 export const DISTANCIA_INTERACAO_TOTEM_PADRAO = 80;
 export const DISTANCIA_INTERACAO_NPC_PADRAO = 90;
 export const OFFSET_PROMPT_TOTEM_Y = 50;
+// Terminal aberto sem nenhum comando por este tempo: o terminal puxa assunto
+export const TERMINAL_OCIOSO_MS = 40000;
+
 export const ERROS_PARA_ESQUELETO = 3; // Erros no mesmo totem até o help mostrar o esqueleto da resposta
 // Chave mestra para testes: resolve o totem aberto, qualquer que seja
 export const SENHA_MESTRA_FASE1 = 'senhamagicabrainrebase';
