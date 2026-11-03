@@ -25,6 +25,17 @@ export class Trecho3Chuva extends TrechoLixao {
     [4100, 160],
   ] as const;
 
+  /** Munição solta pelo chão, longe dos buracos e do terminal. */
+  public override readonly reciclaveis = [
+    [500, 'lata'],
+    [1300, 'bateria'],
+    [2000, 'placa'],
+    [2950, 'monitor'],
+    [3500, 'lata'],
+    [3980, 'placa'],
+    [4800, 'bateria'],
+  ] as const;
+
   constructor(cena: CenaFase3) {
     super(cena, 2);
     this.largura = 5120;

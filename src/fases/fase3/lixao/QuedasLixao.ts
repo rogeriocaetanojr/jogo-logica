@@ -3,7 +3,9 @@ import type { CenaFase3 } from '../CenaFase3';
 import { PROF } from '../trechos/TrechoLixao';
 import { COR, ESCALA, aleatorio, grade, texturaPixel } from './ArteLixao';
 import type { Pincel } from './ArteLixao';
-import { CHAO_Y } from './TiposLixao';
+import { LADO_RECICLAVEL } from './ArremessoLixao';
+import { CHAO_Y, TIPOS_RECICLAVEIS } from './TiposLixao';
+import type { TipoReciclavel } from './TiposLixao';
 
 /** Evento da cena disparado a cada queda (o som de estática escuta este evento). */
 export const EVENTO_QUEDA = 'lixao-queda';
@@ -14,10 +16,6 @@ export interface DadosQueda {
   yChao: number;
   tipo: TipoReciclavel;
 }
-
-/** Tipos de reciclável que o lixo vira ao tocar o chão (cada um terá animação e som próprios). */
-export type TipoReciclavel = 'placa' | 'monitor' | 'cabo';
-const TIPOS: readonly TipoReciclavel[] = ['placa', 'monitor', 'cabo'];
 
 /**
  * Pontos de queda por trecho, em x relativo ao trecho (ver os comentários [QUEDA DE LIXO] em
@@ -56,7 +54,6 @@ export const QUEDA = {
 } as const;
 
 /** Tamanho do item em resolução de arte (8x8 = 32 px de mundo). */
-const LADO_ITEM = 8;
 /** Pilha pendurada no topo da tela de onde o item cai. */
 const PILHA_W = 20;
 const PILHA_H = 12;
@@ -66,10 +63,7 @@ const SOMBRA_H = 3;
 /** Topo de sólido mais alto que isto é ignorado ao procurar onde o item pousa (muralhas). */
 const TOPO_MINIMO = 80;
 
-/**
- * Reciclável parado no chão. Interface usada pelo arremesso (próxima etapa) para achar e
- * recolher munição.
- */
+/** Reciclável parado no chão. Interface usada pelo arremesso para achar e recolher munição. */
 export interface Reciclavel {
   readonly tipo: TipoReciclavel;
   readonly x: number;
@@ -100,14 +94,22 @@ interface Ponto {
   ativo: boolean;
 }
 
+/** Reciclável solto no chão do caminho desde o início (x de mundo); não some com o tempo. */
+interface Solto {
+  x: number;
+  tipo: TipoReciclavel;
+}
+
 class ReciclavelChao implements Reciclavel {
-  public restante = QUEDA.RECICLAVEL_MS;
+  /** Tempo até sumir; Infinity nos soltos do caminho. */
+  public restante: number;
   public readonly tipo: TipoReciclavel;
   public readonly img: Phaser.GameObjects.Image;
 
-  constructor(tipo: TipoReciclavel, img: Phaser.GameObjects.Image) {
+  constructor(tipo: TipoReciclavel, img: Phaser.GameObjects.Image, restante: number = QUEDA.RECICLAVEL_MS) {
     this.tipo = tipo;
     this.img = img;
+    this.restante = restante;
   }
 
   get x(): number {
@@ -133,7 +135,8 @@ class ReciclavelChao implements Reciclavel {
  * Quedas de lixo das pilhas. Cada ponto tem uma pilha pendurada no topo da tela; no ciclo a
  * pilha treme e uma sombra vermelha cresce no chão (AVISO_MS), depois o item cai. Encostar
  * no item caindo tira 1 bateria. Ao tocar o chão ele vira um reciclável parado por
- * RECICLAVEL_MS, que o arremesso recolhe por `reciclaveisPerto`.
+ * RECICLAVEL_MS, que o arremesso recolhe por `reciclaveisPerto`. Também guarda os recicláveis
+ * soltos pelo chão do caminho (`reciclaveis` de cada trecho), que não somem e voltam ao morrer.
  *
  * Só avança em `atualizar`, que a cena não chama com o terminal aberto: as quedas pausam
  * junto com a física.
@@ -144,6 +147,7 @@ export class QuedasLixao {
   private readonly pontos: Ponto[] = [];
   private readonly ciclos: Ciclo[] = [];
   private readonly reciclaveis: ReciclavelChao[] = [];
+  private readonly soltos: Solto[] = [];
   private readonly rnd = aleatorio(909);
   /** Tempo até a próxima queda no trecho atual. */
   private espera = 0;
@@ -168,7 +172,12 @@ export class QuedasLixao {
         this.cena.cenario.registrarTingivel(pilha);
         this.pontos.push({ x, trecho: i, pilha, ativo: false });
       }
+      for (const [xLocal, tipo] of trecho.reciclaveis) {
+        if (!trecho.chaoLivre(xLocal, 0)) console.warn(`Reciclável solto do trecho ${i + 1} em ${xLocal} fora do chão livre.`);
+        this.soltos.push({ x: grade(trecho.offset + xLocal), tipo });
+      }
     });
+    this.espalharSoltos();
   }
 
   /** Recicláveis no chão a até `raio` de (x, y), do mais perto ao mais longe. */
@@ -183,13 +192,17 @@ export class QuedasLixao {
     return this.reciclaveis.filter((r) => r.disponivel);
   }
 
-  /** Cancela quedas em andamento e limpa o chão (ao morrer e voltar ao checkpoint). */
+  /**
+   * Cancela quedas em andamento e limpa o chão (ao morrer e voltar ao checkpoint). Os soltos
+   * do caminho voltam todos, para não faltar munição.
+   */
   reiniciar(): void {
     for (const ciclo of this.ciclos) this.encerrar(ciclo);
     this.ciclos.length = 0;
     for (const r of this.reciclaveis) r.img.destroy();
     this.reciclaveis.length = 0;
     this.trechoAtual = -1;
+    this.espalharSoltos();
   }
 
   atualizar(delta: number, trecho: number): void {
@@ -240,7 +253,7 @@ export class QuedasLixao {
       .setScale(ESCALA * QUEDA.SOMBRA_INICIAL, ESCALA)
       .setAlpha(0.4)
       .setDepth(PROF.escuro + 1);
-    const tipo = TIPOS[Math.floor(this.rnd() * TIPOS.length)];
+    const tipo = TIPOS_RECICLAVEIS[Math.floor(this.rnd() * TIPOS_RECICLAVEIS.length)];
     this.ciclos.push({ ponto, fase: 'aviso', tempo: 0, tipo, yChao, sombra, velocidade: 0 });
   }
 
@@ -275,7 +288,7 @@ export class QuedasLixao {
     ponto.pilha.setX(ponto.x);
     ciclo.fase = 'caindo';
     ciclo.item = this.cena.add
-      .image(ponto.x, PILHA_H * ESCALA, `lx-queda-${ciclo.tipo}-perigo`)
+      .image(ponto.x, PILHA_H * ESCALA, `lx-rec-${ciclo.tipo}-perigo`)
       .setOrigin(0.5, 1)
       .setScale(ESCALA)
       .setDepth(PROF.jogador - 1);
@@ -288,13 +301,18 @@ export class QuedasLixao {
     const { item, tipo, yChao } = ciclo;
     this.encerrar(ciclo);
     this.cena.cameras.main.shake(80, 0.002);
-    const img = this.cena.add
-      .image(item!.x, yChao, `lx-queda-${tipo}`)
-      .setOrigin(0.5, 1)
-      .setScale(ESCALA)
-      .setDepth(PROF.objetos);
+    this.criarReciclavel(tipo, item!.x, yChao);
+  }
+
+  private criarReciclavel(tipo: TipoReciclavel, x: number, y: number, restante?: number): void {
+    const img = this.cena.add.image(x, y, `lx-rec-${tipo}`).setOrigin(0.5, 1).setScale(ESCALA).setDepth(PROF.objetos);
     this.cena.cenario.registrarTingivel(img);
-    this.reciclaveis.push(new ReciclavelChao(tipo, img));
+    this.reciclaveis.push(new ReciclavelChao(tipo, img, restante));
+  }
+
+  /** Põe no chão os recicláveis soltos do caminho, sobre o sólido mais alto de cada ponto. */
+  private espalharSoltos(): void {
+    for (const { x, tipo } of this.soltos) this.criarReciclavel(tipo, x, this.superficie(x), Infinity);
   }
 
   private encerrar(ciclo: Ciclo): void {
@@ -334,7 +352,7 @@ export class QuedasLixao {
 
   private encostaNoJogador(item: Phaser.GameObjects.Image): boolean {
     const j = this.cena.jogador.corpo;
-    const meio = (LADO_ITEM * ESCALA) / 2;
+    const meio = (LADO_RECICLAVEL * ESCALA) / 2;
     return item.x + meio > j.left && item.x - meio < j.right && item.y > j.top && item.y - meio * 2 < j.bottom;
   }
 
@@ -346,11 +364,6 @@ export class QuedasLixao {
       p.px(0, 1, SOMBRA_W, 1, COR.perigo);
       p.px(2, 2, SOMBRA_W - 4, 1, COR.perigo);
     });
-    for (const tipo of TIPOS) {
-      texturaPixel(this.cena, `lx-queda-${tipo}`, LADO_ITEM, LADO_ITEM, (p) => DESENHO_ITEM[tipo](p, COR.contorno));
-      // Caindo, o contorno fica no vermelho de perigo
-      texturaPixel(this.cena, `lx-queda-${tipo}-perigo`, LADO_ITEM, LADO_ITEM, (p) => DESENHO_ITEM[tipo](p, COR.perigo));
-    }
   }
 }
 
@@ -365,24 +378,3 @@ function desenharPilhaPendurada(p: Pincel, rnd: () => number): void {
     if (rnd() < 0.4) p.ponto(x + 1, h - 2, COR.cobre);
   }
 }
-
-const DESENHO_ITEM: Record<TipoReciclavel, (p: Pincel, borda: string) => void> = {
-  placa: (p, borda) => {
-    p.caixa(0, 2, 8, 5, COR.verdePlaca, borda);
-    p.px(1, 3, 6, 1, COR.verdePlacaClaro);
-    p.linha(2, 5, 5, 5, COR.cobre);
-    p.ponto(6, 5, COR.cobreClaro);
-  },
-  monitor: (p, borda) => {
-    p.caixa(0, 0, 8, 7, COR.sucataClara, borda);
-    p.px(2, 2, 4, 3, COR.sombraSucata);
-    p.px(3, 7, 2, 1, borda);
-  },
-  cabo: (p, borda) => {
-    p.disco(4, 4, 3, borda);
-    p.disco(4, 4, 2, COR.cobreEscuro);
-    p.ponto(4, 4, borda);
-    p.ponto(7, 1, COR.cobreClaro);
-    p.ponto(6, 2, COR.cobre);
-  },
-};

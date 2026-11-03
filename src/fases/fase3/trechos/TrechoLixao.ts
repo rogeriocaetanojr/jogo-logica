@@ -18,7 +18,7 @@ import {
 } from '../lixao/ArteLixao';
 import type { CorLixao, Pincel } from '../lixao/ArteLixao';
 import { ALTURA_TELA, CHAO_Y, TRECHOS } from '../lixao/TiposLixao';
-import type { InfoTrecho } from '../lixao/TiposLixao';
+import type { InfoTrecho, TipoReciclavel } from '../lixao/TiposLixao';
 
 /** Profundidades de desenho comuns ao mapa. */
 export const PROF = {
@@ -95,6 +95,11 @@ export abstract class TrechoLixao {
    * tem fundo: cair nele mata e devolve ao checkpoint (ver CenaFase3).
    */
   protected buracos: ReadonlyArray<readonly [number, number]> = [];
+  /**
+   * Recicláveis soltos pelo chão do caminho como [x, tipo], relativos ao trecho (ver
+   * QuedasLixao). Ficam sobre o sólido mais alto do ponto e não somem.
+   */
+  public readonly reciclaveis: ReadonlyArray<readonly [number, TipoReciclavel]> = [];
   public marcador?: Phaser.GameObjects.Sprite;
   public readonly info: InfoTrecho;
   /** Cores, astro e tinta do clima do trecho. */

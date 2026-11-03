@@ -22,6 +22,16 @@ export class Trecho2Nevoa extends TrechoLixao {
     [3700, 512],
   ] as const;
 
+  /** Munição solta pelo chão, longe dos buracos e do terminal. */
+  public override readonly reciclaveis = [
+    [450, 'placa'],
+    [1600, 'lata'],
+    [2350, 'bateria'],
+    [3450, 'monitor'],
+    [4400, 'lata'],
+    [4900, 'placa'],
+  ] as const;
+
   constructor(cena: CenaFase3) {
     super(cena, 1);
     this.largura = 5120;

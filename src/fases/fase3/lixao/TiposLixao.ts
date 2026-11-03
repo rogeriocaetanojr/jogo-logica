@@ -50,3 +50,24 @@ export const TRECHOS: readonly InfoTrecho[] = [
   { numero: 3, nome: 'Pilhas Encharcadas', clima: 'chuva', rotuloClima: 'CHUVA' },
   { numero: 4, nome: 'Arena da Sucata', clima: 'noite', rotuloClima: 'NOITE' },
 ];
+
+/** Recicláveis que servem de munição: caem das pilhas e ficam soltos pelo chão. */
+export type TipoReciclavel = 'lata' | 'placa' | 'monitor' | 'bateria';
+
+export interface InfoReciclavel {
+  nome: string;
+  /**
+   * Peso do item (1 é o mais leve). Quanto mais pesado, mais lento sai da mão e mais rápido
+   * cai: a curva fica curta e baixa (ver ARREMESSO em ArremessoLixao).
+   */
+  peso: number;
+}
+
+export const RECICLAVEIS: Record<TipoReciclavel, InfoReciclavel> = {
+  lata: { nome: 'Carcaça de lata', peso: 1 },
+  placa: { nome: 'Placa de circuito', peso: 1.5 },
+  bateria: { nome: 'Bateria', peso: 2 },
+  monitor: { nome: 'Monitor CRT', peso: 3 },
+};
+
+export const TIPOS_RECICLAVEIS = Object.keys(RECICLAVEIS) as readonly TipoReciclavel[];

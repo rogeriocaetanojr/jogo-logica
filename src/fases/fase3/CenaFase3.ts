@@ -6,6 +6,7 @@ import { PROF } from './trechos/TrechoLixao';
 import type { TrechoLixao } from './trechos/TrechoLixao';
 import { CenarioLixao } from './trechos/CenarioLixao';
 import { criarTrechos } from './trechos/FabricaTrechos';
+import { ArremessoLixao, gerarTexturasReciclaveis } from './lixao/ArremessoLixao';
 import { COR, gerarTexturasLixao } from './lixao/ArteLixao';
 import { CLIMAS } from './lixao/ClimaLixao';
 import { HudLixao } from './lixao/HudLixao';
@@ -37,6 +38,8 @@ export class CenaFase3 extends CenaBase {
   public jogador!: JogadorLixao;
   /** Lixo caindo das pilhas e recicláveis no chão (munição do arremesso). */
   public quedas!: QuedasLixao;
+  /** Pegar (F), mirar e arremessar recicláveis. */
+  public arremesso!: ArremessoLixao;
   /**
    * Onde o jogador volta ao morrer: o último ponto de exercício ativado (o início da fase
    * conta como o primeiro) ou a entrada da arena, que não tem exercício.
@@ -72,6 +75,7 @@ export class CenaFase3 extends CenaBase {
   override create(): void {
     super.create();
     gerarTexturasLixao(this);
+    gerarTexturasReciclaveis(this);
 
     this.solidos = this.physics.add.staticGroup();
     this.perigos = this.physics.add.staticGroup();
@@ -92,6 +96,7 @@ export class CenaFase3 extends CenaBase {
     this.criarJogador();
     this.quedas = new QuedasLixao(this, (x) => this.aoTocarPerigo(x));
     this.quedas.construir();
+    this.arremesso = new ArremessoLixao(this);
     this.configurarTeclas();
     this.configurarTerminal();
 
@@ -122,6 +127,7 @@ export class CenaFase3 extends CenaBase {
     this.atualizarTextoClima();
     this.hud = new HudLixao(this);
     this.hud.atualizarVida(this.jogador.vida);
+    this.arremesso.aoMudarItem = (tipo) => this.hud.atualizarItem(tipo);
     this.criarEfeitoCRT(this.scale.width, this.scale.height, 0.02);
   }
 
@@ -188,6 +194,7 @@ export class CenaFase3 extends CenaBase {
     if (pausado !== this.fisicaPausada) {
       this.fisicaPausada = pausado;
       if (pausado) this.jogador.parar();
+      if (pausado) this.arremesso.esconderMira();
       if (pausado) this.physics.world.pause();
       else this.physics.world.resume();
     }
@@ -199,6 +206,7 @@ export class CenaFase3 extends CenaBase {
     if (DEBUG) this.atualizarAtalhosDebug();
     this.jogador.atualizar(tempo, delta);
     this.quedas.atualizar(delta, this.indiceTrecho);
+    this.arremesso.atualizar(delta);
     // Caiu num buraco: perde a vida toda e volta ao checkpoint
     if (this.jogador.y > ALTURA_TELA + QUEDA_FATAL) {
       this.morrer();
@@ -243,6 +251,7 @@ export class CenaFase3 extends CenaBase {
       this.physics.world.resume();
       this.jogador.renascer(x, CHAO_Y - 4);
       this.quedas.reiniciar();
+      this.arremesso.reiniciar();
       this.fisicaPausada = false;
       this.indiceTrecho = trecho;
       this.cenario.definirTrecho(trecho, true);
