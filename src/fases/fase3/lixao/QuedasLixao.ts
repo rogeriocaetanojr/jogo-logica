@@ -310,6 +310,11 @@ export class QuedasLixao {
     this.reciclaveis.push(new ReciclavelChao(tipo, img, restante));
   }
 
+  /** Larga um reciclável que some com o tempo sobre o sólido mais alto em x (drone derrubado). */
+  largar(tipo: TipoReciclavel, x: number): void {
+    this.criarReciclavel(tipo, grade(x), this.superficie(x));
+  }
+
   /** Põe no chão os recicláveis soltos do caminho, sobre o sólido mais alto de cada ponto. */
   private espalharSoltos(): void {
     for (const { x, tipo } of this.soltos) this.criarReciclavel(tipo, x, this.superficie(x), Infinity);

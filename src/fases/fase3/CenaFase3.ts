@@ -8,6 +8,7 @@ import { CenarioLixao } from './trechos/CenarioLixao';
 import { criarTrechos } from './trechos/FabricaTrechos';
 import { ArremessoLixao, gerarTexturasReciclaveis } from './lixao/ArremessoLixao';
 import { COR, gerarTexturasLixao } from './lixao/ArteLixao';
+import { DronesLixao } from './lixao/DronesLixao';
 import { CLIMAS } from './lixao/ClimaLixao';
 import { HudLixao } from './lixao/HudLixao';
 import { JogadorLixao } from './lixao/JogadorLixao';
@@ -40,6 +41,8 @@ export class CenaFase3 extends CenaBase {
   public quedas!: QuedasLixao;
   /** Pegar (F), mirar e arremessar recicláveis. */
   public arremesso!: ArremessoLixao;
+  /** Drones que patrulham, atiram sucata e caem com um reciclável certeiro. */
+  public drones!: DronesLixao;
   /**
    * Onde o jogador volta ao morrer: o último ponto de exercício ativado (o início da fase
    * conta como o primeiro) ou a entrada da arena, que não tem exercício.
@@ -96,6 +99,8 @@ export class CenaFase3 extends CenaBase {
     this.criarJogador();
     this.quedas = new QuedasLixao(this, (x) => this.aoTocarPerigo(x));
     this.quedas.construir();
+    this.drones = new DronesLixao(this, (x) => this.aoTocarPerigo(x));
+    this.drones.construir();
     this.arremesso = new ArremessoLixao(this);
     this.configurarTeclas();
     this.configurarTerminal();
@@ -206,6 +211,7 @@ export class CenaFase3 extends CenaBase {
     if (DEBUG) this.atualizarAtalhosDebug();
     this.jogador.atualizar(tempo, delta);
     this.quedas.atualizar(delta, this.indiceTrecho);
+    this.drones.atualizar(delta);
     this.arremesso.atualizar(delta);
     // Caiu num buraco: perde a vida toda e volta ao checkpoint
     if (this.jogador.y > ALTURA_TELA + QUEDA_FATAL) {
@@ -230,6 +236,15 @@ export class CenaFase3 extends CenaBase {
     if (trecho.xExercicio === null && indice > this.checkpoint.trecho) this.checkpoint = { x: trecho.inicio.x, trecho: indice };
   }
 
+  /** Algum sólido (chão, bloco, viga, muralha) contém o ponto (x, y) do mundo. */
+  solidoEm(x: number, y: number): boolean {
+    for (const obj of this.solidos.getChildren()) {
+      const corpo = (obj as Phaser.GameObjects.Rectangle).body as Phaser.Physics.Arcade.StaticBody | null;
+      if (corpo && x >= corpo.left && x <= corpo.right && y >= corpo.top && y <= corpo.bottom) return true;
+    }
+    return false;
+  }
+
   /* =========================================================================
    * DANO E CHECKPOINT
    * ========================================================================= */
@@ -251,6 +266,7 @@ export class CenaFase3 extends CenaBase {
       this.physics.world.resume();
       this.jogador.renascer(x, CHAO_Y - 4);
       this.quedas.reiniciar();
+      this.drones.reiniciar();
       this.arremesso.reiniciar();
       this.fisicaPausada = false;
       this.indiceTrecho = trecho;

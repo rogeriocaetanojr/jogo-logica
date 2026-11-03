@@ -67,7 +67,7 @@ export class Trecho1Sol extends TrechoLixao {
     this.bloco('bloco-1', 3360, 48);
     // Cano longo: segurar o abaixar por mais tempo
     this.passagemBaixa('cano-2', 3560, 400);
-    // [DRONE] 3500: drone atirando sucata na altura da cabeça, que se esquiva abaixando
+    // [DRONE] 3500: o único drone do sol, lento, entre os canos (DRONES_POR_TRECHO em DronesLixao)
     // [QUEDA DE LIXO] 4100: entre o cano longo e o último buraco
 
     // Buraco (4240, 160 px) com aterrissagem curta antes do último cano

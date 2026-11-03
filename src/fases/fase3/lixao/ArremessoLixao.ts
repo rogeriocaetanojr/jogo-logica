@@ -236,7 +236,12 @@ export class ArremessoLixao {
     p.img.setPosition(grade(p.x), grade(p.y)).setAngle((giro.grausPorSegundo * p.tempo) / 1000);
     if (giro.capota) p.img.setScale(ESCALA * Math.max(0.25, Math.abs(Math.cos(p.tempo / 90))), ESCALA);
 
-    // [DRONE] [CHEFÃO] acertar drones e o Monstro de Sucata entra aqui, antes dos sólidos
+    // [CHEFÃO] acertar o Monstro de Sucata entra aqui, junto dos drones
+    if (this.cena.drones.atingir(p.x, p.y)) {
+      p.img.destroy();
+      this.impacto(p.tipo, grade(p.x), grade(p.y), p.vx);
+      return true;
+    }
     const larguraMundo = this.cena.physics.world.bounds.width;
     if (p.y > ALTURA_TELA + 40 || p.x < 0 || p.x > larguraMundo) {
       p.img.destroy();
@@ -256,11 +261,7 @@ export class ArremessoLixao {
   }
 
   private solidoEm(x: number, y: number): boolean {
-    for (const obj of this.cena.solidos.getChildren()) {
-      const corpo = (obj as Phaser.GameObjects.Rectangle).body as Phaser.Physics.Arcade.StaticBody | null;
-      if (corpo && x >= corpo.left && x <= corpo.right && y >= corpo.top && y <= corpo.bottom) return true;
-    }
-    return false;
+    return this.cena.solidoEm(x, y);
   }
 
   /* =========================================================================

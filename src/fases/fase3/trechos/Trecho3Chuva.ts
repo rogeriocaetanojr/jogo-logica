@@ -65,6 +65,7 @@ export class Trecho3Chuva extends TrechoLixao {
     // [DRONE] 3980: drone parado acima da plataforma curta
 
     this.bloco('bloco-3', 4500, 48);
+    // [DRONE] 4600: drone soltando faíscas sobre o último bloco
     // [QUEDA DE LIXO] 4700: pilha desabando no caminho da arena
 
     for (let x = 340; x < this.largura - 200; x += 380) this.decoracao(x, 'lx-fios', Math.floor(x / 380) % 2 === 0);

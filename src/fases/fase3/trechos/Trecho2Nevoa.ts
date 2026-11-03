@@ -55,7 +55,7 @@ export class Trecho2Nevoa extends TrechoLixao {
     this.bloco('torre-2', 1764, 192);
     this.viga('torre-viga-1', 1940, 300);
     this.viga('torre-viga-2', 2180, 400);
-    // [DRONE] 2060: drone pairando entre as vigas da torre
+    // [DRONE] 2060: drone pairando entre as vigas da torre; na névoa vê pouco e chega perto
     // [WALL-E] 2400: aparece varrendo o pó perto do terminal
 
     // Exercício em 2560; vão de 576 px em 2720 que ganha ponte ao resolver
@@ -65,6 +65,7 @@ export class Trecho2Nevoa extends TrechoLixao {
     this.viga('ponte-1', 3770, 120, 96);
     this.viga('ponte-2', 3960, 200, 96);
     this.viga('ponte-3', 4100, 140, 96);
+    // [DRONE] 4400: drone na reta depois das vigas baixas
     // [QUEDA DE LIXO] 4500: na reta antes da chuva
 
     for (let x = 420; x < this.largura - 200; x += 760) this.decoracao(x, 'lx-engrenagem', false, 6);
