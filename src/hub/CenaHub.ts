@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { GerenciadorEstado, type TipoPersonagem } from '../nucleo/GerenciadorEstado';
+import { MusicaHub } from './MusicaHub';
 
 interface PortaHubConfig {
   numero: number;
@@ -121,6 +122,8 @@ export class CenaHub extends Phaser.Scene {
   private personagemAtivo: TipoPersonagem = 'alvares';
   private jogador!: Phaser.Physics.Arcade.Sprite;
   private chao!: Phaser.Physics.Arcade.StaticGroup;
+  private musica?: MusicaHub;
+  private teclaMudo?: Phaser.Input.Keyboard.Key;
 
   // Caixa de Mensagem Narrativa e Alerta de Bloqueio do Boss
   private containerDialogoHub?: Phaser.GameObjects.Container;
@@ -211,6 +214,16 @@ export class CenaHub extends Phaser.Scene {
 
     // 10. Configuração de Controles (Setas, WASD, Enter, Espaço e atalhos [0]-[6], [P])
     this.configurarControles();
+
+    // 11. Música de fundo do Hub; [M] liga e desliga (a escolha vale também na Fase 1)
+    this.musica?.parar(0.1);
+    this.musica = new MusicaHub();
+    this.musica.iniciar();
+    this.teclaMudo = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.M);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.musica?.parar();
+      this.musica = undefined;
+    });
   }
 
   private limparOverlaysDOM(): void {
@@ -346,6 +359,10 @@ export class CenaHub extends Phaser.Scene {
   }
 
   override update(): void {
+    if (this.teclaMudo && this.musica && Phaser.Input.Keyboard.JustDown(this.teclaMudo)) {
+      this.musica.definirMudo(!this.musica.mudo);
+    }
+
     if (this.isTransicaoAtiva || !this.jogador || !this.jogador.body) return;
 
     // Se o diálogo narrativo inicial estiver ativo, trava a movimentação

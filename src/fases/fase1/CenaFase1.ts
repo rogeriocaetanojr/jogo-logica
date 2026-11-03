@@ -13,6 +13,7 @@ import { TempestadeFase1 } from './TempestadeFase1';
 import { CenarioFase1 } from './CenarioFase1';
 import { SomFase1, emitirSom } from './SomFase1';
 import { MusicaFase1 } from './MusicaFase1';
+import { lerMudoSalvo, salvarMudo } from '../../hub/MusicaHub';
 import {
   construirNivelFase1,
   desenharEscudoSentinela,
@@ -349,7 +350,7 @@ export class CenaFase1 extends CenaBase {
 
   private lerMudoSalvo(): boolean {
     try {
-      return window.localStorage.getItem('fase1-mudo') === '1';
+      return lerMudoSalvo();
     } catch {
       return false;
     }
@@ -361,11 +362,7 @@ export class CenaFase1 extends CenaBase {
   private aplicarMudo(mudo: boolean, avisar: boolean): void {
     this.sound.mute = mudo;
     this.musica.definirMudo(mudo);
-    try {
-      window.localStorage.setItem('fase1-mudo', mudo ? '1' : '0');
-    } catch {
-      // Navegador sem armazenamento: a escolha vale só nesta visita
-    }
+    salvarMudo(mudo);
     if (avisar) {
       this.mostrarNotificacaoCurta(mudo ? 'SOM DESLIGADO // [M] PARA LIGAR' : 'SOM LIGADO // [M] PARA DESLIGAR');
       if (!mudo) emitirSom(this, 'mudo');

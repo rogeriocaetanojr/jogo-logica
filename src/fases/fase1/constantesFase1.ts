@@ -41,7 +41,7 @@ export const SOM_FASE1 = {
  */
 export const MUSICA_FASE1 = {
   VOLUME_CEU: 0.17,
-  VOLUME_HELIO: 0.2,
+  VOLUME_HELIO: 0.17,
   VOLUME_SUSPENSE: 0.06, // Helio de joelhos, esperando o comando do núcleo
   VOLUME_CEU_VITORIA: 0.12,
   FATOR_ABAFADO: 0.35, // Fração do volume com terminal ou diálogo abertos
@@ -466,7 +466,7 @@ export const BOSS_HELIO_FASE1 = {
   // Rajada rasteira: ondas de vento no chão, na direção do jogador (pule por cima)
   ONDAS_POR_NIVEL: [5, 6, 7, 8, 9, 10],
   INTERVALO_ONDAS_MS: 650,
-  ONDA_VELOCIDADE: 513, // 380 × 1,35
+  ONDA_VELOCIDADE: 450,
   ONDA_LARGURA: 46,
   ONDA_ALTURA: 64,
 
