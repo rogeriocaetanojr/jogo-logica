@@ -43,7 +43,7 @@ export class Trecho4Noite extends TrechoLixao {
     // [CHEFÃO] 1500: Monstro de Sucata surge do lixo; ataques de sucata, faíscas e choque no chão
     // [CHEFÃO] 1700: contêiner de reciclagem, para onde o monstro é empurrado no fim
     // [QUEDA DE LIXO] 400 e 1880: as pilhas das bordas desabam durante a luta e servem de munição
-    // [WALL-E] 1100: comemora no centro da arena depois da vitória
+    // [RECICLA] 1100: comemora no centro da arena depois da vitória
 
     // Pilha da borda direita
     this.bloco('pilha-dir-1', 1792, 48);

@@ -41,7 +41,6 @@ export class Trecho1Sol extends TrechoLixao {
   }
 
   protected override decorar(): void {
-    // [WALL-E] 300: primeira aparição, limpando o portão enquanto o jogador aprende a andar
     if (DEBUG) this.perigo('espinho-teste', 400, 'lx-espinho');
 
     // Pulo curto e pulo segurado; vigas subindo a partir do bloco alto
@@ -62,13 +61,13 @@ export class Trecho1Sol extends TrechoLixao {
 
     // Primeiro cano baixo, curto, em chão livre
     this.passagemBaixa('cano-1', 2960, 240);
-    // [WALL-E] 3100: passa abaixado por baixo do cano, mostrando o caminho
 
     this.bloco('bloco-1', 3360, 48);
     // Cano longo: segurar o abaixar por mais tempo
     this.passagemBaixa('cano-2', 3560, 400);
     // [DRONE] 3500: o único drone do sol, lento, entre os canos (DRONES_POR_TRECHO em DronesLixao)
     // [QUEDA DE LIXO] 4100: entre o cano longo e o último buraco
+    // [RECICLA] 3440 a 4180: patrulha passando por baixo do cano longo (PATRULHA_RECICLA em RoboLixao)
 
     // Buraco (4240, 160 px) com aterrissagem curta antes do último cano
     this.passagemBaixa('cano-3', 4600, 200);

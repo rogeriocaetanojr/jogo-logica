@@ -31,14 +31,16 @@ Um lixão gigante de lixo eletrônico, inspirado em Wall-E. O jogador controla m
 - Errar não pune: só gera deboche ácido, estilo South Park.
 - Só o terminal fala com o jogador. Não há narrador nem diálogo de personagens.
 
-## Wall-E
-- Aparece pelo mapa limpando e interagindo com o jogador. É imune a dano e tem papel de reciclador.
+## Robô reciclador (M7)
+- Etapa M7. Nome: Recicla. Patrulha uma faixa de chão em cada um dos 3 primeiros trechos e é imune a dano (perigos o atravessam, recicláveis arremessados quicam nele).
+- Recolhe só o lixo temporário (das pilhas e dos drones) parado há 3 s; nunca os recicláveis fixos do trecho.
+- Com o jogador perto e de mão vazia, entrega um item (o que recolheu ou, sem carga, um sorteado), com 8 s de espera entre entregas.
 
 ## Chefão: Monstro de Sucata
 - Arena noturna. Ataques: joga sucata, solta faíscas e dá choque no chão.
 - Cada reciclável que acerta tira vida e deixa o monstro mais lento.
 - Com a vida zerada, o jogador empurra o monstro até o contêiner, que o compacta.
-- Final: o céu limpa e o Wall-E comemora.
+- Final: o céu limpa e o robô reciclador comemora.
 
 ## HUD
 - Canto superior esquerdo: vida em baterias (pilhas que vão descarregando) e ícone do item na mão.

@@ -121,6 +121,13 @@ export class ArremessoLixao {
     }
   }
 
+  /** Põe um item na mão vazia (entrega do Recicla); devolve false se a mão já está ocupada. */
+  receber(tipo: TipoReciclavel): boolean {
+    if (this.naMao) return false;
+    this.definirMao(tipo);
+    return true;
+  }
+
   /** Esconde a mira e o aviso (cena pausada: terminal, morte, fim). */
   esconderMira(): void {
     this.trajetoria.clear();
@@ -237,7 +244,8 @@ export class ArremessoLixao {
     if (giro.capota) p.img.setScale(ESCALA * Math.max(0.25, Math.abs(Math.cos(p.tempo / 90))), ESCALA);
 
     // [CHEFÃO] acertar o Monstro de Sucata entra aqui, junto dos drones
-    if (this.cena.drones.atingir(p.x, p.y)) {
+    // O Recicla é imune: o item só quica nele com o impacto normal
+    if (this.cena.drones.atingir(p.x, p.y) || this.cena.recicla.atingir(p.x, p.y)) {
       p.img.destroy();
       this.impacto(p.tipo, grade(p.x), grade(p.y), p.vx);
       return true;

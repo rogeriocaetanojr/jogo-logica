@@ -56,10 +56,10 @@ export class Trecho2Nevoa extends TrechoLixao {
     this.viga('torre-viga-1', 1940, 300);
     this.viga('torre-viga-2', 2180, 400);
     // [DRONE] 2060: drone pairando entre as vigas da torre; na névoa vê pouco e chega perto
-    // [WALL-E] 2400: aparece varrendo o pó perto do terminal
 
     // Exercício em 2560; vão de 576 px em 2720 que ganha ponte ao resolver
     // [QUEDA DE LIXO] 3500: pilha desabando no trecho plano depois da ponte
+    // [RECICLA] 3380 a 3640: recolhe o lixo dessa pilha, com os olhos de farol na poeira
 
     // Buraco de 512 px cruzado por três vigas baixas
     this.viga('ponte-1', 3770, 120, 96);

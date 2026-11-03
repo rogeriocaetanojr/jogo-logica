@@ -70,6 +70,10 @@ export interface Reciclavel {
   readonly y: number;
   /** Ainda no chão e disponível para pegar. */
   readonly disponivel: boolean;
+  /** Lixo temporário (das pilhas ou de um drone), que some com o tempo; false nos soltos do caminho. */
+  readonly temporario: boolean;
+  /** Tempo parado no chão, em ms. */
+  readonly idade: number;
   /** Recolhe o item (some do chão). Devolve o tipo, ou null se já foi recolhido ou sumiu. */
   pegar(): TipoReciclavel | null;
 }
@@ -103,6 +107,7 @@ interface Solto {
 class ReciclavelChao implements Reciclavel {
   /** Tempo até sumir; Infinity nos soltos do caminho. */
   public restante: number;
+  public idade = 0;
   public readonly tipo: TipoReciclavel;
   public readonly img: Phaser.GameObjects.Image;
 
@@ -122,6 +127,10 @@ class ReciclavelChao implements Reciclavel {
 
   get disponivel(): boolean {
     return this.img.active;
+  }
+
+  get temporario(): boolean {
+    return this.restante !== Infinity;
   }
 
   pegar(): TipoReciclavel | null {
@@ -331,6 +340,7 @@ export class QuedasLixao {
     for (let i = this.reciclaveis.length - 1; i >= 0; i--) {
       const r = this.reciclaveis[i];
       r.restante -= delta;
+      r.idade += delta;
       if (!r.disponivel || r.restante <= 0) {
         r.img.destroy();
         this.reciclaveis.splice(i, 1);

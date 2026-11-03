@@ -4,7 +4,8 @@
 
 /**
  * Liga atalhos de desenvolvimento: teclas 1 a 4 levam ao início de cada trecho e L libera o
- * obstáculo do exercício do trecho atual. Deixar false no commit.
+ * obstáculo do exercício do trecho atual, C troca o clima e R traz o Recicla até o jogador.
+ * Deixar false no commit.
  */
 export const DEBUG = false;
 

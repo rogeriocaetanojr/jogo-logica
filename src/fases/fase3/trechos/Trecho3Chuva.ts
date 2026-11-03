@@ -51,7 +51,7 @@ export class Trecho3Chuva extends TrechoLixao {
     this.bloco('bloco-1', 1500, 48);
     this.bloco('bloco-2', 1900, 48);
     // [QUEDA DE LIXO] 1700: entre os blocos, onde parar escorregando é difícil
-    // [WALL-E] 1300: passa na direção contrária, recolhendo sucata molhada
+    // [RECICLA] 1590 a 1880: recolhe a sucata molhada entre os blocos
 
     // Buraco (2200, 160 px) e o terminal logo depois
     // Exercício em 2560; portão de sucata em 2720 que sobe ao resolver

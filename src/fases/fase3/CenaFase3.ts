@@ -13,6 +13,7 @@ import { CLIMAS } from './lixao/ClimaLixao';
 import { HudLixao } from './lixao/HudLixao';
 import { JogadorLixao } from './lixao/JogadorLixao';
 import { QuedasLixao } from './lixao/QuedasLixao';
+import { RoboLixao } from './lixao/RoboLixao';
 import { ALTURA_TELA, CHAO_Y, DEBUG, FADE_MORTE_MS, LARGURA_TELA, TRECHOS } from './lixao/TiposLixao';
 
 /** Distância horizontal para interagir com o ponto de exercício. */
@@ -43,6 +44,8 @@ export class CenaFase3 extends CenaBase {
   public arremesso!: ArremessoLixao;
   /** Drones que patrulham, atiram sucata e caem com um reciclável certeiro. */
   public drones!: DronesLixao;
+  /** Recicla, o robô reciclador: recolhe lixo temporário e entrega itens ao jogador. */
+  public recicla!: RoboLixao;
   /**
    * Onde o jogador volta ao morrer: o último ponto de exercício ativado (o início da fase
    * conta como o primeiro) ou a entrada da arena, que não tem exercício.
@@ -101,6 +104,8 @@ export class CenaFase3 extends CenaBase {
     this.quedas.construir();
     this.drones = new DronesLixao(this, (x) => this.aoTocarPerigo(x));
     this.drones.construir();
+    this.recicla = new RoboLixao(this);
+    this.recicla.construir();
     this.arremesso = new ArremessoLixao(this);
     this.configurarTeclas();
     this.configurarTerminal();
@@ -160,6 +165,8 @@ export class CenaFase3 extends CenaBase {
       nomes.LIBERAR = K.L;
       // C troca o clima na hora (sol, névoa, chuva, noite, o do trecho)
       nomes.CLIMA = K.C;
+      // R traz o Recicla do trecho atual até o jogador
+      nomes.RECICLA = K.R;
     }
     this.teclas = {};
     for (const [nome, codigo] of Object.entries(nomes)) this.teclas[nome] = kb.addKey(codigo, false);
@@ -212,6 +219,7 @@ export class CenaFase3 extends CenaBase {
     this.jogador.atualizar(tempo, delta);
     this.quedas.atualizar(delta, this.indiceTrecho);
     this.drones.atualizar(delta);
+    this.recicla.atualizar(delta);
     this.arremesso.atualizar(delta);
     // Caiu num buraco: perde a vida toda e volta ao checkpoint
     if (this.jogador.y > ALTURA_TELA + QUEDA_FATAL) {
@@ -267,6 +275,7 @@ export class CenaFase3 extends CenaBase {
       this.jogador.renascer(x, CHAO_Y - 4);
       this.quedas.reiniciar();
       this.drones.reiniciar();
+      this.recicla.reiniciar();
       this.arremesso.reiniciar();
       this.fisicaPausada = false;
       this.indiceTrecho = trecho;
@@ -303,6 +312,7 @@ export class CenaFase3 extends CenaBase {
 
   private atualizarAtalhosDebug(): void {
     if (Phaser.Input.Keyboard.JustDown(this.teclas.LIBERAR)) this.trechos[this.indiceTrecho].resolverExercicio();
+    if (Phaser.Input.Keyboard.JustDown(this.teclas.RECICLA)) this.recicla.trazerAteJogador(this.indiceTrecho);
     if (Phaser.Input.Keyboard.JustDown(this.teclas.CLIMA)) {
       this.climaForcado = this.climaForcado + 1 < CLIMAS.length ? this.climaForcado + 1 : -1;
       const clima = this.climaForcado >= 0 ? CLIMAS[this.climaForcado] : null;
