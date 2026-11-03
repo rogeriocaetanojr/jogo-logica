@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { CORES_FASE1 } from './ArteFase1';
 import { emitirSom } from './SomFase1';
-import { ARENA_FASE1, BOSS_HELIO_FASE1 } from './constantesFase1';
+import { ARENA_FASE1, BOSS_HELIO_FASE1, JOGADOR_FASE1 } from './constantesFase1';
 
 export type AtaqueHelio = 'rajada' | 'salto' | 'chuva';
 
@@ -49,7 +49,7 @@ const A = ARENA_FASE1;
 /**
  * Boss da Fase 1, no estilo Bowser: ataques em padrão claro (rajada rasteira, salto com pisão
  * e chuva de penas), leve variação na ordem e uma janela de tontura em que se pisa na cabeça.
- * Cada golpe o deixa mais rápido e com mais projéteis. Três golpes e ele cai de joelhos.
+ * Cada tontura o deixa mais rápido e com mais projéteis. Três golpes e ele cai de joelhos.
  */
 export class BossHelioFase1 {
   public readonly sprite: Phaser.GameObjects.Sprite;
@@ -71,6 +71,10 @@ export class BossHelioFase1 {
   private salto?: { x0: number; x1: number; progresso: number };
   private pausaSaltoMs: number = 0;
   private faseChuva: FaseChuva = 'subindo';
+  private rodadasRestantes: number = 0;
+  private proximaRodadaMs: number = 0;
+  private corredorAnterior?: number;
+  private contagemTontura: number = 0;
 
   constructor(cena: Phaser.Scene) {
     this.cena = cena;
@@ -88,13 +92,19 @@ export class BossHelioFase1 {
     return B.VIDA - this.vida;
   }
 
-  /** Multiplicador de velocidade: cada golpe acelera tempos e projéteis em 15%. */
-  get fator(): number {
-    return 1 + B.ACELERACAO_POR_GOLPE * this.golpes;
+  /** Vezes que ficou tonto desde o começo da luta: é isso que sobe a dificuldade. */
+  get tontuas(): number {
+    return this.contagemTontura;
   }
 
-  private get indiceFase(): number {
-    return Math.min(this.golpes, 2);
+  /** Multiplicador de velocidade: cada tontura acelera tempos e projéteis em 15%. */
+  get fator(): number {
+    return 1 + B.ACELERACAO_POR_TONTURA * this.nivel;
+  }
+
+  /** Nível de dificuldade (0 a NIVEL_MAXIMO): escolhe a linha das tabelas de projéteis. */
+  private get nivel(): number {
+    return Math.min(this.contagemTontura, B.NIVEL_MAXIMO);
   }
 
   /**
@@ -102,6 +112,7 @@ export class BossHelioFase1 {
    */
   public reiniciar(): void {
     this.vida = B.VIDA;
+    this.contagemTontura = 0;
     this.estado = 'inativo';
     this.ataqueAtual = undefined;
     this.projeteis = [];
@@ -195,6 +206,7 @@ export class BossHelioFase1 {
     const ataque = this.filaAtaques.shift();
     if (!ataque) {
       this.estado = 'tonto';
+      this.contagemTontura++;
       this.ataqueAtual = undefined;
       this.timerMs = 0;
       emitirSom(this.cena, 'boss_tonto', this.sprite.x);
@@ -224,15 +236,17 @@ export class BossHelioFase1 {
 
     switch (this.ataqueAtual) {
       case 'rajada':
-        this.ondasRestantes = B.ONDAS_POR_GOLPES[this.indiceFase];
+        this.ondasRestantes = B.ONDAS_POR_NIVEL[this.nivel];
         this.proximaOndaMs = 0;
         break;
       case 'salto':
-        this.saltosRestantes = B.SALTOS_POR_GOLPES[this.indiceFase];
+        this.saltosRestantes = B.SALTOS_POR_NIVEL[this.nivel];
         this.comecarSalto();
         break;
       case 'chuva':
         this.faseChuva = 'subindo';
+        this.rodadasRestantes = B.CHUVA_RODADAS_POR_NIVEL[this.nivel];
+        this.corredorAnterior = undefined;
         break;
     }
   }
@@ -279,10 +293,20 @@ export class BossHelioFase1 {
           this.sprite.y = A.CHAO_Y - B.ALTURA_VOO * Phaser.Math.Easing.Sine.Out(p);
           if (p >= 1) {
             this.lancarPenas();
+            this.rodadasRestantes--;
+            this.proximaRodadaMs = B.INICIO_RODADAS_MS;
             this.faseChuva = 'chovendo';
           }
         } else if (this.faseChuva === 'chovendo') {
-          if (!this.existeProjetil('pena')) {
+          // A rodada seguinte começa por tempo, não quando a anterior termina de cair
+          if (this.rodadasRestantes > 0) {
+            this.proximaRodadaMs -= deltaAcelerado;
+            if (this.proximaRodadaMs <= 0) {
+              this.lancarPenas();
+              this.rodadasRestantes--;
+              this.proximaRodadaMs += B.INICIO_RODADAS_MS;
+            }
+          } else if (!this.existeProjetil('pena')) {
             this.faseChuva = 'descendo';
             this.timerMs = 0;
           }
@@ -346,26 +370,83 @@ export class BossHelioFase1 {
   }
 
   /**
-   * A primeira pena mira onde o jogador está; as outras se espalham pela arena sem se sobrepor.
+   * Uma rodada de penas: uma cortina por toda a arena com UM corredor livre, e as sombras no chão
+   * aparecem em varredura de um lado ao outro. Na primeira rodada o corredor nasce perto do jogador
+   * (ele tem de sair do lugar); nas seguintes anda só o que dá para correr no tempo entre as rodadas,
+   * que se sobrepõem. Uma pena sempre mira onde o jogador está e outra onde ficava o corredor anterior,
+   * então ficar parado, na cortina ou no corredor velho, leva dano.
    */
   private lancarPenas(): void {
     emitirSom(this.cena, 'boss_penas');
-    const quantidade = B.PENAS_POR_GOLPES[this.indiceFase];
-    const posicoes: number[] = [Phaser.Math.Clamp(this.alvoX, A.LIMITE_ESQUERDO, A.LIMITE_DIREITO)];
+    const quantidade = B.PENAS_POR_RODADA_POR_NIVEL[this.nivel];
+    const esquerda = A.LIMITE_ESQUERDO;
+    const direita = A.LIMITE_DIREITO;
+    const alvo = Phaser.Math.Clamp(this.alvoX, esquerda, direita);
+    const folga = B.CORREDOR_MEIA_LARGURA;
+    const intervaloMs = B.INICIO_RODADAS_MS / this.fator;
 
-    for (let tentativa = 0; posicoes.length < quantidade && tentativa < 200; tentativa++) {
-      const x = Phaser.Math.Between(A.LIMITE_ESQUERDO, A.LIMITE_DIREITO);
-      if (posicoes.every((p) => Math.abs(p - x) >= B.DISTANCIA_MIN_PENAS)) posicoes.push(x);
+    // 1. Onde fica o corredor livre desta rodada
+    let base: number;
+    let distancia: number;
+    if (this.corredorAnterior === undefined) {
+      base = alvo;
+      distancia = Phaser.Math.Between(B.CORREDOR_DISTANCIA_INICIAL_MIN, B.CORREDOR_DISTANCIA_INICIAL_MAX);
+    } else {
+      base = this.corredorAnterior;
+      distancia = Phaser.Math.Clamp(
+        JOGADOR_FASE1.VELOCIDADE_X * (intervaloMs / 1000) * 0.85,
+        B.CORREDOR_SALTO_MIN,
+        B.CORREDOR_SALTO_MAX
+      );
+    }
+    let lado = Math.random() < 0.5 ? -1 : 1;
+    // Longe demais das paredes para o corredor caber inteiro; se não couber de um lado, vai para o outro
+    const cabe = (x: number) => x >= esquerda + folga && x <= direita - folga;
+    if (!cabe(base + lado * distancia)) lado = -lado;
+    const corredor = Phaser.Math.Clamp(base + lado * distancia, esquerda + folga, direita - folga);
+    const corredorVelho = this.corredorAnterior;
+    this.corredorAnterior = corredor;
+
+    // 2. Cortina: uma pena por faixa do chão, sem o buraco do corredor, com um pouco de sorteio
+    const largura = direita - esquerda - 2 * folga;
+    const faixa = largura / quantidade;
+    const posicoes: number[] = [];
+    for (let n = 0; n < quantidade; n++) {
+      const u = (n + 0.5) * faixa + Phaser.Math.FloatBetween(-0.3, 0.3) * faixa;
+      let x = esquerda + u;
+      if (x > corredor - folga) x += 2 * folga;
+      posicoes.push(Phaser.Math.Clamp(x, esquerda, direita));
     }
 
-    posicoes.forEach((x, i) => {
-      const aviso = (B.AVISO_PENA_MS + i * B.ESPACAMENTO_PENAS_MS) / this.fator;
+    // 3. Penas dirigidas: uma onde o jogador está agora e outra no corredor da rodada anterior
+    const dirigir = (x: number) => {
+      if (Math.abs(x - corredor) < folga) return;
+      let melhor = 0;
+      for (let n = 1; n < posicoes.length; n++) {
+        if (Math.abs(posicoes[n] - x) < Math.abs(posicoes[melhor] - x)) melhor = n;
+      }
+      posicoes[melhor] = x;
+    };
+    dirigir(alvo);
+    if (corredorVelho !== undefined) dirigir(corredorVelho);
+
+    // 4. Varredura: as sombras aparecem de um lado ao outro, não todas ao mesmo tempo
+    posicoes.sort((a, b2) => a - b2);
+    if (Math.random() < 0.5) posicoes.reverse();
+
+    // Os níveis altos encurtam o aviso, mas nunca abaixo do mínimo; as penas só aceleram pela metade
+    const avisoBase = Math.max(B.AVISO_PENA_MIN_MS, B.AVISO_PENA_MS / this.fator);
+    const velocidade = B.PENA_VELOCIDADE * (1 + (this.fator - 1) * 0.5);
+    const passo = B.ESCALONAMENTO_MS / Math.max(1, quantidade - 1) / this.fator;
+
+    posicoes.forEach((x, n) => {
+      const aviso = avisoBase + n * passo;
       this.projeteis.push({
         tipo: 'pena',
         x,
         y: -B.PENA_ALTURA,
         vx: 0,
-        vy: B.PENA_VELOCIDADE * this.fator,
+        vy: velocidade,
         largura: B.PENA_LARGURA,
         altura: B.PENA_ALTURA,
         esperaMs: aviso,

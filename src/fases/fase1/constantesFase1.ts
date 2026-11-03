@@ -429,12 +429,13 @@ export const ARENA_FASE1 = {
     { topoX: 12808, baseX1: 12728, baseX2: 12888, baseY: 560 },
     { topoX: 13048, baseX1: 12968, baseX2: 13128, baseY: 560 },
   ],
-  // A arena (9298 → 10578) tem a largura exata da tela: durante a luta a câmera fica parada nela
+  // A arena (11888 → 13168) tem a largura exata da tela: durante a luta a câmera fica parada nela
   CAMERA_CENTRO: { x: 12528, y: 360 },
   CHAO_Y: 560,
-  // Por onde o Helio anda e até onde os projéteis vão
-  LIMITE_ESQUERDO: 12150,
-  LIMITE_DIREITO: 13100,
+  // Por onde os ataques do Helio alcançam: a arena inteira, da porta (x 11903) até o fim do chão.
+  // Antes parava em 12150 e quem ficava para trás, perto da porta, não levava penas, pisões nem ondas.
+  LIMITE_ESQUERDO: 11940,
+  LIMITE_DIREITO: 13140,
   // Totem do núcleo, que só aparece quando o Helio cai de joelhos
   TOTEM_FINAL: { x: 12550, y: 525 },
 } as const;
@@ -448,8 +449,11 @@ export const BOSS_HELIO_FASE1 = {
   LARGURA_CORPO: 90,
   ALTURA_CORPO: 120,
   VIDA: 3,
-  // Cada golpe deixa o Helio mais rápido (tempos divididos e projéteis multiplicados por 1 + 0,15 × golpes)
-  ACELERACAO_POR_GOLPE: 0.15,
+  // Cada vez que o Helio fica tonto ele sobe de nível: fica mais rápido (tempos divididos e projéteis
+  // multiplicados por 1 + 0,15 × nível) e solta mais projéteis em todos os ataques (tabelas por nível).
+  // Conta a tontura, não a vida: errar o pisão também deixa o próximo ciclo mais difícil.
+  ACELERACAO_POR_TONTURA: 0.15,
+  NIVEL_MAXIMO: 5, // Depois do último nível da tabela, a dificuldade para de subir
   PROFUNDIDADE: 8,
   PROFUNDIDADE_EFEITOS: 9,
 
@@ -460,31 +464,41 @@ export const BOSS_HELIO_FASE1 = {
   PAUSA_ENTRE_ATAQUES_MS: 350,
 
   // Rajada rasteira: ondas de vento no chão, na direção do jogador (pule por cima)
-  ONDAS_POR_GOLPES: [1, 2, 3],
+  ONDAS_POR_NIVEL: [5, 6, 7, 8, 9, 10],
   INTERVALO_ONDAS_MS: 650,
   ONDA_VELOCIDADE: 513, // 380 × 1,35
   ONDA_LARGURA: 46,
   ONDA_ALTURA: 64,
 
   // Salto com pisão: cai onde o jogador estava e solta ondas de choque para os dois lados
-  SALTOS_POR_GOLPES: [1, 2, 2],
-  SALTO_MS: 1100,
+  SALTOS_POR_NIVEL: [2, 3, 4, 5, 6, 6],
+  SALTO_MS: 1467, // Era 1100: salto 25% mais lento
   SALTO_ALTURA: 260,
   PAUSA_POS_SALTO_MS: 450,
   CHOQUE_VELOCIDADE: 459, // 340 × 1,35
   CHOQUE_LARGURA: 40,
   CHOQUE_ALTURA: 28,
 
-  // Chuva de penas: o Helio voa e penas caem onde as sombras marcam
-  PENAS_POR_GOLPES: [5, 6, 7],
+  // Chuva de penas: o Helio voa e solta várias rodadas, uma ENCIMA da outra: a rodada seguinte começa
+  // antes de a anterior terminar de cair. Cada rodada é uma cortina de penas com UM corredor livre
+  // (a sombra de cada pena aparece no chão antes de ela cair). O corredor muda de lugar a cada rodada,
+  // então o jogador precisa se mexer o tempo todo; uma pena também mira onde ele está agora.
+  CHUVA_RODADAS_POR_NIVEL: [3, 3, 4, 4, 5, 5],
+  PENAS_POR_RODADA_POR_NIVEL: [6, 8, 8, 10, 10, 12],
+  INICIO_RODADAS_MS: 800, // Tempo entre o começo de uma rodada e o da seguinte (dividido pelo fator do nível)
+  ESCALONAMENTO_MS: 300, // As sombras de uma rodada aparecem em varredura durante este tempo
+  CORREDOR_MEIA_LARGURA: 58, // Nenhuma pena cai a menos disso do centro do corredor (o corpo pede 33)
+  CORREDOR_DISTANCIA_INICIAL_MIN: 110, // Primeira rodada: o corredor nasce a esta distância do jogador
+  CORREDOR_DISTANCIA_INICIAL_MAX: 180,
+  CORREDOR_SALTO_MIN: 60, // Depois, o corredor anda de uma rodada para a outra o que o jogador alcança correndo
+  CORREDOR_SALTO_MAX: 160,
   ALTURA_VOO: 230,
   SUBIDA_MS: 500,
-  AVISO_PENA_MS: 800,
-  ESPACAMENTO_PENAS_MS: 260,
-  PENA_VELOCIDADE: 837, // 620 × 1,35
+  AVISO_PENA_MS: 620,
+  AVISO_PENA_MIN_MS: 400, // Mesmo nos níveis altos, o jogador tem pelo menos isto para reagir
+  PENA_VELOCIDADE: 1900, // Era 837 (1300 na revisão anterior): caem em ~0,3 s depois do aviso
   PENA_LARGURA: 22,
   PENA_ALTURA: 44,
-  DISTANCIA_MIN_PENAS: 90,
 
   // Janela de tontura: é aqui que se pisa na cabeça
   TONTO_MS: 2500,
