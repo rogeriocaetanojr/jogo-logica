@@ -2,16 +2,16 @@ import Phaser from 'phaser';
 import { CenaBase } from '../../compartilhado/CenaBase';
 import type { ResultadoComando } from '../../compartilhado/tipos';
 import { interpretarComandoFase3 } from './InterpretadorFase3';
-import { PROF } from './areas/AreaLixao';
-import type { AreaLixao } from './areas/AreaLixao';
-import { CenarioLixao } from './areas/CenarioLixao';
-import { criarTrechos } from './areas/FabricaAreas';
+import { PROF } from './trechos/TrechoLixao';
+import type { TrechoLixao } from './trechos/TrechoLixao';
+import { CenarioLixao } from './trechos/CenarioLixao';
+import { criarTrechos } from './trechos/FabricaTrechos';
 import { COR, gerarTexturasLixao } from './lixao/ArteLixao';
 import { CLIMAS } from './lixao/ClimaLixao';
 import { HudLixao } from './lixao/HudLixao';
 import { JogadorLixao } from './lixao/JogadorLixao';
 import { QuedasLixao } from './lixao/QuedasLixao';
-import { ALTURA_TELA, AREAS, CHAO_Y, DEBUG, FADE_MORTE_MS, LARGURA_TELA } from './lixao/TiposLixao';
+import { ALTURA_TELA, CHAO_Y, DEBUG, FADE_MORTE_MS, LARGURA_TELA, TRECHOS } from './lixao/TiposLixao';
 
 /** Distância horizontal para interagir com o ponto de exercício. */
 const ALCANCE_INTERACAO = 80;
@@ -22,12 +22,13 @@ const QUEDA_FATAL = 120;
 
 /**
  * CenaFase3: LIXÃO ELETRÔNICO.
- * Mapa único e contínuo com os 6 trechos em sequência. Só orquestra: monta cenário e
- * trechos, o jogador, a câmera e o terminal, e acompanha em que trecho o jogador está.
- * Céu e clima ficam em areas/CenarioLixao; cada trecho fica em areas/AreaN.
+ * Mapa único e contínuo com os 4 trechos em sequência, sem divisa entre eles: só o clima
+ * muda. Só orquestra: monta cenário e trechos, o jogador, a câmera e o terminal, e acompanha
+ * em que trecho o jogador está. Céu e clima ficam em trechos/CenarioLixao; cada trecho fica
+ * em trechos/TrechoN.
  */
 export class CenaFase3 extends CenaBase {
-  public trechos: AreaLixao[] = [];
+  public trechos: TrechoLixao[] = [];
   public cenario!: CenarioLixao;
   /** Sólidos de todos os trechos (chão, obstáculos e barreiras). */
   public solidos!: Phaser.Physics.Arcade.StaticGroup;
@@ -37,8 +38,8 @@ export class CenaFase3 extends CenaBase {
   /** Lixo caindo das pilhas e recicláveis no chão (munição do arremesso). */
   public quedas!: QuedasLixao;
   /**
-   * Onde o jogador volta ao morrer: o início da área mais avançada em que entrou ou, depois
-   * de encostar no terminal dela, o ponto de exercício.
+   * Onde o jogador volta ao morrer: o último ponto de exercício ativado (o início da fase
+   * conta como o primeiro) ou a entrada da arena, que não tem exercício.
    */
   public checkpoint = { x: 0, trecho: 0 };
   private hud!: HudLixao;
@@ -47,10 +48,10 @@ export class CenaFase3 extends CenaBase {
   /** Depuração: posição em CLIMAS do clima forçado pela tecla C; -1 segue o trecho. */
   private climaForcado = -1;
   /** Trecho cujo terminal está aberto, que recebe o resultado dos comandos. */
-  private trechoTerminal?: AreaLixao;
+  private trechoTerminal?: TrechoLixao;
   private teclas!: Record<string, Phaser.Input.Keyboard.Key>;
   private textoPrompt!: Phaser.GameObjects.Text;
-  private textoArea!: Phaser.GameObjects.Text;
+  private textoClima!: Phaser.GameObjects.Text;
   private fisicaPausada = false;
   private concluindo = false;
   private morrendo = false;
@@ -107,7 +108,7 @@ export class CenaFase3 extends CenaBase {
       .setVisible(false);
 
     this.criarHUDSuperior('LIXÃO ELETRÔNICO');
-    this.textoArea = this.add
+    this.textoClima = this.add
       .text(LARGURA_TELA - 20, 16, '', {
         fontFamily: 'Consolas, "Courier New", monospace',
         fontSize: '13px',
@@ -118,7 +119,7 @@ export class CenaFase3 extends CenaBase {
       .setOrigin(1, 0)
       .setScrollFactor(0)
       .setDepth(9998);
-    this.atualizarTextoArea();
+    this.atualizarTextoClima();
     this.hud = new HudLixao(this);
     this.hud.atualizarVida(this.jogador.vida);
     this.criarEfeitoCRT(this.scale.width, this.scale.height, 0.02);
@@ -142,11 +143,11 @@ export class CenaFase3 extends CenaBase {
     // Movimento fica no JogadorLixao; aqui só interação e atalhos de depuração
     const nomes: Record<string, number> = { E: K.E };
     if (DEBUG) {
-      const numeros = [K.ONE, K.TWO, K.THREE, K.FOUR, K.FIVE, K.SIX];
-      numeros.forEach((codigo, i) => (nomes[`AREA${i}`] = codigo));
-      // L libera a saída do trecho atual sem resolver o exercício
+      const numeros = [K.ONE, K.TWO, K.THREE, K.FOUR];
+      numeros.forEach((codigo, i) => (nomes[`TRECHO${i}`] = codigo));
+      // L libera o obstáculo do trecho atual sem resolver o exercício
       nomes.LIBERAR = K.L;
-      // C troca o clima na hora (ensolarado, empoeirado, chuva, noite, o do trecho)
+      // C troca o clima na hora (sol, névoa, chuva, noite, o do trecho)
       nomes.CLIMA = K.C;
     }
     this.teclas = {};
@@ -164,13 +165,12 @@ export class CenaFase3 extends CenaBase {
     });
   }
 
-  private abrirTerminal(trecho: AreaLixao): void {
+  private abrirTerminal(trecho: TrechoLixao): void {
     this.trechoTerminal = trecho;
-    const info = trecho.info;
     this.terminal.abrir({
-      titulo: `LIXÃO // ÁREA ${info.numero} - ${info.nome.toUpperCase()}`,
+      titulo: 'LIXÃO // TERMINAL',
       linhasIniciais: trecho.exercicioResolvido
-        ? ['Exercício desta área já resolvido. O caminho está livre.']
+        ? ['Exercício deste trecho já resolvido. O caminho está livre.']
         : ['Exercício ainda não definido. Digite "ok" para liberar a passagem.', 'Digite "ajuda" para ver os comandos.'],
     });
   }
@@ -216,9 +216,10 @@ export class CenaFase3 extends CenaBase {
     this.indiceTrecho = indice;
     this.climaForcado = -1;
     this.cenario.definirTrecho(indice);
-    this.atualizarTextoArea();
-    // Entrar numa área nova faz do início dela o primeiro ponto de volta
-    if (indice > this.checkpoint.trecho) this.checkpoint = { x: this.trechos[indice].inicio.x, trecho: indice };
+    this.atualizarTextoClima();
+    // Trecho sem exercício (a arena): a entrada dele é o checkpoint
+    const trecho = this.trechos[indice];
+    if (trecho.xExercicio === null && indice > this.checkpoint.trecho) this.checkpoint = { x: trecho.inicio.x, trecho: indice };
   }
 
   /* =========================================================================
@@ -245,7 +246,7 @@ export class CenaFase3 extends CenaBase {
       this.fisicaPausada = false;
       this.indiceTrecho = trecho;
       this.cenario.definirTrecho(trecho, true);
-      this.atualizarTextoArea();
+      this.atualizarTextoClima();
       this.hud.atualizarVida(this.jogador.vida);
       this.cameras.main.centerOn(x, ALTURA_TELA / 2);
       this.cameras.main.fadeIn(FADE_MORTE_MS, 0, 0, 0);
@@ -253,21 +254,21 @@ export class CenaFase3 extends CenaBase {
     });
   }
 
-  private atualizarTextoArea(): void {
-    const info = AREAS[this.indiceTrecho];
-    this.textoArea.setText(`ÁREA ${info.numero}/${AREAS.length} · ${info.rotuloClima}`);
+  private atualizarTextoClima(): void {
+    this.textoClima.setText(TRECHOS[this.indiceTrecho].rotuloClima);
   }
 
   private atualizarInteracoes(): void {
     const x = this.jogador.x;
     const trecho = this.trechos[this.indiceTrecho];
-    const pertoExercicio = Math.abs(x - trecho.xExercicio) < ALCANCE_INTERACAO;
+    const xExercicio = trecho.xExercicio;
+    const pertoExercicio = xExercicio !== null && Math.abs(x - xExercicio) < ALCANCE_INTERACAO;
 
     this.textoPrompt.setVisible(pertoExercicio);
-    if (pertoExercicio) {
+    if (xExercicio !== null && pertoExercicio) {
       // Provisório: encostar no terminal ativa o checkpoint (na T1 passa a ser ao abrir o terminal)
-      this.checkpoint = { x: trecho.xExercicio, trecho: this.indiceTrecho };
-      this.textoPrompt.setPosition(trecho.xExercicio, trecho.marcador.y - 100).setText('[E] Terminal');
+      this.checkpoint = { x: xExercicio, trecho: this.indiceTrecho };
+      this.textoPrompt.setPosition(xExercicio, CHAO_Y - 100).setText('[E] Terminal');
       if (Phaser.Input.Keyboard.JustDown(this.teclas.E)) this.abrirTerminal(trecho);
     }
 
@@ -281,10 +282,10 @@ export class CenaFase3 extends CenaBase {
       this.climaForcado = this.climaForcado + 1 < CLIMAS.length ? this.climaForcado + 1 : -1;
       const clima = this.climaForcado >= 0 ? CLIMAS[this.climaForcado] : null;
       this.cenario.forcarClima(clima);
-      this.textoArea.setText(`ÁREA ${AREAS[this.indiceTrecho].numero}/${AREAS.length} · ${clima ? `DEBUG ${clima.toUpperCase()}` : AREAS[this.indiceTrecho].rotuloClima}`);
+      this.textoClima.setText(clima ? `DEBUG ${clima.toUpperCase()}` : TRECHOS[this.indiceTrecho].rotuloClima);
     }
     for (let i = 0; i < this.trechos.length; i++) {
-      const tecla = this.teclas[`AREA${i}`];
+      const tecla = this.teclas[`TRECHO${i}`];
       if (tecla && Phaser.Input.Keyboard.JustDown(tecla)) {
         const inicio = this.trechos[i].inicio;
         this.jogador.corpo.reset(inicio.x, Math.min(inicio.y, CHAO_Y));
@@ -294,7 +295,7 @@ export class CenaFase3 extends CenaBase {
     }
   }
 
-  /** Fim do trecho 6: conclui a fase e volta ao hub. */
+  /** Fim do trecho 4: conclui a fase e volta ao hub. */
   private concluirFase(): void {
     if (this.concluindo) return;
     this.concluindo = true;

@@ -5,13 +5,13 @@ import { ALTURA_TELA, CHAO_Y, LARGURA_TELA } from '../lixao/TiposLixao';
 import type { Clima } from '../lixao/TiposLixao';
 import { ClimaLixao, EFEITOS_CLIMA } from '../lixao/ClimaLixao';
 import type { EstadoClima } from '../lixao/ClimaLixao';
-import { PROF } from './AreaLixao';
-import type { AreaLixao } from './AreaLixao';
+import { PROF } from './TrechoLixao';
+import type { TrechoLixao } from './TrechoLixao';
 
 /** Fatores de parallax: as 3 camadas de céu e a camada de pilhas. */
 const PARALLAX = { ceu: 0, nuvens: 0.1, horizonte: 0.25, pilhas: 0.55 } as const;
 
-/** Duração da transição de clima e tema ao trocar de trecho. */
+/** Duração da transição de clima e tema ao trocar de trecho (a única passagem entre eles). */
 const DURACAO_TRANSICAO_MS = 3000;
 
 /** Valores que a transição interpola entre o tema de saída e o de chegada. */
@@ -22,7 +22,7 @@ interface Visual {
   clima: EstadoClima;
 }
 
-function visualDe(trecho: AreaLixao, clima: Clima = trecho.info.clima): Visual {
+function visualDe(trecho: TrechoLixao, clima: Clima = trecho.info.clima): Visual {
   const tema = trecho.tema;
   return {
     tinta: hexRgb(tema.tinta ?? COR.luz),
@@ -50,7 +50,7 @@ function misturar(a: Rgb, b: Rgb, t: number): Rgb {
  */
 export class CenarioLixao {
   private readonly cena: Phaser.Scene;
-  private readonly trechos: readonly AreaLixao[];
+  private readonly trechos: readonly TrechoLixao[];
   private readonly larguraMundo: number;
   private readonly ceus: Phaser.GameObjects.Image[] = [];
   private nuvens!: Phaser.GameObjects.Image;
@@ -63,7 +63,7 @@ export class CenarioLixao {
   private para!: Visual;
   private progresso = 1;
 
-  constructor(cena: Phaser.Scene, trechos: readonly AreaLixao[]) {
+  constructor(cena: Phaser.Scene, trechos: readonly TrechoLixao[]) {
     this.cena = cena;
     this.trechos = trechos;
     this.larguraMundo = trechos[trechos.length - 1].fim;
@@ -173,9 +173,9 @@ export class CenarioLixao {
   }
 
   /** Camada 1 do céu (fixa): degradê pontilhado com sol ou lua, uma imagem por trecho. */
-  private criarCeu(trecho: AreaLixao): void {
+  private criarCeu(trecho: TrechoLixao): void {
     const { ceu, astro } = trecho.tema;
-    const chave = `lx-a${trecho.info.numero}-ceu`;
+    const chave = `lx-t${trecho.info.numero}-ceu`;
     const w = LARGURA_TELA / ESCALA;
     const h = ALTURA_TELA / ESCALA;
     texturaPixel(this.cena, chave, w, h, (p) => {

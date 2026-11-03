@@ -26,12 +26,12 @@ export const COR = {
   sucata: '#4A3F38',
   sombraSucata: '#2B2420',
   contorno: '#17120F',
-  // Céu de poeira (áreas 1 a 3)
+  // Céu de poeira (trechos de sol e névoa)
   ceuPoeiraClaro: '#F2D2A8',
   ceuPoeira: '#E8B887',
   horizonte: '#D98A4E',
   horizonteEscuro: '#A8623A',
-  // Chuva e noite (áreas 4 a 6)
+  // Chuva e noite (trechos 3 e 4)
   chuvaAzulClaro: '#4E6596',
   chuvaAzul: '#2B3F6B',
   noiteRoxo: '#2A1F4A',
@@ -489,7 +489,7 @@ function desenharBrilho(p: Pincel, r: number): void {
 }
 
 /**
- * Texturas comuns a todas as áreas: engrenagem, placa de circuito, fios de cobre, poeira,
+ * Texturas comuns a todos os trechos: engrenagem, placa de circuito, fios de cobre, poeira,
  * brilho neon e terminal do ponto de exercício.
  */
 export function gerarTexturasLixao(cena: Phaser.Scene): void {

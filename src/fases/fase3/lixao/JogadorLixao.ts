@@ -4,7 +4,7 @@ import { DANO, VIDA_MAXIMA } from './TiposLixao';
 
 /**
  * Parâmetros de movimento do jogador no lixão (px/s e px/s²). Cada jogador guarda uma cópia
- * em `parametros`, para o clima (por exemplo a chuva na frenagem) poder alterá-la por área.
+ * em `parametros`, para o clima (por exemplo a chuva na frenagem) poder alterá-la por trecho.
  */
 export const MOVIMENTO_LIXAO = {
   VELOCIDADE: 240,
@@ -172,7 +172,7 @@ export class JogadorLixao {
     else this.tocarAnimacao(direcao !== 0 ? 'run' : 'idle');
   }
 
-  /** Para o jogador (terminal aberto, troca de área). */
+  /** Para o jogador (terminal aberto, morte). */
   parar(): void {
     this.sprite.setVelocity(0, 0);
     this.puloCortavel = false;

@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import type { CenaFase3 } from '../CenaFase3';
-import { PROF } from '../areas/AreaLixao';
+import { PROF } from '../trechos/TrechoLixao';
 import { COR, ESCALA, aleatorio, grade, texturaPixel } from './ArteLixao';
 import type { Pincel } from './ArteLixao';
 import { CHAO_Y } from './TiposLixao';
@@ -20,24 +20,21 @@ export type TipoReciclavel = 'placa' | 'monitor' | 'cabo';
 const TIPOS: readonly TipoReciclavel[] = ['placa', 'monitor', 'cabo'];
 
 /**
- * Pontos de queda por área, em x relativo ao trecho (ver os comentários [QUEDA DE LIXO] em
- * areas/AreaN). A área 2 não tem comentário: o ponto fica no chão livre entre o terceiro
- * cano e o segundo buraco. Na área 6 caem das pilhas das bordas da arena.
+ * Pontos de queda por trecho, em x relativo ao trecho (ver os comentários [QUEDA DE LIXO] em
+ * trechos/TrechoN). No trecho 4 caem das pilhas das bordas da arena.
  */
 export const PONTOS_QUEDA: readonly (readonly number[])[] = [
-  [],
-  [2860],
-  [1150, 3350, 3500],
-  [3200],
-  [1280, 3900, 4100],
+  [4100],
+  [1150, 3500, 4500],
+  [1700, 3550, 4700],
   [400, 1880],
 ];
 
 /**
- * Intervalo entre quedas por área, em ms; null desliga. Nada na área 1, pouco na 2 e
- * aumentando até a 5. Na arena o ritmo cai um pouco para não competir com o chefão.
+ * Intervalo entre quedas por trecho, em ms; null desliga. Pouco no sol e aumentando até a
+ * chuva. Na arena o ritmo cai um pouco para não competir com o chefão.
  */
-export const INTERVALO_QUEDA_MS: readonly (number | null)[] = [null, 9000, 6000, 4500, 3000, 4000];
+export const INTERVALO_QUEDA_MS: readonly (number | null)[] = [9000, 6000, 3500, 4000];
 
 export const QUEDA = {
   /** Tremor da pilha e crescimento da sombra antes de soltar o item. */

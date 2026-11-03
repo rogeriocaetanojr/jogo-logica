@@ -4,22 +4,24 @@
 Um lixão gigante de lixo eletrônico, inspirado em Wall-E. O jogador controla máquinas pelo terminal, com comandos Python básicos (um pouco além do tutorial), para limpar o caminho. No fim, derrota o Monstro de Sucata e o empurra até o contêiner de reciclagem, salvando o mundo do lixo eletrônico.
 
 ## Estrutura
-- Um mapa único e contínuo com 6 áreas em sequência, uma por exercício, em cerca de 15 minutos no total. O jogador anda direto de uma área para a outra, e o clima muda em transição suave.
-- Áreas 1 e 2: ensolarado, sem efeito (aprendizado).
-- Área 3: empoeirado, pouca visibilidade.
-- Áreas 4 e 5: chuva, chão escorregadio.
-- Área 6 (chefão): noite, escuro, só a luz das faíscas.
-- Em cada área o jogador desvia dos perigos, chega ao ponto de exercício (que também é o checkpoint) e resolve o comando no terminal. A máquina da área muda o mapa: tira entulho, cria ponte ou abre passagem.
+- Uma fase só, direta: um mapa contínuo, do começo ao chefão, em cerca de 10 minutos. Não há áreas, telas de área, muros, portões ou placas de saída dividindo o caminho.
+- O mapa tem 4 trechos, e o que muda de um para o outro é só o clima, em transição suave enquanto o jogador anda:
+  1. Sol: sem efeito (aprendizado).
+  2. Névoa de poeira: pouca visibilidade.
+  3. Chuva: chão escorregadio.
+  4. Noite: escuro, só a luz das faíscas. É a arena do chefão.
+- Há 3 exercícios, um no meio de cada trecho de sol, névoa e chuva. No ponto de exercício (que também é o checkpoint) o jogador resolve o comando no terminal, e uma máquina muda o caminho logo à frente: tira entulho, cria ponte ou abre passagem. O obstáculo é parte do caminho, nunca uma divisa entre trechos.
+- No trecho da noite não há exercício: é a luta com o Monstro de Sucata.
 
 ## Perigos
 - Drones andam e atiram sucata. Dá para desviar ou derrubá-los arremessando lixo. Eles mudam com o clima (por exemplo, na chuva soltam faíscas).
 - Lixo cai das pilhas, com sombra e tremor de aviso.
 - Pulos e trechos em que é preciso se abaixar. Abaixado (S ou seta para baixo), o jogador anda mais devagar, não pula e só levanta se houver espaço acima. Como os personagens não têm quadro de abaixar, o sprite é achatado pelos pés.
 - Parâmetros de movimento ficam em `MOVIMENTO_LIXAO` (lixao/JogadorLixao.ts). Cada jogador tem uma cópia em `parametros` para o clima alterar, por exemplo a frenagem na chuva.
-- Vida de 5 baterias. Cada dano tira 1 bateria, dá 1 s de invencibilidade piscando e um empurrão leve. Ao zerar, o jogador volta com vida cheia ao último ponto de exercício ativado; o início de cada área conta como o primeiro ponto.
+- Vida de 5 baterias. Cada dano tira 1 bateria, dá 1 s de invencibilidade piscando e um empurrão leve. Ao zerar, o jogador volta com vida cheia ao último ponto de exercício ativado; o início da fase conta como o primeiro ponto.
 
 ## Arremesso
-- O mesmo controle nas áreas e no chefão: mira com o mouse, arremessa com clique.
+- O mesmo controle no caminho e no chefão: mira com o mouse, arremessa com clique.
 - Carrega um item por vez. Depois de arremessar, pode pegar outro.
 - A munição vem do chão e das pilhas que desabam. Cada tipo de reciclável tem animação e som próprios.
 
@@ -40,7 +42,7 @@ Um lixão gigante de lixo eletrônico, inspirado em Wall-E. O jogador controla m
 
 ## HUD
 - Canto superior esquerdo: vida em baterias (pilhas que vão descarregando) e ícone do item na mão.
-- Canto superior direito: "ÁREA 2/6 · ENSOLARADO" com ícone do clima e o medidor "Lixão limpo: 33%", que sobe a cada exercício.
+- Canto superior direito: ícone e nome do clima atual (SOL, NÉVOA, CHUVA, NOITE) e o medidor "Lixão limpo: 25%", que sobe 25% a cada exercício resolvido e chega a 100% ao vencer o chefão. Nada de número de área.
 - Contextuais: "[E] Terminal" no ponto de exercício, "[Clique] Arremessar" com item na mão e aviso de checkpoint salvo.
 - No chefão: barra de vida grande no topo, que vira "EMPURRE ATÉ O CONTÊINER!" quando zera.
 
@@ -54,7 +56,7 @@ Tokens do objeto `COR` em `src/fases/fase3/lixao/ArteLixao.ts`. Nenhum hexadecim
 
 Regras:
 - Pixel art desenhada em código, resolução de arte 320x180 ampliada 4x, posições arredondadas para a grade.
-- Ciano só no que é interativo (terminal, saída, drones). Vermelho só no que é perigo.
+- Ciano só no que é interativo (terminal, máquinas, drones). Vermelho só no que é perigo.
 - Na chuva e à noite, pilhas, chão e decoração recebem uma tinta fria. O que é ciano nunca é tingido e fica acima da escuridão.
 
 | Token | Hex | Uso |
@@ -77,30 +79,29 @@ Regras:
 | `chuvaAzul` | #2B3F6B | Céu e nuvens de chuva |
 | `noiteRoxo` | #2A1F4A | Céu noturno, montanhas na chuva |
 | `noiteRoxoEscuro` | #160F2A | Topo do céu noturno, véu de escuridão |
-| `tintaPo` | #E8C49A | Tinta do cenário na área 3 |
-| `tintaChuva` | #9AA8CC | Tinta do cenário nas áreas 4 e 5, gotas de chuva |
-| `tintaNoite` | #6E62A0 | Tinta do cenário na área 6 |
-| `neonCiano` | #3FE8E0 | LED e tela do terminal, seta da saída, textos interativos |
-| `neonCianoEscuro` | #1E8F8C | Fundo da tela do terminal, LED apagado, placa da saída |
+| `tintaPo` | #E8C49A | Tinta do cenário no trecho de névoa |
+| `tintaChuva` | #9AA8CC | Tinta do cenário no trecho de chuva, gotas de chuva |
+| `tintaNoite` | #6E62A0 | Tinta do cenário no trecho da noite |
+| `neonCiano` | #3FE8E0 | LED e tela do terminal, máquinas, setas e textos interativos |
+| `neonCianoEscuro` | #1E8F8C | Fundo da tela do terminal, LED apagado |
 | `perigo` | #E0413A | Só perigos: tiros, faíscas, lixo caindo |
 | `bateriaVerde` | #5FCB5A | Baterias da HUD com carga alta |
 | `bateriaAmarela` | #E8C440 | Baterias da HUD com carga média; com carga baixa elas ficam `perigo` |
 | `luz` | #FFFFFF | Base branca de partículas e brilhos que recebem tinta |
 
-Cenário por área (céu fixo, nuvens 0.1, horizonte 0.25, pilhas 0.55, chão 1.0):
+Cenário por trecho (céu fixo, nuvens 0.1, horizonte 0.25, pilhas 0.55, chão 1.0):
 
-| Área | Céu | Astro | Tinta |
+| Trecho | Céu | Astro | Tinta |
 |---|---|---|---|
-| 1 e 2 | ceuPoeiraClaro, ceuPoeira, horizonte | sol | nenhuma |
-| 3 | ceuPoeira, horizonte, horizonteEscuro | nenhum | tintaPo |
-| 4 | chuvaAzul, chuvaAzulClaro | nenhum | tintaChuva |
-| 5 | noiteRoxo, chuvaAzul, chuvaAzulClaro | nenhum | tintaChuva |
-| 6 | noiteRoxoEscuro, noiteRoxo | lua | tintaNoite |
+| Sol | ceuPoeiraClaro, ceuPoeira, horizonte | sol | nenhuma |
+| Névoa | ceuPoeira, horizonte, horizonteEscuro | nenhum | tintaPo |
+| Chuva | chuvaAzul, chuvaAzulClaro | nenhum | tintaChuva |
+| Noite | noiteRoxoEscuro, noiteRoxo | lua | tintaNoite |
 
 ## Técnico
 - HUD, som e ajuda próprios da Fase 3, em src/fases/fase3, usando a Fase 2 como referência, sem importar código dela.
-- Esboço atual: src/fases/fase3/CenaFase3.ts e InterpretadorFase3.ts, já registrados no hub e na configuração.
+- A cena é a CenaFase3, registrada no hub e na configuração. Os trechos ficam em src/fases/fase3/trechos (Trecho1Sol a Trecho4Noite), montados um depois do outro num só mundo.
 - Arquivos compartilhados (src/compartilhado, src/nucleo, src/hub) só mudam combinando com o grupo.
 
 ## Em aberto
-- Os 6 exercícios. Ficam para perto do fim do desenvolvimento.
+- Os 3 exercícios. Ficam para perto do fim do desenvolvimento.

@@ -3,8 +3,8 @@
  */
 
 /**
- * Liga atalhos de desenvolvimento: teclas 1 a 6 levam ao início de cada trecho e L libera a
- * saída do trecho atual. Deixar false no commit.
+ * Liga atalhos de desenvolvimento: teclas 1 a 4 levam ao início de cada trecho e L libera o
+ * obstáculo do exercício do trecho atual. Deixar false no commit.
  */
 export const DEBUG = false;
 
@@ -30,9 +30,9 @@ export const LARGURA_TELA = 1280;
 export const ALTURA_TELA = 720;
 export const CHAO_Y = 640;
 
-export type Clima = 'ensolarado' | 'empoeirado' | 'chuva' | 'noite';
+export type Clima = 'sol' | 'nevoa' | 'chuva' | 'noite';
 
-export interface InfoArea {
+export interface InfoTrecho {
   numero: number;
   nome: string;
   clima: Clima;
@@ -40,12 +40,13 @@ export interface InfoArea {
   rotuloClima: string;
 }
 
-/** Os 6 trechos do mapa contínuo do lixão, um por exercício. A 6 é a arena do Monstro de Sucata. */
-export const AREAS: readonly InfoArea[] = [
-  { numero: 1, nome: 'Portão do Lixão', clima: 'ensolarado', rotuloClima: 'ENSOLARADO' },
-  { numero: 2, nome: 'Vale dos Monitores', clima: 'ensolarado', rotuloClima: 'ENSOLARADO' },
-  { numero: 3, nome: 'Tempestade de Pó', clima: 'empoeirado', rotuloClima: 'EMPOEIRADO' },
-  { numero: 4, nome: 'Calha de Cabos', clima: 'chuva', rotuloClima: 'CHUVA' },
-  { numero: 5, nome: 'Pilhas Encharcadas', clima: 'chuva', rotuloClima: 'CHUVA' },
-  { numero: 6, nome: 'Arena da Sucata', clima: 'noite', rotuloClima: 'NOITE' },
+/**
+ * Os 4 trechos do mapa contínuo do lixão. Só o clima muda de um para o outro; os três
+ * primeiros têm um exercício no meio e o 4 é a arena do Monstro de Sucata.
+ */
+export const TRECHOS: readonly InfoTrecho[] = [
+  { numero: 1, nome: 'Portão do Lixão', clima: 'sol', rotuloClima: 'SOL' },
+  { numero: 2, nome: 'Tempestade de Pó', clima: 'nevoa', rotuloClima: 'NÉVOA' },
+  { numero: 3, nome: 'Pilhas Encharcadas', clima: 'chuva', rotuloClima: 'CHUVA' },
+  { numero: 4, nome: 'Arena da Sucata', clima: 'noite', rotuloClima: 'NOITE' },
 ];

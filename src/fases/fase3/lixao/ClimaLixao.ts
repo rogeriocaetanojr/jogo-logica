@@ -12,16 +12,16 @@ export interface EstadoClima {
   noite: number;
 }
 
-/** Efeitos de cada clima do plano; cada área escolhe o seu em AREAS (TiposLixao). */
+/** Efeitos de cada clima do plano; cada trecho escolhe o seu em TRECHOS (TiposLixao). */
 export const EFEITOS_CLIMA: Record<Clima, EstadoClima> = {
-  ensolarado: { poeira: 0, chuva: 0, noite: 0 },
-  empoeirado: { poeira: 1, chuva: 0, noite: 0 },
+  sol: { poeira: 0, chuva: 0, noite: 0 },
+  nevoa: { poeira: 1, chuva: 0, noite: 0 },
   chuva: { poeira: 0, chuva: 1, noite: 0 },
   noite: { poeira: 0, chuva: 0, noite: 1 },
 };
 
 /** Ordem da tecla de depuração que troca o clima. */
-export const CLIMAS: readonly Clima[] = ['ensolarado', 'empoeirado', 'chuva', 'noite'];
+export const CLIMAS: readonly Clima[] = ['sol', 'nevoa', 'chuva', 'noite'];
 
 /** Chuva: o chão molhado multiplica a frenagem e a aceleração do jogador no chão. */
 export const CHUVA = {
@@ -53,7 +53,7 @@ interface Luz {
   raio: number;
 }
 
-/** Algo que diz se um x de mundo tem chão firme (sem buraco nem obstáculo de saída). */
+/** Algo que diz se um x de mundo tem chão firme (sem buraco nem obstáculo do exercício). */
 export interface ChaoDoTrecho {
   readonly offset: number;
   readonly largura: number;
@@ -71,7 +71,7 @@ export interface ChaoDoTrecho {
  */
 export class ClimaLixao {
   private readonly cena: Phaser.Scene;
-  private estado: EstadoClima = { ...EFEITOS_CLIMA.ensolarado };
+  private estado: EstadoClima = { ...EFEITOS_CLIMA.sol };
   private readonly luzes: Luz[] = [];
   private readonly pocas: Phaser.GameObjects.Image[] = [];
 
