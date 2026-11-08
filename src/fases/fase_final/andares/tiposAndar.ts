@@ -1,3 +1,5 @@
+import type { AparenciaNpc } from '../npcs/TexturasNpc';
+
 /**
  * Tipos da configuração de andar: cada um dos 5 andares da Mega Brain Tower é só um objeto de
  * dados (configAndares.ts) lido pelo construtor genérico (AndarFaseFinal.ts).
@@ -75,11 +77,12 @@ export interface ConfigInimigo {
   direcao?: -1 | 1;
 }
 
-/** NPCs dos andares (etapa 4). `humano` conta no puzzle do andar 2. */
+/** NPCs dos andares. `humano` conta no puzzle do andar 2; as falas ficam em DialogosFaseFinal (por id). */
 export interface ConfigNpcAndar {
   id: string;
   x: number;
   humano: boolean;
+  aparencia: AparenciaNpc;
 }
 
 /**

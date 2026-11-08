@@ -1,5 +1,8 @@
 import Phaser from 'phaser';
-import { COR, hexNum, texturaBrilho } from '../ArteFaseFinal';
+import { COR, avatarHtml, hexNum, texturaBrilho } from '../ArteFaseFinal';
+import { FALAS_NPC } from '../DialogosFaseFinal';
+import { NpcFaseFinal } from '../NpcFaseFinal';
+import { animNpc, gerarTexturasNpc, retratoNpc, texNpc } from '../npcs/TexturasNpc';
 import { ANDAR_FASE_FINAL, ESCALA_ARTE } from '../constantesFaseFinal';
 import { TelaoFaseFinal } from '../TelaoFaseFinal';
 import { TEX_EXTERIOR, gerarTexturasExterior } from '../exterior/TexturasExterior';
@@ -34,6 +37,8 @@ export class AndarFaseFinal {
   public readonly elevadorEntrada?: ElevadorFaseFinal;
   public readonly terminal: Phaser.GameObjects.Sprite;
   public readonly spawn: { x: number; y: number };
+
+  public readonly npcs: NpcFaseFinal[] = [];
 
   private readonly cena: Phaser.Scene;
   private readonly teloes: TelaoFaseFinal[] = [];
@@ -82,6 +87,41 @@ export class AndarFaseFinal {
       .setDepth(-19);
 
     this.bloqueio = new BloqueioPuzzle(cena, cfg.puzzle.bloqueio, this.solidos);
+    this.criarNpcs();
+  }
+
+  /** Quantos humanos há no andar (o puzzle de variáveis conta isso). */
+  public get humanos(): number {
+    return this.cfg.npcs.filter((n) => n.humano).length;
+  }
+
+  public npc(id: string): NpcFaseFinal | undefined {
+    return this.npcs.find((n) => n.id === id);
+  }
+
+  private criarNpcs(): void {
+    for (const n of this.cfg.npcs) {
+      gerarTexturasNpc(this.cena, n.aparencia);
+      const falas = FALAS_NPC[n.id];
+      const avatar = avatarHtml(retratoNpc(n.aparencia), n.id.toUpperCase());
+      this.npcs.push(
+        new NpcFaseFinal(this.cena, {
+          id: n.id,
+          x: n.x,
+          pesY: A.CHAO_Y,
+          textura: texNpc(n.aparencia),
+          animacao: animNpc(n.aparencia),
+          prompt: '[E] FALAR',
+          raioInteracao: 90,
+          humano: n.humano,
+          falas: (visita) => {
+            if (!falas) return [];
+            const textos = visita === 0 ? falas.primeira : [falas.repeticoes[(visita - 1) % falas.repeticoes.length]];
+            return textos.map((texto) => ({ falante: falas.falante, texto, avatar }));
+          },
+        })
+      );
+    }
   }
 
   /* =======================================================================
@@ -241,6 +281,8 @@ export class AndarFaseFinal {
     this.terminal.setFrame(2);
     this.bloqueio.liberar(() => {
       this.elevadorSaida.destravar();
+      // No andar 2 o puzzle é o próprio elevador: ele chega e abre as portas
+      if (this.cfg.puzzle.bloqueio.tipo === 'elevador') this.elevadorSaida.abrir();
       aoTerminar?.();
     });
   }

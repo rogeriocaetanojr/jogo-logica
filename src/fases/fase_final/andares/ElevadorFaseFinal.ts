@@ -83,6 +83,38 @@ export class ElevadorFaseFinal {
     this.visor.setText(texto);
   }
 
+  /**
+   * Viagem vazia (código errado no andar 2): o visor mostra o caminho até o destino e de volta,
+   * com o elevador tremendo. `aoChegar` dispara no destino; `aoTerminar` quando volta.
+   */
+  public viagemFantasma(origem: number, destino: number, aoChegar: () => void, aoTerminar: () => void): void {
+    const passo = destino >= origem ? 1 : -1;
+    const ida: number[] = [];
+    // Andares absurdos (muito longe) pulam direto para o destino depois de alguns números
+    for (let n = origem + passo; ida.length < 4 && n !== destino + passo; n += passo) ida.push(n);
+    if (ida[ida.length - 1] !== destino) ida.push(destino);
+    const volta = [...ida].reverse().slice(1).concat(origem);
+    const sequencia = [...ida, ...volta];
+    const intervalo = 380;
+
+    this.visor.setColor(COR.janelaQuente);
+    sequencia.forEach((n, i) => {
+      this.cena.time.delayedCall(i * intervalo, () => {
+        this.visor.setText(String(n));
+        if (i === ida.length - 1) {
+          this.cena.cameras.main.shake(140, 0.003);
+          aoChegar();
+        }
+      });
+    });
+    this.cena.time.delayedCall(sequencia.length * intervalo + 900, () => {
+      this.visor.setText(String(origem)).setColor(this.destravado ? COR.ciano : COR.vermelho);
+      aoTerminar();
+    });
+    // A "viagem" demora no destino o suficiente para ler o aviso
+    this.cena.tweens.add({ targets: this.visor, scale: 1.25, duration: 120, yoyo: true, repeat: sequencia.length - 1, hold: intervalo - 240 });
+  }
+
   /** Folhas na frente do jogador (viagem) ou atrás (andando pelo andar). */
   public folhasNaFrente(frente: boolean): void {
     const prof = frente ? PROF_FOLHAS_FRENTE : PROF_FOLHAS;

@@ -96,7 +96,7 @@ Um terminal ao lado da porta mostra:
 jogador.ciente_dos_riscos = ___
 ```
 
-- O jogador escolhe `verdadeiro` ou `falso`.
+- O jogador escolhe `verdadeiro` ou `falso`. Se digitar `true`, a porta também abre, mas o terminal faz uma piada sobre o jogador ser espertão.
 - `falso` → resposta cômica e o terminal pergunta de novo (loop infinito proposital). Exemplos, um por tentativa:
   - "Resposta inválida. Tente uma resposta mais verdadeira."
   - "Você não pode recusar. É um termo de uso."
@@ -132,9 +132,9 @@ Cada andar tem um nome e uma decoração própria, mas a mesma paleta noturna.
 ### 6.1 Regras gerais (valem para os 5)
 - **Simples:** um iniciante deve conseguir resolver por intuição e leitura. Um único conceito por andar.
 - **Formato "corrigir o código do Mega Brain":** o terminal mostra um código curto e genérico que a IA escreveu, com um problema. O jogador conserta.
-- **Pseudocódigo neutro em português**, igual para Alvares e Reis.
+- **Pseudocódigo quase Python, como nas outras fases:** só as palavras reservadas ficam em inglês (`if`, `else`, `for`, `in`, `range`, `def`, `True`, `False`). Nomes de variáveis e funções (`abrir_catraca`, `passageiros`, `visitante.gerado_por_ia`…), enunciados, erros e falas ficam em português. Igual para Alvares e Reis.
 - **O enunciado dá todas as informações necessárias**, mas não entrega a resposta. Descreva o objetivo e as regras do mundo; não diga qual linha mudar.
-- **Interação por digitação no Terminal compartilhado:** o jogador digita a correção no terminal da fase, como nas outras fases. A validação é tolerante a espaços e a maiúsculas/minúsculas, e aceita a linha inteira corrigida ou só o trecho que muda (ex.: `5` ou `repita 5 vezes`). O formato exato de cada puzzle é definido na etapa 3.
+- **Interação por digitação no Terminal compartilhado:** o jogador digita a correção no terminal da fase, como nas outras fases. A validação é tolerante a espaços e a maiúsculas/minúsculas, e aceita a linha inteira corrigida ou só o trecho que muda (ex.: `5` ou `for i in range(5):`). O formato exato de cada puzzle é definido na etapa 3.
 - **Feedback de erro com personalidade:** o Mega Brain comenta pelo alto-falante. Ao errar 3 vezes, o comentário passa a conter uma dica mais direta (ainda sem dar a resposta).
 - **Sem penalidade:** errar não tira vida nem tempo. Mostrar a consequência visual do código errado é parte da graça (ver cada andar).
 - Cada puzzle deve ser definido como dado: linhas de código, slots editáveis, opções, solução, mensagens de erro, dicas.
@@ -177,14 +177,14 @@ chamar_elevador(andar_destino, passageiros)
 **Enunciado:**
 > A barreira foi feita para bloquear apenas conteúdo gerado por IA. Humanos devem passar. O sensor diz, para cada visitante, se ele foi gerado por IA.
 
-**Código (o jogador digita `verdadeiro` ou `falso`):**
+**Código (o jogador digita `True` ou `False`):**
 ```
-se visitante.gerado_por_ia == falso:
+if visitante.gerado_por_ia == False:
     bloquear(visitante)
-senão:
+else:
     liberar(visitante)
 ```
-**Solução:** trocar `falso` por `verdadeiro`.
+**Solução:** trocar `False` por `True`.
 
 **Consequência do erro:** os drones do Mega Brain passam livremente e o jogador continua bloqueado; um drone faz "tchauzinho".
 
@@ -196,10 +196,10 @@ senão:
 
 **Código (o jogador digita o número):**
 ```
-repita 50 vezes:
+for i in range(50):
     criar_placa()
 ```
-**Solução:** `repita 5 vezes`.
+**Solução:** `range(5)`.
 
 **Consequência do erro:** com menos de 5, a ponte fica com buraco; com mais de 5, placas se empilham numa montanha e o Mega Brain comenta "Mais é sempre melhor. Isso se chama escala."
 
@@ -207,11 +207,11 @@ repita 50 vezes:
 **Situação:** três comportas de refrigeração precisam abrir. A IA escreveu uma função que recebe o número da comporta, mas ignora o parâmetro.
 
 **Enunciado:**
-> As três comportas precisam abrir. A função `abrir_comporta` recebe qual comporta deve ser aberta. Repare no que ela faz com essa informação.
+> As três comportas (COMPORTA 1, 2 e 3) precisam abrir. A função `abrir_comporta` recebe qual comporta abrir, no parâmetro `numero`. Mas hoje as chamadas não abrem as comportas certas: descubra o que a função faz com o `numero`. O terminal mostra o que cada chamada faz hoje.
 
 **Código (o jogador digita `numero` no lugar certo):**
 ```
-funcao abrir_comporta(numero):
+def abrir_comporta(numero):
     destravar(comporta[1])
 
 abrir_comporta(1)
@@ -367,6 +367,8 @@ Implemente uma etapa por vez. Cada etapa tem critérios de aceite; teste antes d
 ## 13. Decisões da equipe (prevalecem sobre o restante do documento)
 
 - **Puzzles dos andares:** digitação no Terminal compartilhado, sem slots clicáveis. A validação é tolerante a espaços e maiúsculas/minúsculas e aceita a linha corrigida inteira ou só o trecho que muda. Isso vale para os 5 andares (seção 6.1).
+- **Pseudocódigo quase Python, como nas outras fases:** o código dos 5 puzzles dos andares usa só palavras reservadas em inglês (`if`, `else`, `for`, `in`, `range`, `def`, `True`, `False`). Nomes de variáveis e funções, enunciados, erros, dicas e falas seguem em português. As palavras `verdadeiro`/`falso` ainda são aceitas nos andares, por gentileza. **Exceção: o termo de ciência da portaria (seção 4.3) continua em português**, com `verdadeiro`/`falso` e a piada para quem digita `true`. O rebase final já era em inglês (`pick`/`drop`).
+- **Puzzle das comportas (andar 5):** o terminal mostra o que cada chamada `abrir_comporta(n)` faz hoje (todas destravam a comporta 1), e a consequência do erro mostra as três chamadas em sequência sobre as comportas, marcando cada uma como `OK` ou `TRAVADA`.
 - **Créditos:** nenhuma menção a IA ou vibecoding. A linha correspondente da seção 10 foi trocada.
 - **Forma 1 (Copycat):** usa os sprites `boss_forma1_cyberpunk_alvares.png` ou `boss_forma1_cyberpunk_reis.png`, conforme o protagonista escolhido. Não há placeholder para essa forma.
 - **Som:** nada até a etapa 8. Na etapa 8, SFX sintetizados com Web Audio (mute `[M]` compartilhado com as outras fases). A trilha entra quando os MP3 forem colocados em `public/assets`.

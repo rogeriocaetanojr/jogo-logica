@@ -1,5 +1,10 @@
 import type { ContextoInterpretador, ResultadoComando } from '../../compartilhado/tipos';
-import { TEXTOS_PUZZLE_PROVISORIO, TEXTOS_TERMO } from './DialogosFaseFinal';
+import type { IdPuzzleAndar } from './andares/tiposAndar';
+import { TEXTOS_TERMO } from './DialogosFaseFinal';
+import { avaliarPuzzle } from './puzzles/avaliadoresPuzzle';
+import { ERROS_PARA_DICA, PUZZLES, TEXTOS_PUZZLE } from './puzzles/definicoesPuzzles';
+import type { EstadoPuzzle, FatosAndar, ResultadoPuzzle } from './puzzles/tiposPuzzle';
+import { normalizar } from './utilTexto';
 
 /**
  * Interpretador dos terminais da Fase Final. Cada terminal informa no contexto qual puzzle é
@@ -14,11 +19,15 @@ export interface ContextoTermo extends ContextoInterpretador {
   invalidos: number;
 }
 
-/** Terminal de andar enquanto os puzzles reais não existem (etapa 3). */
-export interface ContextoAndarProvisorio extends ContextoInterpretador {
+/** Terminal do puzzle de um andar. A cena guarda este objeto e lê `ultimo` depois de cada envio. */
+export interface ContextoPuzzleAndar extends ContextoInterpretador {
   puzzle: 'andar';
-  andar: number;
+  id: IdPuzzleAndar;
   resolvido: boolean;
+  erros: number;
+  estado: EstadoPuzzle;
+  fatos: FatosAndar;
+  ultimo?: ResultadoPuzzle;
 }
 
 export const ACOES_FASE_FINAL = {
@@ -27,20 +36,10 @@ export const ACOES_FASE_FINAL = {
   TERMO_INVALIDO: 'TERMO_INVALIDO',
   PUZZLE_RESOLVIDO: 'PUZZLE_RESOLVIDO',
   PUZZLE_ERRADO: 'PUZZLE_ERRADO',
+  PUZZLE_FORMATO: 'PUZZLE_FORMATO',
   AJUDA: 'AJUDA',
   LIMPAR: 'LIMPAR_TERMINAL',
 } as const;
-
-/** Minúsculas, sem acentos, espaços colapsados e sem espaços ao redor de símbolos. */
-export function normalizar(entrada: string): string {
-  return entrada
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
-    .replace(/\s*([=(),:.\[\]])\s*/g, '$1')
-    .trim();
-}
 
 const COMANDOS_AJUDA = new Set(['help', 'ajuda', 'help()', 'ajuda()', '?']);
 const COMANDOS_LIMPAR = new Set(['clear', 'limpar', 'cls', 'clear()', 'limpar()']);
@@ -56,24 +55,47 @@ export function interpretarComandoFaseFinal(entrada: string, contexto?: Contexto
     case 'termo':
       return interpretarTermo(texto, contexto as ContextoTermo);
     case 'andar':
-      return interpretarAndarProvisorio(texto, contexto as ContextoAndarProvisorio);
+      return interpretarPuzzleAndar(entrada, texto, contexto as ContextoPuzzleAndar);
     default:
       return { sucesso: false, mensagem: '[ERRO] Este terminal está desconectado da torre.' };
   }
 }
 
-function interpretarAndarProvisorio(texto: string, ctx: ContextoAndarProvisorio): ResultadoComando {
-  if (ctx.resolvido) return { sucesso: true, mensagem: TEXTOS_PUZZLE_PROVISORIO.JA_RESOLVIDO };
-  if (texto === 'liberar' || texto === 'liberar()') {
-    return { sucesso: true, mensagem: TEXTOS_PUZZLE_PROVISORIO.ACEITO, acao: ACOES_FASE_FINAL.PUZZLE_RESOLVIDO };
+function interpretarPuzzleAndar(entrada: string, texto: string, ctx: ContextoPuzzleAndar): ResultadoComando {
+  const def = PUZZLES[ctx.id];
+  ctx.ultimo = undefined;
+  if (ctx.resolvido) return { sucesso: true, mensagem: TEXTOS_PUZZLE.JA_RESOLVIDO };
+  if (COMANDOS_AJUDA.has(texto)) {
+    const linhas = [...def.comoResponder];
+    if (ctx.erros >= ERROS_PARA_DICA) linhas.push(def.dica);
+    return { sucesso: true, mensagem: linhas.join('\n'), acao: ACOES_FASE_FINAL.AJUDA };
   }
-  return { sucesso: false, mensagem: TEXTOS_PUZZLE_PROVISORIO.RECUSADO, acao: ACOES_FASE_FINAL.PUZZLE_ERRADO };
+
+  const resultado = avaliarPuzzle(ctx.id, entrada, ctx.estado, ctx.fatos);
+  ctx.ultimo = resultado;
+  if (resultado.status === 'formato') {
+    return { sucesso: false, mensagem: resultado.mensagem, acao: ACOES_FASE_FINAL.PUZZLE_FORMATO };
+  }
+  if (resultado.estado) ctx.estado = resultado.estado;
+  if (resultado.status === 'certo') {
+    return {
+      sucesso: true,
+      mensagem: `${TEXTOS_PUZZLE.EXECUTANDO}\n${def.acerto}`,
+      acao: ACOES_FASE_FINAL.PUZZLE_RESOLVIDO,
+    };
+  }
+  return {
+    sucesso: false,
+    mensagem: `${TEXTOS_PUZZLE.EXECUTANDO}\n${def.execucaoErro(resultado.erro, resultado.dados)}`,
+    acao: ACOES_FASE_FINAL.PUZZLE_ERRADO,
+  };
 }
 
 /* =========================================================================
  * TERMO DE CIÊNCIA
  * ========================================================================= */
 
+// O termo é em português: "true" é aceito, mas ganha uma piada sobre o jogador ser espertão
 const VALORES_VERDADEIRO = new Set(['verdadeiro', 'sim', 'v']);
 const VALORES_PYTHON_VERDADEIRO = new Set(['true']);
 const VALORES_FALSO = new Set(['falso', 'false', 'nao', 'n', 'f']);

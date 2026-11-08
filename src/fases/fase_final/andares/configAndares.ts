@@ -79,12 +79,12 @@ export const ANDARES: readonly ConfigAndar[] = [
       { tipo: 'telao', x: 760, slogan: 0 },
       { tipo: 'balcao', x: 1720 },
       { tipo: 'cartaz', x: 1980, texto: 'FUNCIONARIO DO MES: MEGA BRAIN (DE NOVO)' },
-      { tipo: 'planta', x: 2160 },
+      { tipo: 'planta', x: 2060 },
       { tipo: 'telao', x: 2640, slogan: 3 },
     ],
     inimigos: [],
-    npcs: [],
-    puzzle: { id: 'sequencia', terminalX: 2300, bloqueio: { tipo: 'catraca', x: 2460 } },
+    npcs: [{ id: 'recepcionista', x: 2310, humano: false, aparencia: 'recepcionista' }],
+    puzzle: { id: 'sequencia', terminalX: 2190, bloqueio: { tipo: 'catraca', x: 2460 } },
   },
   {
     numero: 2,
@@ -106,14 +106,18 @@ export const ANDARES: readonly ConfigAndar[] = [
     decoracao: [
       { tipo: 'maquinaPrompt', x: 400 },
       { tipo: 'cabos', x: 820 },
-      { tipo: 'maquinaPrompt', x: 1600 },
+      { tipo: 'maquinaPrompt', x: 1480 },
       { tipo: 'cabos', x: 2080 },
       { tipo: 'maquinaPrompt', x: 2250 },
       { tipo: 'maquinaPrompt', x: 2480 },
       { tipo: 'telao', x: 2620, slogan: 2 },
     ],
     inimigos: [],
-    npcs: [],
+    npcs: [
+      { id: 'influencer', x: 560, humano: true, aparencia: 'influencer' },
+      { id: 'operadora', x: 1590, humano: true, aparencia: 'operadora' },
+      { id: 'chatbot', x: 2360, humano: false, aparencia: 'chatbot' },
+    ],
     puzzle: { id: 'variaveis', terminalX: 2800, bloqueio: { tipo: 'elevador', x: 3020 } },
   },
   {
@@ -204,7 +208,7 @@ export const ANDARES: readonly ConfigAndar[] = [
     ],
     inimigos: [],
     npcs: [],
-    puzzle: { id: 'funcoes', terminalX: 2160, bloqueio: { tipo: 'comportas', x: 2360, espacamento: 200 } },
+    puzzle: { id: 'funcoes', terminalX: 2200, bloqueio: { tipo: 'comportas', x: 2340, espacamento: 160 } },
   },
 ];
 

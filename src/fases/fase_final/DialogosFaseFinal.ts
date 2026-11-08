@@ -77,17 +77,63 @@ export const ANUNCIOS_ANDAR: Record<number, string> = {
   5: 'Sala dos servidores. Não toque em nada. Principalmente em mim.',
 };
 
-/** Provisório até a etapa 3: o terminal do andar só destrava com "liberar". */
-export const TEXTOS_PUZZLE_PROVISORIO = {
-  titulo: (numero: number) => `ANDAR ${numero} // TERMINAL DO PUZZLE`,
-  enunciado: (conceito: string) => [
-    `// Puzzle de ${conceito} (em construção)`,
-    '> Digite liberar para destravar o andar (modo de teste).',
-  ],
-  ACEITO: '[OK] Andar liberado (modo de teste).',
-  RECUSADO: '[ERRO] Modo de teste: digite liberar.',
-  JA_RESOLVIDO: '[OK] Este andar já está liberado.',
-} as const;
+/* =========================================================================
+ * NPCS DOS ANDARES
+ * ========================================================================= */
+
+interface FalasNpc {
+  falante: string;
+  primeira: string[];
+  repeticoes: string[];
+}
+
+/** Falas por id do NPC (configAndares). Primeira conversa completa; depois, uma frase por visita, em ciclo. */
+export const FALAS_NPC: Record<string, FalasNpc> = {
+  recepcionista: {
+    falante: '> RECEPCIONISTA-BOT // ATENDIMENTO 24/7',
+    primeira: [
+      'Bem-vindo à Mega Brain Tower! Seu crachá está sendo processado.',
+      'Processamento: fora de ordem. Acesso: negado. Satisfação: garantida.',
+    ],
+    repeticoes: ['Bem-vindo! Acesso negado! Bem-vindo!', 'Por favor, aguarde. Sua espera é importante para nós. Para mim, não.'],
+  },
+  influencer: {
+    falante: '> INFLUENCER DE IA // 300 POSTS POR DIA',
+    primeira: ['Fiz 300 posts hoje. Não li nenhum.', 'Engajamento é tudo. Eu nem sei sobre o que eram.'],
+    repeticoes: ['Me segue? Eu te sigo de volta. Automaticamente.', 'Esse corredor rende um vídeo. "Programador perdido entra numa cilada".'],
+  },
+  operadora: {
+    falante: '> OPERADORA DE PROMPT // TURNO DE 12 HORAS',
+    primeira: ['Eu revisava textos. Agora eu reviso se a máquina ainda está ligada.', 'Está. Sempre está.'],
+    repeticoes: ['Doze horas olhando a palavra "GERANDO". Eu me sinto gerada.', 'Se for subir, me leva por favor. Eu caibo no elevador. Já conferi.'],
+  },
+  chatbot: {
+    falante: '> CHATBOT DE ATENDIMENTO // TRAVADO',
+    primeira: ['Posso ajudar em mais alguma coisa? Posso ajudar em mais alguma coisa? Posso aj—'],
+    repeticoes: ['Desculpe, não entendi. Desculpe, não entendi. Desculpe, não ent—', 'Sua opinião é muito importante. Sua opinião é muito importa—'],
+  },
+};
+
+/** O que a recepcionista grita quando a catraca bate na cara do jogador. */
+export const FALA_RECEPCIONISTA_ERRO = 'Bem-vindo! Acesso negado! Bem-vindo!';
+
+/** Para onde o elevador foi quando o destino estava errado. */
+export function textoDestinoElevador(destino: number, andarAtual: number): string {
+  if (destino === 0) return 'ANDAR 0 // Estacionamento de ideias abandonadas';
+  if (destino < 0) return `ANDAR ${destino} // Subsolo. Só tem backup e arrependimento.`;
+  if (destino === andarAtual) return `ANDAR ${destino} // Você já está aqui. O elevador também.`;
+  if (destino < andarAtual) return `ANDAR ${destino} // Você acabou de vir de lá.`;
+  if (destino > 5) return `ANDAR ${destino} // Esse andar não existe. O elevador alucinou.`;
+  return `ANDAR ${destino} // Pulou andar. Pressa é inimiga da lógica.`;
+}
+
+export function textoPassageirosElevador(passageiros: number, humanos: number): string {
+  return passageiros < humanos
+    ? `ELEVADOR // Lugar para ${passageiros}. Tem ${humanos === 1 ? 'gente' : 'mais gente'} nesta sala.`
+    : `ELEVADOR // Lugar para ${passageiros}. Robô não é passageiro, é patrimônio.`;
+}
+
+export const DRONE_TCHAU = 'o/ tchauzinho';
 
 /* =========================================================================
  * VALDIR
@@ -169,7 +215,7 @@ export const TEXTOS_TERMO = {
   VARIAVEL_ERRADA:
     '[TERMO] Você mudou o nome da variável. O termo é sobre jogador.ciente_dos_riscos, não sobre o que você queria que fosse.',
   PYTHON:
-    '[TERMO] True? Aqui o pseudocódigo é em português, mas tudo bem. A Mega Brain aceita qualquer coisa que pareça um sim.',
+    '[TERMO] True? Hmmmm bilinguezão, aqui o desafio é em português, beleza? Mas tudo bem. Pela frente tem bastante "coding" pra você pagar de espertão.',
   ACEITO: '[TERMO] Obrigado por aceitar termos que você não leu. Bem-vindo à Mega Brain Tower.',
   JA_ASSINADO: '[TERMO] Termo já assinado. Não tem volta. Igual a todo termo.',
 } as const;

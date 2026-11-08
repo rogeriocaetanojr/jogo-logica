@@ -20,7 +20,10 @@ import {
   HUD_FASE_FINAL,
   NOTIFICACOES_FASE_FINAL,
   TEXTOS_ANDAR,
-  TEXTOS_PUZZLE_PROVISORIO,
+  DRONE_TCHAU,
+  FALA_RECEPCIONISTA_ERRO,
+  textoDestinoElevador,
+  textoPassageirosElevador,
   TEXTOS_TERMO,
   falasValdir,
 } from './DialogosFaseFinal';
@@ -28,12 +31,29 @@ import { ExteriorFaseFinal } from './exterior/ExteriorFaseFinal';
 import { TEX_EXTERIOR, retratoValdir } from './exterior/TexturasExterior';
 import {
   ACOES_FASE_FINAL,
-  type ContextoAndarProvisorio,
+  type ContextoPuzzleAndar,
   type ContextoTermo,
   interpretarComandoFaseFinal,
 } from './InterpretadorFaseFinal';
 import { JogadorFaseFinal, type Ponto } from './JogadorFaseFinal';
 import { NpcFaseFinal } from './NpcFaseFinal';
+import { TEX_DRONE_CAPTCHA, gerarTexturaDrone } from './npcs/TexturasNpc';
+import { ESTADO_INICIAL_PUZZLE } from './puzzles/avaliadoresPuzzle';
+import { ERROS_PARA_DICA, PUZZLES, TEXTOS_PUZZLE } from './puzzles/definicoesPuzzles';
+import type { DadosErroPuzzle } from './puzzles/tiposPuzzle';
+import { LegendaMegaBrain, balaoFala } from './BalaoFala';
+
+/** Contexto do terminal do andar antes de saber qual andar é. */
+function contextoAndarVazio(): ContextoPuzzleAndar {
+  return {
+    puzzle: 'andar',
+    id: 'sequencia',
+    resolvido: false,
+    erros: 0,
+    estado: { ...ESTADO_INICIAL_PUZZLE },
+    fatos: { numeroAndar: 1, humanos: 0 },
+  };
+}
 
 /** Dados passados ao reiniciar a cena para trocar de trecho. */
 export interface DadosCenaFaseFinal {
@@ -82,7 +102,9 @@ export class CenaFaseFinal extends CenaBase {
 
   // Andar
   private andar?: AndarFaseFinal;
-  private contextoPuzzle: ContextoAndarProvisorio = { puzzle: 'andar', andar: 1, resolvido: false };
+  private contextoPuzzle: ContextoPuzzleAndar = contextoAndarVazio();
+  private emConsequencia: boolean = false;
+  private legenda!: LegendaMegaBrain;
   private promptTerminal?: Phaser.GameObjects.Text;
   private promptElevador?: Phaser.GameObjects.Text;
   private tentativasElevadorTravado: number = 0;
@@ -104,7 +126,8 @@ export class CenaFaseFinal extends CenaBase {
     this.andar = undefined;
     this.contextoTermo = { puzzle: 'termo', aceito: false, recusas: 0, invalidos: 0 };
     this.conversouComValdir = false;
-    this.contextoPuzzle = { puzzle: 'andar', andar: this.numeroAndar, resolvido: false };
+    this.contextoPuzzle = contextoAndarVazio();
+    this.emConsequencia = false;
     this.tentativasElevadorTravado = 0;
   }
 
@@ -306,6 +329,12 @@ export class CenaFaseFinal extends CenaBase {
     this.cameras.main.setBounds(0, 0, cfg.largura, A.ALTURA);
 
     this.andar = new AndarFaseFinal(this, cfg);
+    this.contextoPuzzle = {
+      ...contextoAndarVazio(),
+      id: cfg.puzzle.id,
+      fatos: { numeroAndar: cfg.numero, humanos: this.andar.humanos },
+    };
+    this.legenda = new LegendaMegaBrain(this);
     this.jogador = new JogadorFaseFinal(this, this.andar.spawn);
     this.physics.add.collider(this.jogador.sprite, this.andar.solidos);
     this.physics.add.collider(this.jogador.sprite, this.andar.umaVia, undefined, (j, p) => {
@@ -358,11 +387,18 @@ export class CenaFaseFinal extends CenaBase {
   private interacoesAndar(apertouE: boolean): void {
     const andar = this.andar;
     if (!andar) return;
-    const { x } = this.jogador;
+    const { x, y } = this.jogador;
     const cfg = andar.cfg;
 
+    for (const npc of andar.npcs) {
+      if (npc.update(x, y, apertouE, this.comunicador)) return;
+    }
+
     const pertoTerminal =
-      !this.contextoPuzzle.resolvido && Math.abs(x - cfg.puzzle.terminalX) <= A.RAIO_TERMINAL && this.jogador.noChao;
+      !this.contextoPuzzle.resolvido &&
+      !this.emConsequencia &&
+      Math.abs(x - cfg.puzzle.terminalX) <= A.RAIO_TERMINAL &&
+      this.jogador.noChao;
     this.promptTerminal?.setVisible(pertoTerminal);
     if (pertoTerminal && apertouE) {
       this.abrirTerminalAndar();
@@ -370,7 +406,7 @@ export class CenaFaseFinal extends CenaBase {
     }
 
     const elevador = andar.elevadorSaida;
-    const pertoElevador = elevador.naPorta(x) && this.jogador.noChao;
+    const pertoElevador = elevador.naPorta(x) && this.jogador.noChao && !this.emConsequencia;
     this.promptElevador
       ?.setText(elevador.destravado ? TEXTOS_ANDAR.PROMPT_ELEVADOR : TEXTOS_ANDAR.PROMPT_ELEVADOR_TRAVADO)
       .setVisible(pertoElevador);
@@ -385,29 +421,109 @@ export class CenaFaseFinal extends CenaBase {
     }
   }
 
-  /** Provisório até a etapa 3: o terminal destrava o andar com "liberar". */
+  /** Terminal do puzzle: enunciado, código atual do Mega Brain e como responder. */
   private abrirTerminalAndar(): void {
-    const cfg = this.andar!.cfg;
+    const def = PUZZLES[this.contextoPuzzle.id];
     this.promptTerminal?.setVisible(false);
     this.terminal.abrir({
-      titulo: TEXTOS_PUZZLE_PROVISORIO.titulo(cfg.numero),
-      linhasIniciais: TEXTOS_PUZZLE_PROVISORIO.enunciado(cfg.conceito),
+      titulo: `ANDAR ${this.numeroAndar} // ${def.titulo}`,
+      linhasIniciais: [
+        ...def.enunciado,
+        '',
+        TEXTOS_PUZZLE.CABECALHO_CODIGO,
+        ...def.codigo(this.contextoPuzzle.estado),
+        '',
+        ...def.comoResponder,
+        TEXTOS_PUZZLE.AJUDA_COMANDOS,
+      ],
       contexto: this.contextoPuzzle,
-      aoSubmeter: (resultado) => {
-        if (resultado.acao === ACOES_FASE_FINAL.PUZZLE_RESOLVIDO) this.resolverPuzzleDoAndar();
-      },
+      aoSubmeter: (resultado) => this.aoSubmeterPuzzle(resultado),
       permitirFecharComEsc: true,
     });
+  }
+
+  private aoSubmeterPuzzle(resultado: ResultadoComando): void {
+    if (resultado.acao === ACOES_FASE_FINAL.PUZZLE_RESOLVIDO) {
+      this.resolverPuzzleDoAndar();
+      return;
+    }
+    if (resultado.acao !== ACOES_FASE_FINAL.PUZZLE_ERRADO) return;
+    const ultimo = this.contextoPuzzle.ultimo;
+    if (ultimo?.status !== 'errado') return;
+
+    // Código válido, mas errado: fecha o terminal para o jogador ver o que o código fez
+    this.contextoPuzzle.erros++;
+    this.emConsequencia = true;
+    this.time.delayedCall(1300, () => {
+      this.terminal.fecharForcado();
+      this.mostrarConsequencia(ultimo.dados, () => {
+        this.emConsequencia = false;
+        this.comentarErro();
+      });
+    });
+  }
+
+  /** O que o código errado faz no cenário, por tipo de bloqueio. */
+  private mostrarConsequencia(dados: DadosErroPuzzle, aoTerminar: () => void): void {
+    const andar = this.andar;
+    if (!andar) return aoTerminar();
+    const bloqueio = andar.bloqueio;
+    switch (andar.cfg.puzzle.bloqueio.tipo) {
+      case 'catraca': {
+        const recepcionista = andar.npc('recepcionista');
+        if (recepcionista) {
+          this.time.delayedCall(250, () =>
+            balaoFala(this, recepcionista.sprite.x, recepcionista.sprite.y - 130, FALA_RECEPCIONISTA_ERRO)
+          );
+        }
+        bloqueio.consequenciaCatraca(aoTerminar);
+        break;
+      }
+      case 'elevador': {
+        const destino = dados.destino ?? 0;
+        const passageiros = dados.passageiros ?? 0;
+        const humanos = dados.humanos ?? 0;
+        const aviso =
+          destino !== this.numeroAndar + 1
+            ? textoDestinoElevador(destino, this.numeroAndar)
+            : textoPassageirosElevador(passageiros, humanos);
+        andar.elevadorSaida.viagemFantasma(this.numeroAndar, destino, () => this.mostrarNotificacao(aviso, 2600), aoTerminar);
+        break;
+      }
+      case 'laser':
+        gerarTexturaDrone(this);
+        bloqueio.consequenciaLaser(TEX_DRONE_CAPTCHA, `${TEX_DRONE_CAPTCHA}-voa`, (drone) => {
+          balaoFala(this, drone.x, drone.y - 26, DRONE_TCHAU, 1500);
+          this.time.delayedCall(1200, aoTerminar);
+        });
+        break;
+      case 'ponte':
+        bloqueio.consequenciaPonte(dados.placas ?? 0, aoTerminar);
+        break;
+      case 'comportas':
+        bloqueio.consequenciaComportas(dados.comporta ?? 1, aoTerminar);
+        break;
+    }
+  }
+
+  /** Comentário do Mega Brain depois do erro; a partir do 3º erro vem com a dica. */
+  private comentarErro(): void {
+    const def = PUZZLES[this.contextoPuzzle.id];
+    const erros = this.contextoPuzzle.erros;
+    const comentario = def.comentarios[(erros - 1) % def.comentarios.length];
+    this.legenda.mostrar(TEXTOS_PUZZLE.FALANTE_LEGENDA, comentario, erros >= ERROS_PARA_DICA ? def.dica : undefined);
   }
 
   private resolverPuzzleDoAndar(): void {
     if (this.contextoPuzzle.resolvido || !this.andar) return;
     this.contextoPuzzle.resolvido = true;
-    this.time.delayedCall(900, () => {
+    const def = PUZZLES[this.contextoPuzzle.id];
+    this.time.delayedCall(1300, () => {
       this.terminal.fecharForcado();
       this.andar?.resolverPuzzle();
       this.definirObjetivo(TEXTOS_ANDAR.OBJETIVO_ELEVADOR);
       this.mostrarNotificacao(TEXTOS_ANDAR.PUZZLE_RESOLVIDO);
+      this.time.delayedCall(900, () => this.legenda.mostrar(TEXTOS_PUZZLE.FALANTE_LEGENDA, def.comentarioAcerto));
     });
   }
 
@@ -546,6 +662,7 @@ export class CenaFaseFinal extends CenaBase {
     if (this.terminal.estaAberto || this.comunicador.estaAtivo) {
       if (!this.congelado) this.congelar();
       this.valdir?.esconderPrompt();
+      this.andar?.npcs.forEach((n) => n.esconderPrompt());
       this.promptTermo?.setVisible(false);
       this.promptTerminal?.setVisible(false);
       this.promptElevador?.setVisible(false);

@@ -142,6 +142,178 @@ export class BloqueioPuzzle {
     }
   }
 
+  /* =======================================================================
+   * CONSEQUÊNCIAS DO CÓDIGO ERRADO (a passagem continua fechada no fim)
+   * ======================================================================= */
+
+  /** Catraca: o portão sobe um pouco e bate de volta na cara do jogador. */
+  public consequenciaCatraca(aoTerminar: () => void): void {
+    const portao = this.portoes[0];
+    if (!portao) return aoTerminar();
+    this.cena.tweens.chain({
+      targets: portao,
+      tweens: [
+        { y: A.CHAO_Y - 170, duration: 220, ease: 'Quad.easeOut' },
+        { y: A.CHAO_Y - 170, duration: 260 },
+        { y: A.CHAO_Y, duration: 200, ease: 'Bounce.easeOut' },
+      ],
+      onComplete: () => {
+        this.cena.cameras.main.shake(180, 0.006);
+        this.cena.time.delayedCall(400, aoTerminar);
+      },
+    });
+  }
+
+  /** Laser: drones do Mega Brain atravessam a barreira de boa; o último dá tchau. */
+  public consequenciaLaser(texturaDrone: string, animDrone: string, aoTerminar: (ultimo: Phaser.GameObjects.Sprite) => void): void {
+    const x = this.cfg.x;
+    const drones: Phaser.GameObjects.Sprite[] = [];
+    [300, 380, 460].forEach((y, i) => {
+      const d = this.cena.add.sprite(x + 520 + i * 70, y, texturaDrone).setScale(ESCALA_ARTE).setDepth(40).play(animDrone);
+      d.setFlipX(false);
+      drones.push(d);
+      this.cena.tweens.add({
+        targets: d,
+        x: i === 2 ? x - 150 : x - 900,
+        y: y + Math.sin(i) * 20,
+        duration: 1900 + i * 250,
+        ease: i === 2 ? 'Sine.easeOut' : 'Linear',
+        onComplete: () => {
+          if (i < 2) d.destroy();
+        },
+      });
+    });
+    const ultimo = drones[2];
+    this.cena.time.delayedCall(2500, () => {
+      this.cena.tweens.add({ targets: ultimo, angle: 20, duration: 140, yoyo: true, repeat: 3 });
+      aoTerminar(ultimo);
+      this.cena.time.delayedCall(1500, () => {
+        this.cena.tweens.add({ targets: ultimo, x: x - 900, y: 200, alpha: 0, duration: 900, onComplete: () => ultimo.destroy() });
+      });
+    });
+  }
+
+  /**
+   * Ponte com o número errado de placas: menos de 5 deixa buraco, mais de 5 empilha uma
+   * montanha no começo do vão. Depois de um instante tudo despenca e o vão volta a ficar vazio.
+   */
+  public consequenciaPonte(quantidade: number, aoTerminar: () => void): void {
+    const largura = this.cfg.larguraPlaca ?? 96;
+    const temporarias: Phaser.GameObjects.Image[] = [];
+    const visiveis = Math.min(quantidade, 5 + 30); // a montanha tem limite de bom senso
+    const intervalo = Math.max(40, Math.min(160, 1400 / Math.max(1, visiveis)));
+
+    for (let i = 0; i < visiveis; i++) {
+      this.cena.time.delayedCall(i * intervalo, () => {
+        let px: number;
+        let py: number;
+        if (i < 5) {
+          px = this.cfg.x + largura * i + largura / 2;
+          py = A.CHAO_Y;
+        } else {
+          // Placas extras: pilha torta em cima das primeiras
+          const k = i - 5;
+          const camada = Math.floor(k / 3);
+          px = this.cfg.x + largura * 0.5 + (k % 3) * largura * 0.55 + (camada % 2) * 20;
+          py = A.CHAO_Y - (camada + 1) * (A.ESPESSURA_PLACA - 4);
+        }
+        const placa = this.cena.add
+          .image(px, py - 30, texAndar.placaPonte)
+          .setOrigin(0.5, 0)
+          .setDisplaySize(largura, A.ESPESSURA_PLACA)
+          .setDepth(6 + i * 0.01)
+          .setAngle(i < 5 ? 0 : ((i * 37) % 13) - 6)
+          .setAlpha(0);
+        this.cena.tweens.add({ targets: placa, y: py, alpha: 1, duration: 120 });
+        temporarias.push(placa);
+      });
+    }
+
+    const fim = visiveis * intervalo + 1300;
+    this.cena.time.delayedCall(fim, () => {
+      this.cena.cameras.main.shake(260, 0.005);
+      temporarias.forEach((placa, i) => {
+        this.cena.tweens.add({
+          targets: placa,
+          y: placa.y + 260,
+          angle: placa.angle + (i % 2 === 0 ? 40 : -40),
+          alpha: 0,
+          delay: (i % 6) * 40,
+          duration: 600,
+          ease: 'Quad.easeIn',
+          onComplete: () => placa.destroy(),
+        });
+      });
+      this.cena.time.delayedCall(800, aoTerminar);
+    });
+  }
+
+  /** Rótulo de código sobre uma comporta (ex.: "abrir_comporta(2)"), com a cor do estado. */
+  private rotuloComporta(indice: number, texto: string, cor: string): Phaser.GameObjects.Text {
+    const x = this.cfg.x + indice * (this.cfg.espacamento ?? 200);
+    const rotulo = this.cena.add
+      .text(x, A.TETO_Y + 130, texto, {
+        fontFamily: 'Consolas, Courier New, monospace',
+        fontSize: '12px',
+        fontStyle: 'bold',
+        color: cor,
+        backgroundColor: 'rgba(5,5,12,0.92)',
+        padding: { x: 7, y: 4 },
+        align: 'center',
+      })
+      .setOrigin(0.5)
+      .setDepth(PROF + 5)
+      .setScale(0.7)
+      .setAlpha(0);
+    this.cena.tweens.add({ targets: rotulo, scale: 1, alpha: 1, duration: 140, ease: 'Back.easeOut' });
+    return rotulo;
+  }
+
+  /**
+   * Comportas com a função errada: as três chamadas rodam uma por vez. Cada uma mostra seu
+   * "abrir_comporta(n)" sobre a comporta que deveria abrir, mas por dentro abre sempre a mesma (`numero`).
+   * A comporta certa recebe "ok"; as outras ficam marcadas como travadas.
+   */
+  public consequenciaComportas(numero: number, aoTerminar: () => void): void {
+    const alvo = this.portoes[numero - 1];
+    if (!alvo) return aoTerminar();
+    const rotulos: Phaser.GameObjects.Text[] = [];
+    const passo = 1250;
+
+    for (let i = 1; i <= 3; i++) {
+      const inicio = (i - 1) * passo;
+      this.cena.time.delayedCall(inicio, () => {
+        const chamada = this.rotuloComporta(i - 1, `abrir_comporta(${i})`, COR.janelaQuente);
+        rotulos.push(chamada);
+        // A comporta que a função realmente abre sobe e desce
+        this.cena.time.delayedCall(350, () => {
+          this.cena.tweens.chain({
+            targets: alvo,
+            tweens: [
+              { y: A.CHAO_Y - 200, duration: 260, ease: 'Quad.easeOut' },
+              { y: A.CHAO_Y - 200, duration: 250 },
+              { y: A.CHAO_Y, duration: 220, ease: 'Quad.easeIn' },
+            ],
+          });
+        });
+        // Resultado: a comporta pedida abriu ou não
+        this.cena.time.delayedCall(800, () => {
+          const abriu = i === numero;
+          chamada.setText(abriu ? `abrir_comporta(${i})\nOK` : `abrir_comporta(${i})\nTRAVADA`);
+          chamada.setColor(abriu ? COR.ciano : COR.vermelho);
+          if (!abriu) this.cena.cameras.main.shake(100, 0.002);
+        });
+      });
+    }
+
+    this.cena.time.delayedCall(2 * passo + 1250, () => {
+      this.cena.time.delayedCall(700, () => {
+        for (const r of rotulos) this.cena.tweens.add({ targets: r, alpha: 0, duration: 250, onComplete: () => r.destroy() });
+        this.cena.time.delayedCall(300, aoTerminar);
+      });
+    });
+  }
+
   /** Abre a passagem com a animação do tipo. */
   public liberar(aoTerminar?: () => void): void {
     if (this.liberado) return;
@@ -178,6 +350,8 @@ export class BloqueioPuzzle {
       case 'comportas':
         this.portoes.forEach((portao, i) => {
           this.cena.time.delayedCall(i * A.INTERVALO_COMPORTA_MS, () => {
+            const rotulo = this.rotuloComporta(i, `abrir_comporta(${i + 1})\nOK`, COR.ciano);
+            this.cena.tweens.add({ targets: rotulo, alpha: 0, delay: 1300, duration: 300, onComplete: () => rotulo.destroy() });
             this.cena.tweens.add({ targets: portao, y: A.TETO_Y + 10, duration: d, ease: 'Cubic.easeIn' });
             const zona = this.paredes[i];
             if (zona) this.solidos.remove(zona, true, true);
