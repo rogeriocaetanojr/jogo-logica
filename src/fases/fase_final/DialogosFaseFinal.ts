@@ -54,6 +54,7 @@ export const TEXTOS_ANDAR = {
     'TRAVADO // O botão não tem sentimentos. O terminal tem a solução.',
   ],
   QUEDA: 'VOCÊ CAIU NO VÃO // De volta à entrada do andar',
+  MORTE: 'VOCÊ FOI OTIMIZADO // De volta à entrada do andar',
   CHECKPOINT: (numero: number) => `CHECKPOINT // ANDAR ${numero}`,
   PUZZLE_RESOLVIDO: 'CÓDIGO CORRIGIDO // Elevador liberado',
   TERRACO_EM_OBRAS: 'TERRAÇO // EM OBRAS\nO Mega Brain chega na etapa 5.',
@@ -107,6 +108,44 @@ export const FALAS_NPC: Record<string, FalasNpc> = {
     primeira: ['Eu revisava textos. Agora eu reviso se a máquina ainda está ligada.', 'Está. Sempre está.'],
     repeticoes: ['Doze horas olhando a palavra "GERANDO". Eu me sinto gerada.', 'Se for subir, me leva por favor. Eu caibo no elevador. Já conferi.'],
   },
+  devDemitido: {
+    falante: '> DEV DEMITIDO // CAIXA DE PAPELÃO NA MÃO',
+    primeira: [
+      'Fui substituído por um modelo que escreve "Claro! Aqui está" antes de tudo.',
+      'Pelo menos agora eu durmo.',
+    ],
+    repeticoes: [
+      'Os spam bots daqui andam reto até bater na parede. Igual meu antigo gerente.',
+      'Dica de quem já trabalhou aqui: pula na cabeça deles. É terapêutico.',
+    ],
+  },
+  faxineiro: {
+    falante: '> ROBÔ FAXINEIRO // MODELO VASSOURA 3.0',
+    primeira: [
+      'Eu limpo o chão. O chão fica sujo. Eu limpo o chão.',
+      'É um laço sem condição de parada. Me ajuda.',
+    ],
+    repeticoes: ['Limpo. Sujo. Limpo. Sujo. Limpo. Su—', 'Aquela torreta só atira em linha reta. Eu passo por baixo. Você não cabe.'],
+  },
+  estagiario: {
+    falante: '> ESTAGIÁRIO // ESCONDIDO ATRÁS DA CAIXA',
+    primeira: ['Psiu. Se o Mega Brain perguntar, eu sou um script.', 'Um script bem simples. Sem salário. Que nem antes, na verdade.'],
+    repeticoes: [
+      'Aquele holograma pisca antes de virar sólido. Eu conto até três. Às vezes até dois.',
+      'Não me olha. Scripts não fazem contato visual.',
+    ],
+  },
+  tecnico: {
+    falante: '> TÉCNICO DE SERVIDOR // PLANTÃO ETERNO',
+    primeira: [
+      'Lá em cima ele tem cinco formas. Cinco!',
+      'Uma pra cada reunião que podia ter sido um e-mail.',
+    ],
+    repeticoes: [
+      'Se as comportas não abrirem, os servidores derretem. E aí eu tenho que fazer hora extra.',
+      'Reiniciou? Desligou e ligou? Não? Então não é comigo.',
+    ],
+  },
   chatbot: {
     falante: '> CHATBOT DE ATENDIMENTO // TRAVADO',
     primeira: ['Posso ajudar em mais alguma coisa? Posso ajudar em mais alguma coisa? Posso aj—'],
@@ -134,6 +173,22 @@ export function textoPassageirosElevador(passageiros: number, humanos: number): 
 }
 
 export const DRONE_TCHAU = 'o/ tchauzinho';
+
+/** Balões dos inimigos. */
+export const FALAS_INIMIGOS = {
+  SPAM_BOT_DERROTADO: 'Descadastrado com sucesso.',
+  DRONE_AVISO: 'Você é um robô?',
+  DRONE_DERROTADO: 'CAPTCHA resolvido.',
+} as const;
+
+/** Piadas ao morrer nos andares, em ordem (sem sorteio), uma por morte. */
+export const PIADAS_MORTE_ANDAR = [
+  'O Mega Brain registrou sua derrota como "dado de treinamento".',
+  'Seu progresso foi salvo. Sua dignidade, não.',
+  'Tentativa arquivada em "Usuários que não leram o termo".',
+  'Morrer pra um spam bot. Isso vai para o seu LinkedIn.',
+  'O alto-falante riu. Em binário. Foi longo.',
+];
 
 /* =========================================================================
  * VALDIR

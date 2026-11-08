@@ -22,6 +22,7 @@ import {
   TEXTOS_ANDAR,
   DRONE_TCHAU,
   FALA_RECEPCIONISTA_ERRO,
+  PIADAS_MORTE_ANDAR,
   textoDestinoElevador,
   textoPassageirosElevador,
   TEXTOS_TERMO,
@@ -42,6 +43,8 @@ import { ESTADO_INICIAL_PUZZLE } from './puzzles/avaliadoresPuzzle';
 import { ERROS_PARA_DICA, PUZZLES, TEXTOS_PUZZLE } from './puzzles/definicoesPuzzles';
 import type { DadosErroPuzzle } from './puzzles/tiposPuzzle';
 import { LegendaMegaBrain, balaoFala } from './BalaoFala';
+import { CombateFaseFinal } from './CombateFaseFinal';
+import { InimigosFaseFinal } from './inimigos/InimigosFaseFinal';
 
 /** Contexto do terminal do andar antes de saber qual andar é. */
 function contextoAndarVazio(): ContextoPuzzleAndar {
@@ -102,6 +105,8 @@ export class CenaFaseFinal extends CenaBase {
 
   // Andar
   private andar?: AndarFaseFinal;
+  private inimigos?: InimigosFaseFinal;
+  private combate?: CombateFaseFinal;
   private contextoPuzzle: ContextoPuzzleAndar = contextoAndarVazio();
   private emConsequencia: boolean = false;
   private legenda!: LegendaMegaBrain;
@@ -124,6 +129,8 @@ export class CenaFaseFinal extends CenaBase {
     this.clima = undefined;
     this.valdir = undefined;
     this.andar = undefined;
+    this.inimigos = undefined;
+    this.combate = undefined;
     this.contextoTermo = { puzzle: 'termo', aceito: false, recusas: 0, invalidos: 0 };
     this.conversouComValdir = false;
     this.contextoPuzzle = contextoAndarVazio();
@@ -343,6 +350,8 @@ export class CenaFaseFinal extends CenaBase {
       return corpoJ.velocity.y >= 0 && corpoJ.bottom <= corpoP.top + 12;
     });
     this.checkpoint = { id: `andar${cfg.numero}`, ponto: { ...this.andar.spawn } };
+    this.inimigos = new InimigosFaseFinal(this, cfg.inimigos, this.andar.solidos);
+    this.combate = new CombateFaseFinal(this, this.jogador, () => this.morrerNoAndar());
 
     this.criarHud(TEXTOS_ANDAR.setor(cfg.numero, cfg.nome), TEXTOS_ANDAR.OBJETIVO_PUZZLE);
     this.promptTerminal = this.criarPrompt(cfg.puzzle.terminalX, A.CHAO_Y - 140, TEXTOS_ANDAR.PROMPT_TERMINAL, cfg.tema.acento);
@@ -671,6 +680,13 @@ export class CenaFaseFinal extends CenaBase {
     if (this.congelado) this.descongelar();
 
     this.jogador.update(tempo, delta);
+    if (this.inimigos && this.combate) {
+      const r = this.inimigos.update(delta, this.jogador, this.combate.podeLevarDano);
+      if (r.pisoes > 0) this.combate.pisou();
+      if (r.danoDeX !== undefined) this.combate.ferir(r.danoDeX);
+      this.combate.update();
+      if (this.estado !== 'livre') return; // morreu neste quadro
+    }
     const apertouE = this.jogador.interagirApertado();
     if (this.trecho === 'exterior') this.interacoesExterior(apertouE);
     else this.interacoesAndar(apertouE);
@@ -697,7 +713,34 @@ export class CenaFaseFinal extends CenaBase {
     this.mortes++;
     this.jogador.respawnar(this.checkpoint.ponto);
     this.cameras.main.flash(200, 255, 255, 255);
-    if (this.trecho === 'andar') this.mostrarNotificacao(TEXTOS_ANDAR.QUEDA, 1800);
+    if (this.trecho === 'andar') {
+      this.inimigos?.resetar();
+      this.combate?.restaurar();
+      this.mostrarNotificacao(`${TEXTOS_ANDAR.QUEDA}\n${this.piadaDeMorte()}`, 2400);
+    }
+  }
+
+  /** Corações acabaram: tela apaga, volta à entrada do andar com os inimigos no lugar. */
+  private morrerNoAndar(): void {
+    if (this.estado !== 'livre') return;
+    this.estado = 'transicao';
+    this.mortes++;
+    this.jogador.congelar();
+    this.jogador.sprite.setTint(0xff2a3d);
+    this.cameras.main.fadeOut(450, 30, 0, 10);
+    this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
+      this.jogador.respawnar(this.checkpoint.ponto);
+      this.jogador.liberarGravidade();
+      this.inimigos?.resetar();
+      this.combate?.restaurar();
+      this.cameras.main.fadeIn(400, 0, 0, 0);
+      this.mostrarNotificacao(`${TEXTOS_ANDAR.MORTE}\n${this.piadaDeMorte()}`, 2600);
+      this.estado = 'livre';
+    });
+  }
+
+  private piadaDeMorte(): string {
+    return PIADAS_MORTE_ANDAR[(this.mortes - 1) % PIADAS_MORTE_ANDAR.length];
   }
 
   private congelar(): void {

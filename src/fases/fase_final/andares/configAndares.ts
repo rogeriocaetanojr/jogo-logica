@@ -82,8 +82,14 @@ export const ANDARES: readonly ConfigAndar[] = [
       { tipo: 'planta', x: 2060 },
       { tipo: 'telao', x: 2640, slogan: 3 },
     ],
-    inimigos: [],
-    npcs: [{ id: 'recepcionista', x: 2310, humano: false, aparencia: 'recepcionista' }],
+    inimigos: [
+      { tipo: 'spamBot', x: 900, minX: 700, maxX: 1225 },
+      { tipo: 'spamBot', x: 1800, minX: 1480, maxX: 2050 },
+    ],
+    npcs: [
+      { id: 'devDemitido', x: 470, humano: true, aparencia: 'devDemitido' },
+      { id: 'recepcionista', x: 2310, humano: false, aparencia: 'recepcionista' },
+    ],
     puzzle: { id: 'sequencia', terminalX: 2190, bloqueio: { tipo: 'catraca', x: 2460 } },
   },
   {
@@ -112,9 +118,13 @@ export const ANDARES: readonly ConfigAndar[] = [
       { tipo: 'maquinaPrompt', x: 2480 },
       { tipo: 'telao', x: 2620, slogan: 2 },
     ],
-    inimigos: [],
+    inimigos: [
+      { tipo: 'spamBot', x: 500, minX: 420, maxX: 610 },
+      { tipo: 'spamBot', x: 1550, minX: 1475, maxX: 1665 },
+      { tipo: 'droneCaptcha', x: 2200, y: 300, minX: 2060, maxX: 2600 },
+    ],
     npcs: [
-      { id: 'influencer', x: 560, humano: true, aparencia: 'influencer' },
+      { id: 'influencer', x: 300, humano: true, aparencia: 'influencer' },
       { id: 'operadora', x: 1590, humano: true, aparencia: 'operadora' },
       { id: 'chatbot', x: 2360, humano: false, aparencia: 'chatbot' },
     ],
@@ -145,8 +155,12 @@ export const ANDARES: readonly ConfigAndar[] = [
       { tipo: 'scanner', x: 2080 },
       { tipo: 'telao', x: 2700, slogan: 5 },
     ],
-    inimigos: [],
-    npcs: [],
+    inimigos: [
+      { tipo: 'spamBot', x: 1000, minX: 940, maxX: 1225 },
+      { tipo: 'droneCaptcha', x: 1800, y: 280, minX: 1560, maxX: 2100 },
+      { tipo: 'torretaFirewall', x: 2160, direcao: -1, alcance: 360 },
+    ],
+    npcs: [{ id: 'faxineiro', x: 560, humano: false, aparencia: 'faxineiro' }],
     puzzle: { id: 'condicionais', terminalX: 2300, bloqueio: { tipo: 'laser', x: 2520 } },
   },
   {
@@ -173,8 +187,13 @@ export const ANDARES: readonly ConfigAndar[] = [
       { tipo: 'cartaz', x: 1980, texto: 'META DIARIA: INFINITO' },
       { tipo: 'pilhaCaixas', x: 2960 },
     ],
-    inimigos: [],
-    npcs: [],
+    inimigos: [
+      { tipo: 'spamBot', x: 420, minX: 280, maxX: 575 },
+      { tipo: 'torretaFirewall', x: 620, direcao: -1, alcance: 340 },
+      { tipo: 'droneCaptcha', x: 1600, y: 250, minX: 1380, maxX: 1950 },
+      { tipo: 'alucinacao', x: 1990 },
+    ],
+    npcs: [{ id: 'estagiario', x: 880, humano: true, aparencia: 'estagiario' }],
     puzzle: { id: 'lacos', terminalX: 2120, bloqueio: { tipo: 'ponte', x: 2260, placas: 5, larguraPlaca: 96 } },
   },
   {
@@ -206,8 +225,13 @@ export const ANDARES: readonly ConfigAndar[] = [
       { tipo: 'tubos', x: 1960 },
       { tipo: 'rackFundo', x: 2900 },
     ],
-    inimigos: [],
-    npcs: [],
+    inimigos: [
+      { tipo: 'spamBot', x: 480, minX: 420, maxX: 565 },
+      { tipo: 'droneCaptcha', x: 1300, y: 220, minX: 1000, maxX: 1700 },
+      { tipo: 'torretaFirewall', x: 1450, direcao: 1, alcance: 250 },
+      { tipo: 'alucinacao', x: 2050 },
+    ],
+    npcs: [{ id: 'tecnico', x: 300, humano: true, aparencia: 'tecnico' }],
     puzzle: { id: 'funcoes', terminalX: 2200, bloqueio: { tipo: 'comportas', x: 2340, espacamento: 160 } },
   },
 ];

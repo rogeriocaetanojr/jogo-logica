@@ -18,6 +18,8 @@ export interface ConfigNpcFaseFinal {
   /** Humano ou robô (conta no puzzle do andar 2). */
   humano: boolean;
   espelhar?: boolean;
+  /** NPCs com texto no desenho (caixa, tela, balcão) não viram para o jogador, senão o texto espelha. */
+  naoVirar?: boolean;
 }
 
 /**
@@ -73,7 +75,9 @@ export class NpcFaseFinal {
 
     this.prompt.setVisible(false);
     // Vira para o jogador ao conversar
-    this.sprite.setFlipX(jogadorX > this.cfg.x ? !this.cfg.espelhar : Boolean(this.cfg.espelhar));
+    if (!this.cfg.naoVirar) {
+      this.sprite.setFlipX(jogadorX > this.cfg.x ? !this.cfg.espelhar : Boolean(this.cfg.espelhar));
+    }
     const falas = this.cfg.falas(this.visitas);
     this.visitas++;
     comunicador.iniciarDialogo(falas, () => {

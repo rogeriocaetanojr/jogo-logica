@@ -68,13 +68,17 @@ export type TipoInimigo = 'spamBot' | 'droneCaptcha' | 'torretaFirewall' | 'aluc
 
 export interface ConfigInimigo {
   tipo: TipoInimigo;
+  /** Posição inicial (spamBot, drone) ou fixa (torreta, alucinação). */
   x: number;
-  y: number;
+  /** Altura do voo (drone). Os outros ficam no chão. */
+  y?: number;
   /** Limites da patrulha (spamBot/drone). */
   minX?: number;
   maxX?: number;
   /** Direção do disparo (torreta): -1 esquerda, 1 direita. */
   direcao?: -1 | 1;
+  /** Comprimento do feixe (torreta). */
+  alcance?: number;
 }
 
 /** NPCs dos andares. `humano` conta no puzzle do andar 2; as falas ficam em DialogosFaseFinal (por id). */

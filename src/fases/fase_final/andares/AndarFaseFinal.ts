@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { COR, avatarHtml, hexNum, texturaBrilho } from '../ArteFaseFinal';
 import { FALAS_NPC } from '../DialogosFaseFinal';
 import { NpcFaseFinal } from '../NpcFaseFinal';
-import { animNpc, gerarTexturasNpc, retratoNpc, texNpc } from '../npcs/TexturasNpc';
+import { type AparenciaNpc, animNpc, gerarTexturasNpc, retratoNpc, texNpc } from '../npcs/TexturasNpc';
 import { ANDAR_FASE_FINAL, ESCALA_ARTE } from '../constantesFaseFinal';
 import { TelaoFaseFinal } from '../TelaoFaseFinal';
 import { TEX_EXTERIOR, gerarTexturasExterior } from '../exterior/TexturasExterior';
@@ -20,6 +20,9 @@ import {
 
 const A = ANDAR_FASE_FINAL;
 const S = ESCALA_ARTE;
+
+/** NPCs com texto desenhado no sprite: não viram para o jogador (o texto ficaria espelhado). */
+const NPCS_COM_TEXTO: readonly AparenciaNpc[] = ['estagiario', 'chatbot', 'recepcionista'];
 
 /**
  * Constrói um andar inteiro a partir da configuração: cidade pelas janelas, parede, teto,
@@ -114,6 +117,7 @@ export class AndarFaseFinal {
           prompt: '[E] FALAR',
           raioInteracao: 90,
           humano: n.humano,
+          naoVirar: NPCS_COM_TEXTO.includes(n.aparencia),
           falas: (visita) => {
             if (!falas) return [];
             const textos = visita === 0 ? falas.primeira : [falas.repeticoes[(visita - 1) % falas.repeticoes.length]];

@@ -158,6 +158,47 @@ export const ANDAR_FASE_FINAL = {
   INTERVALO_COMPORTA_MS: 350,
 } as const;
 
+/** Corações, dano e pisão (andares e, depois, o boss). */
+export const COMBATE_FASE_FINAL = {
+  CORACOES: 3,
+  INVULNERAVEL_MS: 1000,
+  EMPURRAO_X: 260,
+  EMPURRAO_Y: -280,
+  TRAVA_CONTROLE_MS: 260,
+  QUIQUE_PISAO: -400,
+  // O pisão vale se o jogador está caindo e os pés estão perto do topo do inimigo
+  MARGEM_PISAO: 20,
+  VELOCIDADE_MIN_PISAO: 40,
+} as const;
+
+/**
+ * Inimigos dos andares. Padrões fixos, sem sorteio: tudo depende de tempo ou da posição do jogador.
+ */
+export const INIMIGOS_FASE_FINAL = {
+  SPAM_BOT: { VELOCIDADE: 75, LARGURA: 40, ALTURA: 34 },
+  DRONE: {
+    VELOCIDADE: 90,
+    // Mergulha quando o jogador passa embaixo (até esta distância horizontal)
+    ALCANCE_GATILHO: 46,
+    AVISO_MS: 700,
+    VELOCIDADE_MERGULHO: 560,
+    ESPERA_NO_CHAO_MS: 450,
+    VELOCIDADE_SUBIDA: 200,
+    RECARGA_MS: 1300,
+    LARGURA: 44,
+    ALTURA: 30,
+  },
+  TORRETA: {
+    PERIODO_MS: 2400,
+    AVISO_MS: 500,
+    DISPARO_MS: 380,
+    ALCANCE_PADRAO: 360,
+    ALTURA_FEIXE: 46, // acima do chão
+    ESPESSURA_FEIXE: 14,
+  },
+  ALUCINACAO: { FASE_MS: 1500, PISCA_ANTES_MS: 350, LARGURA: 40, ALTURA: 100 },
+} as const;
+
 /** Viagem de elevador entre andares: portas fecham, visor sobe, tela apaga. */
 export const TRANSICAO_ELEVADOR = {
   PORTA_FECHA_MS: 600,
