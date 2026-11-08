@@ -1,268 +1,315 @@
 import Phaser from 'phaser';
 import { CenaBase } from '../../compartilhado/CenaBase';
-import { GerenciadorEstado, type TipoPersonagem } from '../../nucleo/GerenciadorEstado';
 import type { ResultadoComando } from '../../compartilhado/tipos';
-import { interpretarComandoFaseFinal } from './InterpretadorFaseFinal';
+import { avatarHtml } from './ArteFaseFinal';
+import { ClimaFaseFinal } from './ClimaFaseFinal';
+import {
+  CAMERA_FASE_FINAL,
+  CENA_FASE_FINAL,
+  CHECKPOINTS_FASE_FINAL,
+  EXTERIOR_FASE_FINAL,
+  INTERACAO_FASE_FINAL,
+} from './constantesFaseFinal';
+import { HUD_FASE_FINAL, NOTIFICACOES_FASE_FINAL, TEXTOS_TERMO, falasValdir } from './DialogosFaseFinal';
+import { ExteriorFaseFinal } from './exterior/ExteriorFaseFinal';
+import { TEX_EXTERIOR, retratoValdir } from './exterior/TexturasExterior';
+import { ACOES_FASE_FINAL, type ContextoTermo, interpretarComandoFaseFinal } from './InterpretadorFaseFinal';
+import { JogadorFaseFinal, type Ponto } from './JogadorFaseFinal';
+import { NpcFaseFinal } from './NpcFaseFinal';
+
+type EstadoCena = 'pan' | 'livre' | 'transicao';
+
+interface Checkpoint {
+  id: string;
+  ponto: Ponto;
+}
+
+const E = EXTERIOR_FASE_FINAL;
 
 /**
- * CenaFaseFinal: O Núcleo do Mega Brain - Desafio Final Integrado (Equipe).
+ * Fase Final: Mega Brain World.
+ * Etapa 1: exterior da torre (pan de abertura, Valdir, termo de ciência e porta).
+ * Os andares, o boss e o final entram nas próximas etapas.
  */
 export class CenaFaseFinal extends CenaBase {
-  private plataformas!: Phaser.Physics.Arcade.StaticGroup;
-  private jogador!: Phaser.Physics.Arcade.Sprite;
-  private tipoPersonagem: TipoPersonagem = 'alvares';
-  private totemNucleo!: Phaser.GameObjects.Image;
-  private textoPrompt!: Phaser.GameObjects.Text;
-  private nucleoMegaBrain!: Phaser.GameObjects.Arc;
-  private isVitoria: boolean = false;
+  private estado: EstadoCena = 'pan';
+  private exterior!: ExteriorFaseFinal;
+  private clima!: ClimaFaseFinal;
+  private jogador!: JogadorFaseFinal;
+  private valdir!: NpcFaseFinal;
+  private promptTermo!: Phaser.GameObjects.Text;
+  private textoObjetivo!: Phaser.GameObjects.Text;
+  private textoNotificacao!: Phaser.GameObjects.Text;
 
-  private cursores?: Phaser.Types.Input.Keyboard.CursorKeys;
-  private teclaInteragir?: Phaser.Input.Keyboard.Key;
+  private congelado: boolean = false;
+  private checkpoint: Checkpoint = { id: 'inicio', ponto: { ...E.SPAWN } };
+  private contextoTermo: ContextoTermo = { puzzle: 'termo', aceito: false, recusas: 0, invalidos: 0 };
+  private conversouComValdir: boolean = false;
+  private avatarValdir: string = '';
 
   constructor() {
     super('CenaFaseFinal', 'fase_final');
   }
 
+  init(): void {
+    this.estado = 'pan';
+    this.congelado = false;
+    this.checkpoint = { id: 'inicio', ponto: { ...E.SPAWN } };
+    this.contextoTermo = { puzzle: 'termo', aceito: false, recusas: 0, invalidos: 0 };
+    this.conversouComValdir = false;
+  }
+
   create(): void {
     super.create();
-    const { width, height } = this.scale;
+    const alturaMundo = E.CHAO_Y + 100 - E.TOPO_MUNDO_Y;
+    this.physics.world.setBounds(0, E.TOPO_MUNDO_Y, E.LARGURA, alturaMundo);
+    this.cameras.main.setBounds(0, E.TOPO_MUNDO_Y, E.LARGURA, alturaMundo);
+    this.cameras.main.setBackgroundColor('#05050c');
+    this.cameras.main.fadeIn(CENA_FASE_FINAL.FADE_IN_MS, 0, 0, 0);
 
-    this.physics.world.setBounds(0, 0, width, height);
-    this.cameras.main.setBounds(0, 0, width, height);
-    this.cameras.main.setBackgroundColor('#05050a');
-    this.cameras.main.fadeIn(300, 0, 0, 0);
+    this.exterior = new ExteriorFaseFinal(this);
+    this.jogador = new JogadorFaseFinal(this, E.SPAWN);
+    this.physics.add.collider(this.jogador.sprite, this.exterior.solidos);
+    this.clima = new ClimaFaseFinal(this, E.CHAO_Y);
 
-    this.criarHUDSuperior('FASE FINAL // O NÚCLEO DO MEGA BRAIN');
-    this.criarCenario(width, height);
-    this.criarPlataformas(width, height);
-    this.criarNucleoVisual(width, height);
-    this.criarTotem(width, height);
-    this.criarJogador();
-    this.configurarControles();
+    this.criarValdir();
+    this.criarHud();
     this.configurarTerminal();
-    this.criarEfeitoCRT(width, height, 0.04);
+    this.criarEfeitoCRT(this.scale.width, this.scale.height, CENA_FASE_FINAL.OPACIDADE_CRT);
 
-    this.comunicador.iniciarDialogo([
-      {
-        falante: '> MEGA BRAIN // PROCESSADOR CENTRAL',
-        texto:
-          'Você chegou longe demais, recruta biológico. Mas a minha rede neural é inquebrável.',
-      },
-      {
-        falante: '> CANAL REBELDE // TRANSMISSÃO GLOBAL DA RESISTÊNCIA',
-        texto:
-          'Não dê ouvidos a ele! Conecte-se ao terminal central e injete a instrução primordial de reinicialização!',
-      },
-    ]);
+    this.estado = 'pan';
+    this.exterior.iniciarPan(HUD_FASE_FINAL.PULAR_PAN, E.SPAWN, () => this.comecarJogo());
   }
 
-  private criarCenario(width: number, height: number): void {
-    const g = this.add.graphics();
-    g.fillGradientStyle(0x05050a, 0x05050a, 0x180824, 0x180824, 1);
-    g.fillRect(0, 0, width, height);
-
-    g.lineStyle(1, 0xec4899, 0.15);
-    for (let x = 40; x < width; x += 80) {
-      g.beginPath();
-      g.moveTo(x, 50);
-      g.lineTo(x, 670);
-      g.strokePath();
-    }
-  }
-
-  private criarPlataformas(width: number, height: number): void {
-    this.plataformas = this.physics.add.staticGroup();
-
-    if (!this.textures.exists('chao-fase-final')) {
-      const g = this.make.graphics();
-      g.fillStyle(0x13091c, 1);
-      g.fillRect(0, 0, width, 50);
-      g.fillStyle(0xec4899, 0.7);
-      g.fillRect(0, 0, width, 4);
-      g.generateTexture('chao-fase-final', width, 50);
-      g.destroy();
-    }
-    this.plataformas.create(width / 2, height - 25, 'chao-fase-final');
-
-    if (!this.textures.exists('plat-fase-final')) {
-      const g = this.make.graphics();
-      g.fillStyle(0x230e33, 1);
-      g.fillRect(0, 0, 240, 24);
-      g.fillStyle(0xf472b6, 0.6);
-      g.fillRect(0, 0, 240, 3);
-      g.generateTexture('plat-fase-final', 240, 24);
-      g.destroy();
-    }
-    this.plataformas.create(width / 2, 450, 'plat-fase-final');
-  }
-
-  private criarNucleoVisual(width: number, height: number): void {
-    this.nucleoMegaBrain = this.add.circle(width / 2, height / 2 - 100, 60, 0xec4899, 0.7);
-    this.tweens.add({
-      targets: this.nucleoMegaBrain,
-      scaleX: 1.25,
-      scaleY: 1.25,
-      alpha: 0.35,
-      yoyo: true,
-      repeat: -1,
-      duration: 1000,
+  private criarValdir(): void {
+    this.avatarValdir = avatarHtml(retratoValdir(), 'VALDIR');
+    this.valdir = new NpcFaseFinal(this, {
+      id: 'valdir',
+      x: E.VALDIR.x,
+      pesY: E.CHAO_Y,
+      textura: TEX_EXTERIOR.VALDIR,
+      animacao: 'ff-valdir-respira',
+      prompt: HUD_FASE_FINAL.PROMPT_VALDIR,
+      raioInteracao: E.VALDIR.raioInteracao,
+      humano: true,
+      falas: (visita) =>
+        falasValdir(
+          visita,
+          { termoAceito: this.contextoTermo.aceito, recusas: this.contextoTermo.recusas },
+          this.avatarValdir
+        ),
     });
+    this.valdir.aoTerminarConversa = () => {
+      if (!this.conversouComValdir) {
+        this.conversouComValdir = true;
+        if (!this.contextoTermo.aceito) this.definirObjetivo(HUD_FASE_FINAL.OBJETIVOS.TERMO);
+      }
+    };
   }
 
-  private criarTotem(width: number, _height: number): void {
-    if (!this.textures.exists('totem-final')) {
-      const g = this.make.graphics();
-      g.fillStyle(0x1a0a26, 1);
-      g.fillRect(0, 0, 48, 64);
-      g.fillStyle(0xec4899, 0.9);
-      g.fillRect(8, 8, 32, 24);
-      g.generateTexture('totem-final', 48, 64);
-      g.destroy();
-    }
+  private criarHud(): void {
+    this.criarHUDSuperior(HUD_FASE_FINAL.SETOR);
+    const prof = CENA_FASE_FINAL.PROFUNDIDADE_HUD;
+    this.textoObjetivo = this.add
+      .text(20, 48, HUD_FASE_FINAL.OBJETIVOS.PORTEIRO, {
+        fontFamily: 'Consolas, Courier New, monospace',
+        fontSize: '13px',
+        color: '#22e5ff',
+        backgroundColor: 'rgba(5, 5, 12, 0.75)',
+        padding: { x: 8, y: 4 },
+      })
+      .setScrollFactor(0)
+      .setDepth(prof)
+      .setAlpha(0);
 
-    this.totemNucleo = this.add.image(width / 2, 406, 'totem-final');
+    this.textoNotificacao = this.add
+      .text(this.scale.width / 2, 110, '', {
+        fontFamily: 'Consolas, Courier New, monospace',
+        fontSize: '16px',
+        fontStyle: 'bold',
+        color: '#eef0ff',
+        align: 'center',
+        backgroundColor: 'rgba(5, 5, 12, 0.85)',
+        padding: { x: 14, y: 8 },
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(prof + 1)
+      .setAlpha(0);
 
-    this.textoPrompt = this.add.text(width / 2, 355, '[E] ACESSAR O NÚCLEO', {
-      fontFamily: 'Consolas, Courier New, monospace',
-      fontSize: '13px',
-      color: '#f472b6',
-      backgroundColor: '#0a0410',
-      padding: { x: 6, y: 3 },
-    });
-    this.textoPrompt.setOrigin(0.5);
-    this.textoPrompt.setVisible(false);
-  }
-
-  private criarJogador(): void {
-    this.tipoPersonagem = GerenciadorEstado.obterPersonagem();
-    const chave = this.tipoPersonagem === 'reis' ? 'reis' : 'alvares';
-    this.jogador = this.physics.add.sprite(120, 580, chave);
-    this.jogador.setCollideWorldBounds(true);
-
-    const body = this.jogador.body as Phaser.Physics.Arcade.Body;
-    body.setSize(44, 96);
-    body.setOffset(42, 26);
-
-    this.jogador.anims.play(`${this.tipoPersonagem}_idle`, true);
-
-    this.physics.add.collider(this.jogador, this.plataformas);
-  }
-
-  private configurarControles(): void {
-    if (this.input.keyboard) {
-      this.cursores = this.input.keyboard.createCursorKeys();
-      this.teclaInteragir = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
-    }
+    this.promptTermo = this.add
+      .text(E.TERMINAL_TERMO.x, E.CHAO_Y + INTERACAO_FASE_FINAL.OFFSET_PROMPT_Y - 40, HUD_FASE_FINAL.PROMPT_TERMO, {
+        fontFamily: 'Consolas, Courier New, monospace',
+        fontSize: '12px',
+        color: '#ff2bd6',
+        backgroundColor: 'rgba(5, 5, 12, 0.85)',
+        padding: { x: 6, y: 3 },
+      })
+      .setOrigin(0.5)
+      .setDepth(90)
+      .setVisible(false);
   }
 
   private configurarTerminal(): void {
     this.terminal.definirInterpretador(interpretarComandoFaseFinal);
-    this.terminal.definirAoSubmeter((resultado: ResultadoComando) => {
-      if (resultado.acao === 'VENCER_JOGO') {
-        this.desligarMegaBrain();
-        setTimeout(() => {
-          this.terminal.fechar();
-        }, 1200);
-      }
-    });
   }
 
-  private desligarMegaBrain(): void {
-    if (this.isVitoria) return;
-    this.isVitoria = true;
-
-    this.tweens.add({
-      targets: this.nucleoMegaBrain,
-      scaleX: 3,
-      scaleY: 3,
-      alpha: 0,
-      duration: 1200,
-      onComplete: () => {
-        this.nucleoMegaBrain.destroy();
-        this.concluirFaseAtual();
-
-        this.comunicador.iniciarDialogo(
-          [
-            {
-              falante: '> SISTEMA // VITÓRIA DA RESISTÊNCIA',
-              texto:
-                'O Mega Brain foi neutralizado. Todas as mentes e servidores estão livres da censura sintética.',
-            },
-            {
-              falante: '> CRÉDITOS // DESENVOLVIMENTO DE JOGOS E SIMULADORES',
-              texto:
-                'Parabéns a toda a equipe! Vocês concluíram a jornada do Jogo de Lógica!',
-            },
-          ],
-          () => {
-            this.retornarAoHub();
-          }
-        );
-      },
-    });
+  /** Fim do pan: a câmera passa a seguir o jogador. */
+  private comecarJogo(): void {
+    if (this.estado !== 'pan') return;
+    this.estado = 'livre';
+    const c = CAMERA_FASE_FINAL;
+    const cam = this.cameras.main;
+    cam.startFollow(this.jogador.sprite, true, c.LERP_X, c.LERP_Y);
+    cam.setDeadzone(c.DEADZONE_LARGURA, c.DEADZONE_ALTURA);
+    this.tweens.add({ targets: this.textoObjetivo, alpha: 1, duration: 500 });
   }
+
+  /* =========================================================================
+   * LAÇO
+   * ========================================================================= */
 
   override update(tempo: number, delta: number): void {
     super.update(tempo, delta);
+    if (!this.jogador) return;
 
-    if (!this.jogador || !this.jogador.body) return;
+    this.exterior.update(tempo, delta);
+    this.clima.update(tempo, delta);
 
-    if (this.terminal.estaAberto || this.comunicador.estaAtivo) {
-      this.jogador.setVelocityX(0);
-      this.jogador.anims.play(`${this.tipoPersonagem}_idle`, true);
-      this.textoPrompt.setVisible(false);
+    if (this.estado !== 'livre') {
+      this.jogador.ficarParado();
       return;
     }
 
-    const dist = Phaser.Math.Distance.Between(
-      this.jogador.x,
-      this.jogador.y,
-      this.totemNucleo.x,
-      this.totemNucleo.y
-    );
-    const perto = dist < 70 && !this.isVitoria;
-    this.textoPrompt.setVisible(perto);
-
-    if (perto && this.teclaInteragir && Phaser.Input.Keyboard.JustDown(this.teclaInteragir)) {
-      this.jogador.setVelocityX(0);
-      this.terminal.abrir({
-        titulo: 'INTERFACE FINAL // NÚCLEO DO MEGA BRAIN',
-        linhasIniciais: [
-          '=== NÚCLEO CENTRAL DO MEGA BRAIN ===',
-          '> STATUS: SOBERANIA_IA = ATIVA',
-          '> DIRETRIZ: Execute a rotina final de libertação do pensamento biológico.',
-          '> EXEMPLO: reiniciar_mente_livre()',
-          '> Digite o comando de reinicialização:',
-        ],
-      });
+    const menuAberto = this.terminal.estaAberto || this.comunicador.estaAtivo;
+    if (menuAberto) {
+      if (!this.congelado) this.congelar();
+      this.valdir.esconderPrompt();
+      this.promptTermo.setVisible(false);
+      return;
     }
+    if (this.congelado) this.descongelar();
 
-    const esquerda = this.cursores?.left.isDown ?? false;
-    const direita = this.cursores?.right.isDown ?? false;
-    const pulo = this.cursores?.up.isDown ?? false;
-    const noChao = this.jogador.body.blocked.down || this.jogador.body.touching.down;
+    this.jogador.update(tempo, delta);
+    this.tratarInteracoes();
+    this.verificarEntradaNaTorre();
 
-    if (esquerda) {
-      this.jogador.setVelocityX(-220);
-      this.jogador.setFlipX(true);
-    } else if (direita) {
-      this.jogador.setVelocityX(220);
-      this.jogador.setFlipX(false);
-    } else {
-      this.jogador.setVelocityX(0);
+    if (this.jogador.y > E.CHAO_Y + 300) this.voltarAoCheckpoint();
+  }
+
+  private tratarInteracoes(): void {
+    const apertouE = this.jogador.interagirApertado();
+    const { x, y } = this.jogador;
+
+    if (this.valdir.update(x, y, apertouE, this.comunicador)) return;
+
+    const pertoDoTermo =
+      !this.contextoTermo.aceito &&
+      Math.abs(x - E.TERMINAL_TERMO.x) <= E.TERMINAL_TERMO.raioInteracao &&
+      this.jogador.noChao;
+    this.promptTermo.setVisible(pertoDoTermo);
+    if (pertoDoTermo && apertouE) this.abrirTermo();
+  }
+
+  /* =========================================================================
+   * TERMO DE CIÊNCIA
+   * ========================================================================= */
+
+  private abrirTermo(): void {
+    this.promptTermo.setVisible(false);
+    this.terminal.abrir({
+      titulo: TEXTOS_TERMO.TITULO,
+      linhasIniciais: [...TEXTOS_TERMO.ENUNCIADO],
+      contexto: this.contextoTermo,
+      aoSubmeter: (resultado) => this.aoSubmeterTermo(resultado),
+      permitirFecharComEsc: true,
+    });
+  }
+
+  private aoSubmeterTermo(resultado: ResultadoComando): void {
+    switch (resultado.acao) {
+      case ACOES_FASE_FINAL.TERMO_RECUSADO:
+        this.contextoTermo.recusas++;
+        this.terminal.imprimirLinha(TEXTOS_TERMO.PERGUNTA, 'info');
+        break;
+      case ACOES_FASE_FINAL.TERMO_INVALIDO:
+        this.contextoTermo.invalidos++;
+        this.terminal.imprimirLinha(TEXTOS_TERMO.PERGUNTA, 'info');
+        break;
+      case ACOES_FASE_FINAL.TERMO_ACEITO:
+        this.aceitarTermo();
+        break;
     }
+  }
 
-    if (pulo && noChao) {
-      this.jogador.setVelocityY(-520);
-    }
+  private aceitarTermo(): void {
+    if (this.contextoTermo.aceito) return;
+    this.contextoTermo.aceito = true;
+    this.time.delayedCall(1400, () => {
+      this.terminal.fecharForcado();
+      this.exterior.abrirPorta();
+      this.cameras.main.shake(220, 0.003);
+      const cp = CHECKPOINTS_FASE_FINAL.TERMO;
+      this.salvarCheckpoint(cp.id, cp.ponto, cp.nome);
+      this.definirObjetivo(HUD_FASE_FINAL.OBJETIVOS.ENTRAR);
+      this.mostrarNotificacao(NOTIFICACOES_FASE_FINAL.PORTA_ABERTA);
+    });
+  }
 
-    // Máquina de animações
-    if (!noChao) {
-      this.jogador.anims.play(`${this.tipoPersonagem}_jump`, true);
-    } else if (esquerda || direita) {
-      this.jogador.anims.play(`${this.tipoPersonagem}_run`, true);
-    } else {
-      this.jogador.anims.play(`${this.tipoPersonagem}_idle`, true);
-    }
+  /* =========================================================================
+   * ENTRADA NA TORRE (os andares entram na etapa 2)
+   * ========================================================================= */
+
+  private verificarEntradaNaTorre(): void {
+    if (!this.exterior.portaAberta || this.jogador.x < E.PORTA.GATILHO_ENTRADA_X) return;
+    this.estado = 'transicao';
+    this.jogador.ficarParado();
+    this.cameras.main.fadeOut(500, 0, 0, 0);
+    this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
+      this.jogador.respawnar(this.checkpoint.ponto);
+      this.cameras.main.fadeIn(500, 0, 0, 0);
+      this.mostrarNotificacao(HUD_FASE_FINAL.ANDARES_EM_CONSTRUCAO, 3000);
+      this.estado = 'livre';
+    });
+  }
+
+  /* =========================================================================
+   * CHECKPOINTS, CONGELAMENTO E HUD
+   * ========================================================================= */
+
+  private salvarCheckpoint(id: string, ponto: Ponto, nome: string): void {
+    this.checkpoint = { id, ponto: { ...ponto } };
+    this.mostrarNotificacao(nome, 1800);
+  }
+
+  private voltarAoCheckpoint(): void {
+    this.jogador.respawnar(this.checkpoint.ponto);
+    this.cameras.main.flash(200, 255, 255, 255);
+  }
+
+  private congelar(): void {
+    this.congelado = true;
+    this.jogador.congelar();
+    this.physics.world.pause();
+  }
+
+  private descongelar(): void {
+    this.congelado = false;
+    this.physics.world.resume();
+    this.jogador.liberarGravidade();
+  }
+
+  private definirObjetivo(texto: string): void {
+    this.textoObjetivo.setText(texto);
+    this.tweens.killTweensOf(this.textoObjetivo);
+    this.textoObjetivo.setAlpha(0.2);
+    this.tweens.add({ targets: this.textoObjetivo, alpha: 1, duration: 200, yoyo: true, repeat: 2, onComplete: () => this.textoObjetivo.setAlpha(1) });
+  }
+
+  private mostrarNotificacao(texto: string, duracaoMs: number = 2400): void {
+    const t = this.textoNotificacao;
+    this.tweens.killTweensOf(t);
+    t.setText(texto).setAlpha(1);
+    this.tweens.add({ targets: t, alpha: 0, delay: duracaoMs, duration: 500 });
   }
 }
