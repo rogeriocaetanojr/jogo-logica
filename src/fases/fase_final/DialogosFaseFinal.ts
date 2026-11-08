@@ -33,7 +33,60 @@ export const HUD_FASE_FINAL = {
   },
   PROMPT_VALDIR: '[E] FALAR',
   PROMPT_TERMO: '[E] ASSINAR O TERMO',
-  ANDARES_EM_CONSTRUCAO: 'ANDAR 1 // EM OBRAS\nOs andares chegam na próxima etapa.',
+} as const;
+
+/* =========================================================================
+ * ANDARES
+ * ========================================================================= */
+
+export const TEXTOS_ANDAR = {
+  setor: (numero: number, nome: string) => `FASE FINAL // ANDAR ${numero} — ${nome.toUpperCase()}`,
+  BANNER_TITULO: (numero: number) => `ANDAR ${numero}`,
+  BANNER_SUBTITULO: (nome: string, conceito: string) => `${nome.toUpperCase()} // ${conceito.toUpperCase()}`,
+  OBJETIVO_PUZZLE: 'OBJETIVO // Conserte o código no terminal do andar',
+  OBJETIVO_ELEVADOR: 'OBJETIVO // Pegue o elevador',
+  PROMPT_TERMINAL: '[E] ABRIR TERMINAL',
+  PROMPT_ELEVADOR: '[E] ENTRAR NO ELEVADOR',
+  PROMPT_ELEVADOR_TRAVADO: '[E] ELEVADOR',
+  ELEVADOR_TRAVADO: [
+    'ELEVADOR TRAVADO // Resolva o terminal do andar.',
+    'AINDA TRAVADO // Apertar mais forte não é um algoritmo.',
+    'TRAVADO // O botão não tem sentimentos. O terminal tem a solução.',
+  ],
+  QUEDA: 'VOCÊ CAIU NO VÃO // De volta à entrada do andar',
+  CHECKPOINT: (numero: number) => `CHECKPOINT // ANDAR ${numero}`,
+  PUZZLE_RESOLVIDO: 'CÓDIGO CORRIGIDO // Elevador liberado',
+  TERRACO_EM_OBRAS: 'TERRAÇO // EM OBRAS\nO Mega Brain chega na etapa 5.',
+  SUBINDO: 'SUBINDO...',
+  // Uma piada por viagem (pela ordem dos andares, sem sorteio)
+  VIAGEM: [
+    '♪ Música de elevador gerada por IA. Ninguém pediu. ♪',
+    'Este elevador foi otimizado. Agora ele tem anúncios.',
+    'Capacidade: 8 pessoas ou 1 ego de IA.',
+    'Por favor, mantenha as mãos dentro do elevador e as opiniões fora dele.',
+    'Próxima parada: o topo. A sua, nem tanto.',
+  ],
+} as const;
+
+/** Mega Brain pelo alto-falante ao chegar em cada andar (quebra de quarta parede). */
+export const ANUNCIOS_ANDAR: Record<number, string> = {
+  1: 'Bem-vindo à Mega Brain Tower. Sua visita está sendo gravada para fins de treinamento. Do meu modelo.',
+  2: 'Você sabe que dava pra só pedir pra mim, né?',
+  3: 'Bem-vindo ao andar 3. Sua taxa de sucesso é inferior à de um autocomplete.',
+  4: 'Estatisticamente, você vai desistir no andar 4. Eu li isso em algum lugar. Eu li tudo em algum lugar.',
+  5: 'Sala dos servidores. Não toque em nada. Principalmente em mim.',
+};
+
+/** Provisório até a etapa 3: o terminal do andar só destrava com "liberar". */
+export const TEXTOS_PUZZLE_PROVISORIO = {
+  titulo: (numero: number) => `ANDAR ${numero} // TERMINAL DO PUZZLE`,
+  enunciado: (conceito: string) => [
+    `// Puzzle de ${conceito} (em construção)`,
+    '> Digite liberar para destravar o andar (modo de teste).',
+  ],
+  ACEITO: '[OK] Andar liberado (modo de teste).',
+  RECUSADO: '[ERRO] Modo de teste: digite liberar.',
+  JA_RESOLVIDO: '[OK] Este andar já está liberado.',
 } as const;
 
 /* =========================================================================

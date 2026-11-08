@@ -391,6 +391,14 @@ export function retratoDataUrl(w: number, h: number, ampliacao: number, desenhar
   return grande.toDataURL('image/png');
 }
 
+/** Retrato do Mega Brain (o logo) para o avatar do alto-falante. */
+export function retratoMegaBrain(): string {
+  return retratoDataUrl(24, 22, 3, (p) => {
+    p.px(0, 0, 24, 22, COR.noite0);
+    desenharLogoMegaBrain(p, 12, 11, 9);
+  });
+}
+
 /** HTML do avatar para o comunicador (imagem pixelada centralizada). */
 export function avatarHtml(dataUrl: string, rotulo: string): string {
   return `<img src="${dataUrl}" alt="${rotulo}" style="width:56px;height:auto;image-rendering:pixelated;display:block;margin:auto" />`;

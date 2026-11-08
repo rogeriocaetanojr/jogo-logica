@@ -1,23 +1,48 @@
 import Phaser from 'phaser';
 import { CenaBase } from '../../compartilhado/CenaBase';
 import type { ResultadoComando } from '../../compartilhado/tipos';
-import { avatarHtml } from './ArteFaseFinal';
+import { AndarFaseFinal } from './andares/AndarFaseFinal';
+import { TOTAL_ANDARES, obterAndar } from './andares/configAndares';
+import { avatarHtml, retratoMegaBrain } from './ArteFaseFinal';
 import { ClimaFaseFinal } from './ClimaFaseFinal';
 import {
+  ANDAR_FASE_FINAL,
   CAMERA_FASE_FINAL,
   CENA_FASE_FINAL,
   CHECKPOINTS_FASE_FINAL,
   EXTERIOR_FASE_FINAL,
   INTERACAO_FASE_FINAL,
+  TRANSICAO_ELEVADOR,
 } from './constantesFaseFinal';
-import { HUD_FASE_FINAL, NOTIFICACOES_FASE_FINAL, TEXTOS_TERMO, falasValdir } from './DialogosFaseFinal';
+import {
+  ANUNCIOS_ANDAR,
+  FALANTES,
+  HUD_FASE_FINAL,
+  NOTIFICACOES_FASE_FINAL,
+  TEXTOS_ANDAR,
+  TEXTOS_PUZZLE_PROVISORIO,
+  TEXTOS_TERMO,
+  falasValdir,
+} from './DialogosFaseFinal';
 import { ExteriorFaseFinal } from './exterior/ExteriorFaseFinal';
 import { TEX_EXTERIOR, retratoValdir } from './exterior/TexturasExterior';
-import { ACOES_FASE_FINAL, type ContextoTermo, interpretarComandoFaseFinal } from './InterpretadorFaseFinal';
+import {
+  ACOES_FASE_FINAL,
+  type ContextoAndarProvisorio,
+  type ContextoTermo,
+  interpretarComandoFaseFinal,
+} from './InterpretadorFaseFinal';
 import { JogadorFaseFinal, type Ponto } from './JogadorFaseFinal';
 import { NpcFaseFinal } from './NpcFaseFinal';
 
-type EstadoCena = 'pan' | 'livre' | 'transicao';
+/** Dados passados ao reiniciar a cena para trocar de trecho. */
+export interface DadosCenaFaseFinal {
+  trecho?: 'exterior' | 'andar';
+  andar?: number;
+  mortes?: number;
+}
+
+type EstadoCena = 'pan' | 'chegada' | 'livre' | 'transicao';
 
 interface Checkpoint {
   id: string;
@@ -25,94 +50,86 @@ interface Checkpoint {
 }
 
 const E = EXTERIOR_FASE_FINAL;
+const A = ANDAR_FASE_FINAL;
+const FONTE = 'Consolas, Courier New, monospace';
 
 /**
  * Fase Final: Mega Brain World.
- * Etapa 1: exterior da torre (pan de abertura, Valdir, termo de ciência e porta).
- * Os andares, o boss e o final entram nas próximas etapas.
+ * Cada trecho (exterior, andar 1..5) é a mesma cena reiniciada com dados diferentes:
+ * o exterior tem o pan, o Valdir e o termo; os andares são montados por AndarFaseFinal
+ * a partir de configAndares.ts. O boss e o final entram nas próximas etapas.
  */
 export class CenaFaseFinal extends CenaBase {
+  private trecho: 'exterior' | 'andar' = 'exterior';
+  private numeroAndar: number = 1;
+  private mortes: number = 0;
   private estado: EstadoCena = 'pan';
-  private exterior!: ExteriorFaseFinal;
-  private clima!: ClimaFaseFinal;
-  private jogador!: JogadorFaseFinal;
-  private valdir!: NpcFaseFinal;
-  private promptTermo!: Phaser.GameObjects.Text;
-  private textoObjetivo!: Phaser.GameObjects.Text;
-  private textoNotificacao!: Phaser.GameObjects.Text;
-
   private congelado: boolean = false;
   private checkpoint: Checkpoint = { id: 'inicio', ponto: { ...E.SPAWN } };
+
+  private jogador!: JogadorFaseFinal;
+  private textoObjetivo!: Phaser.GameObjects.Text;
+  private textoNotificacao!: Phaser.GameObjects.Text;
+  private avatarMegaBrain: string = '';
+
+  // Exterior
+  private exterior?: ExteriorFaseFinal;
+  private clima?: ClimaFaseFinal;
+  private valdir?: NpcFaseFinal;
+  private promptTermo?: Phaser.GameObjects.Text;
   private contextoTermo: ContextoTermo = { puzzle: 'termo', aceito: false, recusas: 0, invalidos: 0 };
   private conversouComValdir: boolean = false;
-  private avatarValdir: string = '';
+
+  // Andar
+  private andar?: AndarFaseFinal;
+  private contextoPuzzle: ContextoAndarProvisorio = { puzzle: 'andar', andar: 1, resolvido: false };
+  private promptTerminal?: Phaser.GameObjects.Text;
+  private promptElevador?: Phaser.GameObjects.Text;
+  private tentativasElevadorTravado: number = 0;
 
   constructor() {
     super('CenaFaseFinal', 'fase_final');
   }
 
-  init(): void {
-    this.estado = 'pan';
+  init(dados?: DadosCenaFaseFinal): void {
+    this.trecho = dados?.trecho ?? 'exterior';
+    this.numeroAndar = dados?.andar ?? 1;
+    this.mortes = dados?.mortes ?? 0;
+    this.estado = this.trecho === 'exterior' ? 'pan' : 'chegada';
     this.congelado = false;
     this.checkpoint = { id: 'inicio', ponto: { ...E.SPAWN } };
+    this.exterior = undefined;
+    this.clima = undefined;
+    this.valdir = undefined;
+    this.andar = undefined;
     this.contextoTermo = { puzzle: 'termo', aceito: false, recusas: 0, invalidos: 0 };
     this.conversouComValdir = false;
+    this.contextoPuzzle = { puzzle: 'andar', andar: this.numeroAndar, resolvido: false };
+    this.tentativasElevadorTravado = 0;
   }
 
   create(): void {
     super.create();
-    const alturaMundo = E.CHAO_Y + 100 - E.TOPO_MUNDO_Y;
-    this.physics.world.setBounds(0, E.TOPO_MUNDO_Y, E.LARGURA, alturaMundo);
-    this.cameras.main.setBounds(0, E.TOPO_MUNDO_Y, E.LARGURA, alturaMundo);
+    this.terminal.definirInterpretador(interpretarComandoFaseFinal);
+    this.avatarMegaBrain = avatarHtml(retratoMegaBrain(), 'MEGA BRAIN');
     this.cameras.main.setBackgroundColor('#05050c');
-    this.cameras.main.fadeIn(CENA_FASE_FINAL.FADE_IN_MS, 0, 0, 0);
 
-    this.exterior = new ExteriorFaseFinal(this);
-    this.jogador = new JogadorFaseFinal(this, E.SPAWN);
-    this.physics.add.collider(this.jogador.sprite, this.exterior.solidos);
-    this.clima = new ClimaFaseFinal(this, E.CHAO_Y);
+    if (this.trecho === 'andar') this.montarAndar();
+    else this.montarExterior();
 
-    this.criarValdir();
-    this.criarHud();
-    this.configurarTerminal();
     this.criarEfeitoCRT(this.scale.width, this.scale.height, CENA_FASE_FINAL.OPACIDADE_CRT);
-
-    this.estado = 'pan';
-    this.exterior.iniciarPan(HUD_FASE_FINAL.PULAR_PAN, E.SPAWN, () => this.comecarJogo());
   }
 
-  private criarValdir(): void {
-    this.avatarValdir = avatarHtml(retratoValdir(), 'VALDIR');
-    this.valdir = new NpcFaseFinal(this, {
-      id: 'valdir',
-      x: E.VALDIR.x,
-      pesY: E.CHAO_Y,
-      textura: TEX_EXTERIOR.VALDIR,
-      animacao: 'ff-valdir-respira',
-      prompt: HUD_FASE_FINAL.PROMPT_VALDIR,
-      raioInteracao: E.VALDIR.raioInteracao,
-      humano: true,
-      falas: (visita) =>
-        falasValdir(
-          visita,
-          { termoAceito: this.contextoTermo.aceito, recusas: this.contextoTermo.recusas },
-          this.avatarValdir
-        ),
-    });
-    this.valdir.aoTerminarConversa = () => {
-      if (!this.conversouComValdir) {
-        this.conversouComValdir = true;
-        if (!this.contextoTermo.aceito) this.definirObjetivo(HUD_FASE_FINAL.OBJETIVOS.TERMO);
-      }
-    };
-  }
+  /* =========================================================================
+   * HUD COMUM
+   * ========================================================================= */
 
-  private criarHud(): void {
-    this.criarHUDSuperior(HUD_FASE_FINAL.SETOR);
+  private criarHud(setor: string, objetivo: string): void {
+    this.criarHUDSuperior(setor);
     const prof = CENA_FASE_FINAL.PROFUNDIDADE_HUD;
     this.textoObjetivo = this.add
-      .text(20, 48, HUD_FASE_FINAL.OBJETIVOS.PORTEIRO, {
-        fontFamily: 'Consolas, Courier New, monospace',
+      .text(20, 48, objetivo, {
+        fontFamily: FONTE,
         fontSize: '13px',
         color: '#22e5ff',
         backgroundColor: 'rgba(5, 5, 12, 0.75)',
@@ -124,7 +141,7 @@ export class CenaFaseFinal extends CenaBase {
 
     this.textoNotificacao = this.add
       .text(this.scale.width / 2, 110, '', {
-        fontFamily: 'Consolas, Courier New, monospace',
+        fontFamily: FONTE,
         fontSize: '16px',
         fontStyle: 'bold',
         color: '#eef0ff',
@@ -136,12 +153,14 @@ export class CenaFaseFinal extends CenaBase {
       .setScrollFactor(0)
       .setDepth(prof + 1)
       .setAlpha(0);
+  }
 
-    this.promptTermo = this.add
-      .text(E.TERMINAL_TERMO.x, E.CHAO_Y + INTERACAO_FASE_FINAL.OFFSET_PROMPT_Y - 40, HUD_FASE_FINAL.PROMPT_TERMO, {
-        fontFamily: 'Consolas, Courier New, monospace',
+  private criarPrompt(x: number, y: number, texto: string, cor: string): Phaser.GameObjects.Text {
+    return this.add
+      .text(x, y, texto, {
+        fontFamily: FONTE,
         fontSize: '12px',
-        color: '#ff2bd6',
+        color: cor,
         backgroundColor: 'rgba(5, 5, 12, 0.85)',
         padding: { x: 6, y: 3 },
       })
@@ -150,73 +169,84 @@ export class CenaFaseFinal extends CenaBase {
       .setVisible(false);
   }
 
-  private configurarTerminal(): void {
-    this.terminal.definirInterpretador(interpretarComandoFaseFinal);
-  }
-
-  /** Fim do pan: a câmera passa a seguir o jogador. */
-  private comecarJogo(): void {
-    if (this.estado !== 'pan') return;
-    this.estado = 'livre';
+  private seguirJogador(): void {
     const c = CAMERA_FASE_FINAL;
     const cam = this.cameras.main;
     cam.startFollow(this.jogador.sprite, true, c.LERP_X, c.LERP_Y);
     cam.setDeadzone(c.DEADZONE_LARGURA, c.DEADZONE_ALTURA);
-    this.tweens.add({ targets: this.textoObjetivo, alpha: 1, duration: 500 });
   }
 
   /* =========================================================================
-   * LAÇO
+   * EXTERIOR
    * ========================================================================= */
 
-  override update(tempo: number, delta: number): void {
-    super.update(tempo, delta);
-    if (!this.jogador) return;
+  private montarExterior(): void {
+    const alturaMundo = E.CHAO_Y + 100 - E.TOPO_MUNDO_Y;
+    this.physics.world.setBounds(0, E.TOPO_MUNDO_Y, E.LARGURA, alturaMundo);
+    this.physics.world.checkCollision.down = true;
+    this.cameras.main.setBounds(0, E.TOPO_MUNDO_Y, E.LARGURA, alturaMundo);
+    this.cameras.main.fadeIn(CENA_FASE_FINAL.FADE_IN_MS, 0, 0, 0);
 
-    this.exterior.update(tempo, delta);
-    this.clima.update(tempo, delta);
+    this.exterior = new ExteriorFaseFinal(this);
+    this.jogador = new JogadorFaseFinal(this, E.SPAWN);
+    this.physics.add.collider(this.jogador.sprite, this.exterior.solidos);
+    this.clima = new ClimaFaseFinal(this, E.CHAO_Y);
 
-    if (this.estado !== 'livre') {
-      this.jogador.ficarParado();
-      return;
-    }
+    this.criarValdir();
+    this.criarHud(HUD_FASE_FINAL.SETOR, HUD_FASE_FINAL.OBJETIVOS.PORTEIRO);
+    this.promptTermo = this.criarPrompt(
+      E.TERMINAL_TERMO.x,
+      E.CHAO_Y + INTERACAO_FASE_FINAL.OFFSET_PROMPT_Y - 40,
+      HUD_FASE_FINAL.PROMPT_TERMO,
+      '#ff2bd6'
+    );
 
-    const menuAberto = this.terminal.estaAberto || this.comunicador.estaAtivo;
-    if (menuAberto) {
-      if (!this.congelado) this.congelar();
-      this.valdir.esconderPrompt();
-      this.promptTermo.setVisible(false);
-      return;
-    }
-    if (this.congelado) this.descongelar();
-
-    this.jogador.update(tempo, delta);
-    this.tratarInteracoes();
-    this.verificarEntradaNaTorre();
-
-    if (this.jogador.y > E.CHAO_Y + 300) this.voltarAoCheckpoint();
+    this.estado = 'pan';
+    this.exterior.iniciarPan(HUD_FASE_FINAL.PULAR_PAN, E.SPAWN, () => {
+      if (this.estado !== 'pan') return;
+      this.estado = 'livre';
+      this.seguirJogador();
+      this.tweens.add({ targets: this.textoObjetivo, alpha: 1, duration: 500 });
+    });
   }
 
-  private tratarInteracoes(): void {
-    const apertouE = this.jogador.interagirApertado();
-    const { x, y } = this.jogador;
+  private criarValdir(): void {
+    const avatar = avatarHtml(retratoValdir(), 'VALDIR');
+    this.valdir = new NpcFaseFinal(this, {
+      id: 'valdir',
+      x: E.VALDIR.x,
+      pesY: E.CHAO_Y,
+      textura: TEX_EXTERIOR.VALDIR,
+      animacao: 'ff-valdir-respira',
+      prompt: HUD_FASE_FINAL.PROMPT_VALDIR,
+      raioInteracao: E.VALDIR.raioInteracao,
+      humano: true,
+      falas: (visita) =>
+        falasValdir(visita, { termoAceito: this.contextoTermo.aceito, recusas: this.contextoTermo.recusas }, avatar),
+    });
+    this.valdir.aoTerminarConversa = () => {
+      if (this.conversouComValdir) return;
+      this.conversouComValdir = true;
+      if (!this.contextoTermo.aceito) this.definirObjetivo(HUD_FASE_FINAL.OBJETIVOS.TERMO);
+    };
+  }
 
-    if (this.valdir.update(x, y, apertouE, this.comunicador)) return;
+  private interacoesExterior(apertouE: boolean): void {
+    const { x, y } = this.jogador;
+    if (this.valdir?.update(x, y, apertouE, this.comunicador)) return;
 
     const pertoDoTermo =
       !this.contextoTermo.aceito &&
       Math.abs(x - E.TERMINAL_TERMO.x) <= E.TERMINAL_TERMO.raioInteracao &&
       this.jogador.noChao;
-    this.promptTermo.setVisible(pertoDoTermo);
+    this.promptTermo?.setVisible(pertoDoTermo);
     if (pertoDoTermo && apertouE) this.abrirTermo();
+
+    if (this.exterior?.portaAberta && x >= E.PORTA.GATILHO_ENTRADA_X) this.entrarNaTorre();
   }
 
-  /* =========================================================================
-   * TERMO DE CIÊNCIA
-   * ========================================================================= */
-
   private abrirTermo(): void {
-    this.promptTermo.setVisible(false);
+    this.promptTermo?.setVisible(false);
     this.terminal.abrir({
       titulo: TEXTOS_TERMO.TITULO,
       linhasIniciais: [...TEXTOS_TERMO.ENUNCIADO],
@@ -247,7 +277,7 @@ export class CenaFaseFinal extends CenaBase {
     this.contextoTermo.aceito = true;
     this.time.delayedCall(1400, () => {
       this.terminal.fecharForcado();
-      this.exterior.abrirPorta();
+      this.exterior?.abrirPorta();
       this.cameras.main.shake(220, 0.003);
       const cp = CHECKPOINTS_FASE_FINAL.TERMO;
       this.salvarCheckpoint(cp.id, cp.ponto, cp.nome);
@@ -256,35 +286,301 @@ export class CenaFaseFinal extends CenaBase {
     });
   }
 
-  /* =========================================================================
-   * ENTRADA NA TORRE (os andares entram na etapa 2)
-   * ========================================================================= */
-
-  private verificarEntradaNaTorre(): void {
-    if (!this.exterior.portaAberta || this.jogador.x < E.PORTA.GATILHO_ENTRADA_X) return;
+  private entrarNaTorre(): void {
     this.estado = 'transicao';
     this.jogador.ficarParado();
     this.cameras.main.fadeOut(500, 0, 0, 0);
     this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
-      this.jogador.respawnar(this.checkpoint.ponto);
-      this.cameras.main.fadeIn(500, 0, 0, 0);
-      this.mostrarNotificacao(HUD_FASE_FINAL.ANDARES_EM_CONSTRUCAO, 3000);
-      this.estado = 'livre';
+      this.irPara({ trecho: 'andar', andar: 1 });
     });
   }
 
   /* =========================================================================
-   * CHECKPOINTS, CONGELAMENTO E HUD
+   * ANDARES
    * ========================================================================= */
+
+  private montarAndar(): void {
+    const cfg = obterAndar(this.numeroAndar);
+    this.physics.world.setBounds(0, 0, cfg.largura, A.ALTURA);
+    this.physics.world.checkCollision.down = false;
+    this.cameras.main.setBounds(0, 0, cfg.largura, A.ALTURA);
+
+    this.andar = new AndarFaseFinal(this, cfg);
+    this.jogador = new JogadorFaseFinal(this, this.andar.spawn);
+    this.physics.add.collider(this.jogador.sprite, this.andar.solidos);
+    this.physics.add.collider(this.jogador.sprite, this.andar.umaVia, undefined, (j, p) => {
+      const corpoJ = (j as Phaser.Types.Physics.Arcade.GameObjectWithBody).body as Phaser.Physics.Arcade.Body;
+      const corpoP = (p as Phaser.Types.Physics.Arcade.GameObjectWithBody).body as Phaser.Physics.Arcade.StaticBody;
+      return corpoJ.velocity.y >= 0 && corpoJ.bottom <= corpoP.top + 12;
+    });
+    this.checkpoint = { id: `andar${cfg.numero}`, ponto: { ...this.andar.spawn } };
+
+    this.criarHud(TEXTOS_ANDAR.setor(cfg.numero, cfg.nome), TEXTOS_ANDAR.OBJETIVO_PUZZLE);
+    this.promptTerminal = this.criarPrompt(cfg.puzzle.terminalX, A.CHAO_Y - 140, TEXTOS_ANDAR.PROMPT_TERMINAL, cfg.tema.acento);
+    this.promptElevador = this.criarPrompt(cfg.elevadorX, A.CHAO_Y - A.ELEVADOR.ALTURA - 24, '', cfg.tema.acento);
+
+    this.cameras.main.centerOn(this.andar.spawn.x, A.ALTURA / 2);
+    this.seguirJogador();
+    this.estado = 'chegada';
+    this.cameras.main.fadeIn(TRANSICAO_ELEVADOR.FADE_MS, 0, 0, 0);
+
+    const elevador = this.andar.elevadorEntrada;
+    if (elevador) {
+      // Chega dentro do elevador: portas abrem e o jogador sai
+      elevador.definirAberto(false);
+      elevador.folhasNaFrente(true);
+      this.time.delayedCall(TRANSICAO_ELEVADOR.FADE_MS + 200, () => {
+        elevador.abrir(A.ELEVADOR.PORTA_MS, () => {
+          elevador.folhasNaFrente(false);
+          this.chegarNoAndar();
+        });
+      });
+    } else {
+      this.time.delayedCall(TRANSICAO_ELEVADOR.FADE_MS, () => this.chegarNoAndar());
+    }
+  }
+
+  private chegarNoAndar(): void {
+    if (!this.andar) return;
+    const cfg = this.andar.cfg;
+    this.estado = 'livre';
+    this.tweens.add({ targets: this.textoObjetivo, alpha: 1, duration: 500 });
+    this.mostrarBannerAndar(cfg.numero, cfg.nome, cfg.conceito);
+    const anuncio = ANUNCIOS_ANDAR[cfg.numero];
+    if (anuncio) {
+      this.time.delayedCall(TRANSICAO_ELEVADOR.NOME_ANDAR_MS, () => {
+        if (this.estado !== 'livre' || this.terminal.estaAberto) return;
+        this.comunicador.iniciarDialogo([{ falante: FALANTES.MEGA_BRAIN, texto: anuncio, avatar: this.avatarMegaBrain }]);
+      });
+    }
+  }
+
+  private interacoesAndar(apertouE: boolean): void {
+    const andar = this.andar;
+    if (!andar) return;
+    const { x } = this.jogador;
+    const cfg = andar.cfg;
+
+    const pertoTerminal =
+      !this.contextoPuzzle.resolvido && Math.abs(x - cfg.puzzle.terminalX) <= A.RAIO_TERMINAL && this.jogador.noChao;
+    this.promptTerminal?.setVisible(pertoTerminal);
+    if (pertoTerminal && apertouE) {
+      this.abrirTerminalAndar();
+      return;
+    }
+
+    const elevador = andar.elevadorSaida;
+    const pertoElevador = elevador.naPorta(x) && this.jogador.noChao;
+    this.promptElevador
+      ?.setText(elevador.destravado ? TEXTOS_ANDAR.PROMPT_ELEVADOR : TEXTOS_ANDAR.PROMPT_ELEVADOR_TRAVADO)
+      .setVisible(pertoElevador);
+    if (!pertoElevador || !apertouE) return;
+    if (elevador.destravado) {
+      this.viajarDeElevador();
+    } else {
+      const avisos = TEXTOS_ANDAR.ELEVADOR_TRAVADO;
+      this.mostrarNotificacao(avisos[Math.min(this.tentativasElevadorTravado, avisos.length - 1)], 1800);
+      this.tentativasElevadorTravado++;
+      this.cameras.main.shake(120, 0.002);
+    }
+  }
+
+  /** Provisório até a etapa 3: o terminal destrava o andar com "liberar". */
+  private abrirTerminalAndar(): void {
+    const cfg = this.andar!.cfg;
+    this.promptTerminal?.setVisible(false);
+    this.terminal.abrir({
+      titulo: TEXTOS_PUZZLE_PROVISORIO.titulo(cfg.numero),
+      linhasIniciais: TEXTOS_PUZZLE_PROVISORIO.enunciado(cfg.conceito),
+      contexto: this.contextoPuzzle,
+      aoSubmeter: (resultado) => {
+        if (resultado.acao === ACOES_FASE_FINAL.PUZZLE_RESOLVIDO) this.resolverPuzzleDoAndar();
+      },
+      permitirFecharComEsc: true,
+    });
+  }
+
+  private resolverPuzzleDoAndar(): void {
+    if (this.contextoPuzzle.resolvido || !this.andar) return;
+    this.contextoPuzzle.resolvido = true;
+    this.time.delayedCall(900, () => {
+      this.terminal.fecharForcado();
+      this.andar?.resolverPuzzle();
+      this.definirObjetivo(TEXTOS_ANDAR.OBJETIVO_ELEVADOR);
+      this.mostrarNotificacao(TEXTOS_ANDAR.PUZZLE_RESOLVIDO);
+    });
+  }
+
+  /** Portas fecham com o jogador dentro, o visor sobe e a cena reinicia no próximo andar. */
+  private viajarDeElevador(): void {
+    const andar = this.andar;
+    if (!andar) return;
+    const elevador = andar.elevadorSaida;
+    const t = TRANSICAO_ELEVADOR;
+    this.estado = 'transicao';
+    this.promptElevador?.setVisible(false);
+    this.jogador.respawnar({ x: elevador.x, y: this.jogador.y });
+    elevador.folhasNaFrente(true);
+    elevador.fechar(t.PORTA_FECHA_MS, () => {
+      if (this.numeroAndar >= TOTAL_ANDARES) {
+        // O terraço (boss) entra na etapa 5
+        this.mostrarNotificacao(TEXTOS_ANDAR.TERRACO_EM_OBRAS, 2600);
+        this.time.delayedCall(900, () =>
+          elevador.abrir(A.ELEVADOR.PORTA_MS, () => {
+            elevador.folhasNaFrente(false);
+            this.estado = 'livre';
+          })
+        );
+        return;
+      }
+      this.mostrarViagem(this.numeroAndar, this.numeroAndar + 1, () => {
+        this.cameras.main.fadeOut(t.FADE_MS, 0, 0, 0);
+        this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
+          this.irPara({ trecho: 'andar', andar: this.numeroAndar + 1 });
+        });
+      });
+    });
+  }
+
+  /** Painel do visor do elevador: número atual, seta subindo, próximo número. */
+  private mostrarViagem(de: number, para: number, aoTerminar: () => void): void {
+    const t = TRANSICAO_ELEVADOR;
+    const { width, height } = this.scale;
+    const prof = CENA_FASE_FINAL.PROFUNDIDADE_HUD + 10;
+    const fundo = this.add.rectangle(0, 0, width, height, 0x05050c, 0).setOrigin(0).setScrollFactor(0).setDepth(prof);
+    const visor = this.add
+      .text(width / 2, height / 2 - 30, String(de), {
+        fontFamily: FONTE,
+        fontSize: '96px',
+        fontStyle: 'bold',
+        color: '#ff2a3d',
+        backgroundColor: '#05070f',
+        padding: { x: 40, y: 10 },
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(prof + 1)
+      .setAlpha(0);
+    visor.setShadow(0, 0, '#ff2a3d', 18, false, true);
+    const piadas = TEXTOS_ANDAR.VIAGEM;
+    const legenda = this.add
+      .text(width / 2, height / 2 + 70, `${TEXTOS_ANDAR.SUBINDO}\n${piadas[(de - 1) % piadas.length]}`, {
+        fontFamily: FONTE,
+        fontSize: '15px',
+        color: '#22e5ff',
+        align: 'center',
+      })
+      .setOrigin(0.5, 0)
+      .setScrollFactor(0)
+      .setDepth(prof + 1)
+      .setAlpha(0);
+
+    this.tweens.add({ targets: fundo, fillAlpha: 0.88, duration: 250 });
+    this.tweens.add({ targets: [visor, legenda], alpha: 1, duration: 250 });
+    const passo = t.VISOR_MS / 3;
+    this.time.delayedCall(passo, () => visor.setText('▲'));
+    this.time.delayedCall(passo * 2, () => {
+      visor.setText(String(para)).setColor('#22e5ff');
+      visor.setShadow(0, 0, '#22e5ff', 18, false, true);
+    });
+    this.time.delayedCall(t.VISOR_MS, aoTerminar);
+  }
+
+  private mostrarBannerAndar(numero: number, nome: string, conceito: string): void {
+    const { width } = this.scale;
+    const prof = CENA_FASE_FINAL.PROFUNDIDADE_HUD + 2;
+    const titulo = this.add
+      .text(width / 2, 250, TEXTOS_ANDAR.BANNER_TITULO(numero), {
+        fontFamily: FONTE,
+        fontSize: '54px',
+        fontStyle: 'bold',
+        color: '#eef0ff',
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(prof)
+      .setAlpha(0);
+    titulo.setShadow(0, 0, this.andar?.cfg.tema.acento ?? '#22e5ff', 16, false, true);
+    const sub = this.add
+      .text(width / 2, 300, TEXTOS_ANDAR.BANNER_SUBTITULO(nome, conceito), {
+        fontFamily: FONTE,
+        fontSize: '17px',
+        color: this.andar?.cfg.tema.acento ?? '#22e5ff',
+        backgroundColor: 'rgba(5, 5, 12, 0.8)',
+        padding: { x: 12, y: 5 },
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(prof)
+      .setAlpha(0);
+    this.tweens.add({
+      targets: [titulo, sub],
+      alpha: 1,
+      duration: 350,
+      hold: TRANSICAO_ELEVADOR.NOME_ANDAR_MS - 700,
+      yoyo: true,
+      onComplete: () => {
+        titulo.destroy();
+        sub.destroy();
+      },
+    });
+  }
+
+  /* =========================================================================
+   * LAÇO
+   * ========================================================================= */
+
+  override update(tempo: number, delta: number): void {
+    super.update(tempo, delta);
+    if (!this.jogador) return;
+
+    this.exterior?.update(tempo, delta);
+    this.clima?.update(tempo, delta);
+    this.andar?.update(tempo, delta);
+
+    if (this.estado !== 'livre') {
+      this.jogador.ficarParado();
+      return;
+    }
+
+    if (this.terminal.estaAberto || this.comunicador.estaAtivo) {
+      if (!this.congelado) this.congelar();
+      this.valdir?.esconderPrompt();
+      this.promptTermo?.setVisible(false);
+      this.promptTerminal?.setVisible(false);
+      this.promptElevador?.setVisible(false);
+      return;
+    }
+    if (this.congelado) this.descongelar();
+
+    this.jogador.update(tempo, delta);
+    const apertouE = this.jogador.interagirApertado();
+    if (this.trecho === 'exterior') this.interacoesExterior(apertouE);
+    else this.interacoesAndar(apertouE);
+
+    if (this.jogador.y > A.LIMITE_QUEDA_Y) this.cair();
+  }
+
+  /* =========================================================================
+   * CHECKPOINTS, CONGELAMENTO E UTILITÁRIOS
+   * ========================================================================= */
+
+  private irPara(dados: DadosCenaFaseFinal): void {
+    this.terminal.fecharForcado();
+    this.comunicador.finalizarDialogo();
+    this.scene.restart({ ...dados, mortes: this.mortes });
+  }
 
   private salvarCheckpoint(id: string, ponto: Ponto, nome: string): void {
     this.checkpoint = { id, ponto: { ...ponto } };
     this.mostrarNotificacao(nome, 1800);
   }
 
-  private voltarAoCheckpoint(): void {
+  private cair(): void {
+    this.mortes++;
     this.jogador.respawnar(this.checkpoint.ponto);
     this.cameras.main.flash(200, 255, 255, 255);
+    if (this.trecho === 'andar') this.mostrarNotificacao(TEXTOS_ANDAR.QUEDA, 1800);
   }
 
   private congelar(): void {
@@ -303,7 +599,14 @@ export class CenaFaseFinal extends CenaBase {
     this.textoObjetivo.setText(texto);
     this.tweens.killTweensOf(this.textoObjetivo);
     this.textoObjetivo.setAlpha(0.2);
-    this.tweens.add({ targets: this.textoObjetivo, alpha: 1, duration: 200, yoyo: true, repeat: 2, onComplete: () => this.textoObjetivo.setAlpha(1) });
+    this.tweens.add({
+      targets: this.textoObjetivo,
+      alpha: 1,
+      duration: 200,
+      yoyo: true,
+      repeat: 2,
+      onComplete: () => this.textoObjetivo.setAlpha(1),
+    });
   }
 
   private mostrarNotificacao(texto: string, duracaoMs: number = 2400): void {

@@ -1,13 +1,11 @@
 import type { ContextoInterpretador, ResultadoComando } from '../../compartilhado/tipos';
-import { TEXTOS_TERMO } from './DialogosFaseFinal';
+import { TEXTOS_PUZZLE_PROVISORIO, TEXTOS_TERMO } from './DialogosFaseFinal';
 
 /**
  * Interpretador dos terminais da Fase Final. Cada terminal informa no contexto qual puzzle é
  * (`contexto.puzzle`). A validação é tolerante: ignora maiúsculas, acentos e espaços extras,
  * e aceita tanto a linha inteira corrigida quanto só o trecho que muda.
  */
-
-export type IdPuzzleFaseFinal = 'termo';
 
 export interface ContextoTermo extends ContextoInterpretador {
   puzzle: 'termo';
@@ -16,10 +14,19 @@ export interface ContextoTermo extends ContextoInterpretador {
   invalidos: number;
 }
 
+/** Terminal de andar enquanto os puzzles reais não existem (etapa 3). */
+export interface ContextoAndarProvisorio extends ContextoInterpretador {
+  puzzle: 'andar';
+  andar: number;
+  resolvido: boolean;
+}
+
 export const ACOES_FASE_FINAL = {
   TERMO_ACEITO: 'TERMO_ACEITO',
   TERMO_RECUSADO: 'TERMO_RECUSADO',
   TERMO_INVALIDO: 'TERMO_INVALIDO',
+  PUZZLE_RESOLVIDO: 'PUZZLE_RESOLVIDO',
+  PUZZLE_ERRADO: 'PUZZLE_ERRADO',
   AJUDA: 'AJUDA',
   LIMPAR: 'LIMPAR_TERMINAL',
 } as const;
@@ -48,9 +55,19 @@ export function interpretarComandoFaseFinal(entrada: string, contexto?: Contexto
   switch (contexto?.puzzle) {
     case 'termo':
       return interpretarTermo(texto, contexto as ContextoTermo);
+    case 'andar':
+      return interpretarAndarProvisorio(texto, contexto as ContextoAndarProvisorio);
     default:
       return { sucesso: false, mensagem: '[ERRO] Este terminal está desconectado da torre.' };
   }
+}
+
+function interpretarAndarProvisorio(texto: string, ctx: ContextoAndarProvisorio): ResultadoComando {
+  if (ctx.resolvido) return { sucesso: true, mensagem: TEXTOS_PUZZLE_PROVISORIO.JA_RESOLVIDO };
+  if (texto === 'liberar' || texto === 'liberar()') {
+    return { sucesso: true, mensagem: TEXTOS_PUZZLE_PROVISORIO.ACEITO, acao: ACOES_FASE_FINAL.PUZZLE_RESOLVIDO };
+  }
+  return { sucesso: false, mensagem: TEXTOS_PUZZLE_PROVISORIO.RECUSADO, acao: ACOES_FASE_FINAL.PUZZLE_ERRADO };
 }
 
 /* =========================================================================

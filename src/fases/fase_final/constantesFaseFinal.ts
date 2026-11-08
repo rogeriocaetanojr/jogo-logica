@@ -133,6 +133,39 @@ export const PAN_TORRE_FASE_FINAL = {
   SCROLL_Y_TOPO: -2960,
 } as const;
 
+/** Andares da torre: medidas comuns a todos (o resto vem de andares/configAndares.ts). */
+export const ANDAR_FASE_FINAL = {
+  CHAO_Y: 620,
+  TETO_Y: 70,
+  ALTURA: 720,
+  // Cair abaixo disto (num vão) volta ao checkpoint do andar
+  LIMITE_QUEDA_Y: 900,
+  ENTRADA_ELEVADOR_X: 150,
+  ENTRADA_PORTA_X: 110,
+  RAIO_TERMINAL: 70,
+  // Elevador (quadro de 128x220 no mundo)
+  ELEVADOR: {
+    LARGURA: 128,
+    ALTURA: 220,
+    LARGURA_FOLHA: 56,
+    PORTA_MS: 600,
+    RAIO_ENTRADA: 50,
+  },
+  // Placas da ponte e portões dos puzzles
+  ESPESSURA_PLACA: 22,
+  ABRIR_BLOQUEIO_MS: 700,
+  INTERVALO_PLACA_MS: 220,
+  INTERVALO_COMPORTA_MS: 350,
+} as const;
+
+/** Viagem de elevador entre andares: portas fecham, visor sobe, tela apaga. */
+export const TRANSICAO_ELEVADOR = {
+  PORTA_FECHA_MS: 600,
+  VISOR_MS: 1700,
+  FADE_MS: 350,
+  NOME_ANDAR_MS: 2600,
+} as const;
+
 export const CHECKPOINTS_FASE_FINAL = {
   TERMO: { id: 'termo', nome: 'CHECKPOINT // TERMO ASSINADO', ponto: { x: 1990, y: 532 } },
 } as const;
