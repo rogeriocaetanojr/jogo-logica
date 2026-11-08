@@ -194,8 +194,9 @@ export class SomPorto {
         fonte.start();
         this.ambientes.push({ fonte, ganho });
       };
-      criarLaco(ondas * 0.12, 'lowpass', 420, 0.12);
-      criarLaco(fogo * 0.05, 'bandpass', 2200, 7);
+      // Volumes baixos de propósito: o ruído fica só como textura por baixo da trilha (MusicaPorto)
+      criarLaco(ondas * 0.06, 'lowpass', 420, 0.12);
+      criarLaco(fogo * 0.015, 'bandpass', 2200, 7);
     } catch {
       // Ignora falhas de áudio
     }

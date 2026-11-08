@@ -24,6 +24,7 @@ import { JogadorPorto } from './porto/JogadorPorto';
 import type { ControlesPorto } from './porto/JogadorPorto';
 import { PlataformaMovel } from './porto/PlataformasPorto';
 import { SomPorto } from './porto/SomPorto';
+import { MusicaPorto } from './porto/MusicaPorto';
 import { gerarSpritesPorto } from './porto/SpritesPorto';
 import {
   AREAS,
@@ -213,8 +214,10 @@ export class CenaFase2 extends CenaBase {
       this.time.delayedCall(2600, () => this.hud.aviso(`PROGRESSO RESTAURADO: ÁREA ${info.numero}  ·  [N] RECOMEÇA DO INÍCIO`, COR.telaBoia, 4500));
     }
     this.som.iniciarAmbiente(this.area.volumeOndas, this.area.volumeFogo);
+    MusicaPorto.iniciar();
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      MusicaPorto.parar();
       this.ajuda.destruir();
       document.body.classList.remove('fase2');
       document.getElementById('terminal-input')?.setAttribute('placeholder', 'Digite um comando...');
