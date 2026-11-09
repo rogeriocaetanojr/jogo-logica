@@ -9,6 +9,7 @@ import { criarTrechos } from './trechos/FabricaTrechos';
 import { ArremessoLixao, gerarTexturasReciclaveis } from './lixao/ArremessoLixao';
 import { COR, gerarTexturasLixao } from './lixao/ArteLixao';
 import { DronesLixao } from './lixao/DronesLixao';
+import { ChefaoLixao } from './lixao/ChefaoLixao';
 import { CLIMAS } from './lixao/ClimaLixao';
 import { EXERCICIOS, LIMPEZA_POR_EXERCICIO } from './lixao/ExerciciosLixao';
 import type { ContextoExercicio } from './lixao/ExerciciosLixao';
@@ -21,14 +22,14 @@ import { ALTURA_TELA, CHAO_Y, DEBUG, FADE_MORTE_MS, TRECHOS } from './lixao/Tipo
 
 /** Distância horizontal para interagir com o ponto de exercício. */
 const ALCANCE_INTERACAO = 80;
-/** Antes do fim do mapa, a distância em que a fase é concluída. */
-const MARGEM_FIM = 80;
 /** Abaixo da tela, a distância em que cair num buraco mata. */
 const QUEDA_FATAL = 120;
 /** Tempo em que o aviso "Checkpoint salvo" fica na tela. */
 const AVISO_CHECKPOINT_MS = 2000;
 /** Depois de acertar, o terminal fecha sozinho para o jogador ver o obstáculo abrir. */
 const FECHAR_APOS_ACERTO_MS = 700;
+/** Depois do monstro compactado: céu clareando e comemoração antes de voltar ao hub. */
+const VITORIA_MS = 5000;
 
 /**
  * CenaFase3: LIXÃO ELETRÔNICO.
@@ -53,6 +54,8 @@ export class CenaFase3 extends CenaBase {
   public drones!: DronesLixao;
   /** Recicla, o robô reciclador: recolhe lixo temporário e entrega itens ao jogador. */
   public recicla!: RoboLixao;
+  /** Monstro de Sucata, contêiner e o fim da fase na arena da noite. */
+  public chefao!: ChefaoLixao;
   /**
    * Onde o jogador volta ao morrer: o último ponto de exercício ativado (o início da fase
    * conta como o primeiro) ou a entrada da arena, que não tem exercício.
@@ -76,6 +79,8 @@ export class CenaFase3 extends CenaBase {
   private fisicaPausada = false;
   private concluindo = false;
   private morrendo = false;
+  /** Monstro compactado: sem mais perigos, só a comemoração até voltar ao hub. */
+  private vitoria = false;
 
   constructor() {
     super('CenaFase3', 'fase3');
@@ -91,6 +96,7 @@ export class CenaFase3 extends CenaBase {
     this.fisicaPausada = false;
     this.concluindo = false;
     this.morrendo = false;
+    this.vitoria = false;
   }
 
   override create(): void {
@@ -121,6 +127,9 @@ export class CenaFase3 extends CenaBase {
     this.drones.construir();
     this.recicla = new RoboLixao(this);
     this.recicla.construir();
+    this.chefao = new ChefaoLixao(this, (x) => this.aoTocarPerigo(x));
+    this.chefao.construir();
+    this.chefao.aoCompactar = () => this.vencer();
     this.arremesso = new ArremessoLixao(this);
     this.configurarTeclas();
     this.configurarTerminal();
@@ -247,8 +256,9 @@ export class CenaFase3 extends CenaBase {
 
     if (DEBUG) this.atualizarAtalhosDebug();
     this.jogador.atualizar(tempo, delta);
-    this.quedas.atualizar(delta, this.indiceTrecho);
+    if (!this.vitoria) this.quedas.atualizar(delta, this.indiceTrecho);
     this.drones.atualizar(delta);
+    this.chefao.atualizar(delta);
     this.recicla.atualizar(delta);
     this.arremesso.atualizar(delta);
     // Caiu num buraco: perde a vida toda e volta ao checkpoint
@@ -288,7 +298,7 @@ export class CenaFase3 extends CenaBase {
    * ========================================================================= */
 
   private aoTocarPerigo(origemX: number): void {
-    if (this.morrendo || !this.jogador.receberDano(origemX)) return;
+    if (this.morrendo || this.vitoria || !this.jogador.receberDano(origemX)) return;
     this.hud.atualizarVida(this.jogador.vida);
     this.cameras.main.shake(120, 0.004);
     if (this.jogador.vida <= 0) this.morrer();
@@ -306,6 +316,7 @@ export class CenaFase3 extends CenaBase {
       this.quedas.reiniciar();
       this.drones.reiniciar();
       this.recicla.reiniciar();
+      this.chefao.reiniciar();
       this.arremesso.reiniciar();
       this.fisicaPausada = false;
       this.indiceTrecho = trecho;
@@ -340,9 +351,6 @@ export class CenaFase3 extends CenaBase {
       this.textoPrompt.setPosition(xExercicio, CHAO_Y - 100).setText('[E] Terminal');
       if (Phaser.Input.Keyboard.JustDown(this.teclas.E)) this.abrirTerminal(trecho);
     }
-
-    const fimMapa = this.trechos[this.trechos.length - 1].fim;
-    if (x > fimMapa - MARGEM_FIM) this.concluirFase();
   }
 
   private atualizarAtalhosDebug(): void {
@@ -369,7 +377,34 @@ export class CenaFase3 extends CenaBase {
     }
   }
 
-  /** Fim do trecho 4: conclui a fase e volta ao hub. */
+  /**
+   * Monstro compactado: o céu clareia da noite para o sol, o medidor vai a 100%, o Recicla
+   * comemora e a mensagem de fase concluída aparece antes de voltar ao hub.
+   */
+  private vencer(): void {
+    if (this.vitoria) return;
+    this.vitoria = true;
+    this.cenario.definirTrecho(0);
+    this.hud.atualizarClima(TRECHOS[0].clima);
+    this.hud.atualizarLimpo(100);
+    this.chefao.comemorar();
+    this.som.bipesAcerto();
+    this.add
+      .text(this.scale.width / 2, this.scale.height / 2 - 60, 'LIXÃO LIMPO!\nFase concluída', {
+        fontFamily: 'Consolas, "Courier New", monospace',
+        fontSize: '40px',
+        align: 'center',
+        color: COR.ceuPoeiraClaro,
+        backgroundColor: COR.contorno,
+        padding: { x: 24, y: 14 },
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(9998);
+    this.time.delayedCall(VITORIA_MS, () => this.concluirFase());
+  }
+
+  /** Fim da fase: conclui e volta ao hub. */
   private concluirFase(): void {
     if (this.concluindo) return;
     this.concluindo = true;

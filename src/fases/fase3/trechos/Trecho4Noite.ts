@@ -20,10 +20,10 @@ export class Trecho4Noite extends TrechoLixao {
 
   /** Munição solta pelo chão, longe dos buracos e do terminal. */
   public override readonly reciclaveis = [
-    [700, 'lata'],
+    [640, 'lata'],
+    [900, 'bateria'],
     [1100, 'placa'],
     [1500, 'monitor'],
-    [1700, 'bateria'],
   ] as const;
 
   constructor(cena: CenaFase3) {
@@ -40,10 +40,8 @@ export class Trecho4Noite extends TrechoLixao {
     this.bloco('pilha-esq-3', 448, 48);
 
     // Arena plana (512 a 1792)
-    // [CHEFÃO] 1500: Monstro de Sucata surge do lixo; ataques de sucata, faíscas e choque no chão
-    // [CHEFÃO] 1700: contêiner de reciclagem, para onde o monstro é empurrado no fim
-    // [QUEDA DE LIXO] 400 e 1880: as pilhas das bordas desabam durante a luta e servem de munição
-    // [RECICLA] 1100: comemora no centro da arena depois da vitória
+    // Chefão, contêiner (1724) e o Recicla comemorando (1100) ficam em lixao/ChefaoLixao
+    // [QUEDA DE LIXO] 400 e 1880: pilhas das bordas, fora da área travada da luta
 
     // Pilha da borda direita
     this.bloco('pilha-dir-1', 1792, 48);
