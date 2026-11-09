@@ -38,6 +38,42 @@ export const COR = {
   chuvaAzul: '#2B3550',
   noiteRoxo: '#3A2440',
   noiteRoxoEscuro: '#1E1420',
+  /*
+   * Céus em 8 faixas, do topo escuro ao horizonte claro, como os céus da Fase 2
+   * (entardecer, fumacento e noite) mais um céu de chuva próprio.
+   */
+  ceuSol1: '#24161E',
+  ceuSol2: '#3A1C24',
+  ceuSol3: '#5A2328',
+  ceuSol4: '#7E2E28',
+  ceuSol5: '#A8402A',
+  ceuSol6: '#C95A2C',
+  ceuSol7: '#DE7A34',
+  ceuSol8: '#E99A4A',
+  ceuNevoa1: '#161012',
+  ceuNevoa2: '#1E1416',
+  ceuNevoa3: '#2A1A1C',
+  ceuNevoa4: '#3A1E1E',
+  ceuNevoa5: '#5A2624',
+  ceuNevoa6: '#7A3226',
+  ceuNevoa7: '#9A4228',
+  ceuNevoa8: '#B4562C',
+  ceuChuva1: '#0E1420',
+  ceuChuva2: '#141C2C',
+  ceuChuva3: '#1C2638',
+  ceuChuva4: '#283246',
+  ceuChuva5: '#3A3E52',
+  ceuChuva6: '#524656',
+  ceuChuva7: '#6E5056',
+  ceuChuva8: '#8A5C52',
+  ceuNoite1: '#080A18',
+  ceuNoite2: '#0D1024',
+  ceuNoite3: '#141530',
+  ceuNoite4: '#201836',
+  ceuNoite5: '#341C34',
+  ceuNoite6: '#52222E',
+  ceuNoite7: '#7A2E2A',
+  ceuNoite8: '#A0442A',
   // Tintas que esfriam o cenário conforme o clima (multiplicam as cores desenhadas)
   tintaPo: '#F0D8B8',
   tintaChuva: '#B8C4DC',
@@ -84,6 +120,14 @@ export const COR = {
 } as const;
 
 export type CorLixao = (typeof COR)[keyof typeof COR];
+
+/** Faixas de céu de cada clima, do topo ao horizonte (ver tema.ceu em cada trecho). */
+export const CEU = {
+  sol: [COR.ceuSol1, COR.ceuSol2, COR.ceuSol3, COR.ceuSol4, COR.ceuSol5, COR.ceuSol6, COR.ceuSol7, COR.ceuSol8],
+  nevoa: [COR.ceuNevoa1, COR.ceuNevoa2, COR.ceuNevoa3, COR.ceuNevoa4, COR.ceuNevoa5, COR.ceuNevoa6, COR.ceuNevoa7, COR.ceuNevoa8],
+  chuva: [COR.ceuChuva1, COR.ceuChuva2, COR.ceuChuva3, COR.ceuChuva4, COR.ceuChuva5, COR.ceuChuva6, COR.ceuChuva7, COR.ceuChuva8],
+  noite: [COR.ceuNoite1, COR.ceuNoite2, COR.ceuNoite3, COR.ceuNoite4, COR.ceuNoite5, COR.ceuNoite6, COR.ceuNoite7, COR.ceuNoite8],
+} as const;
 
 export function hexNum(h: string): number {
   return parseInt(h.slice(1), 16);
@@ -182,13 +226,16 @@ export class Pincel {
     });
   }
 
-  /** Faixas verticais de cor com pontilhado de Bayer na transição (céus). */
-  degradePontilhado(x: number, y: number, w: number, h: number, cores: readonly string[]): void {
+  /**
+   * Faixas horizontais de cor, do topo para baixo, com pontilhado de Bayer só na borda de
+   * cada faixa (como os céus da Fase 2). `curva` > 1 deixa as faixas escuras de cima mais largas.
+   */
+  degradePontilhado(x: number, y: number, w: number, h: number, cores: readonly string[], curva = 1.2): void {
     const pal = cores.map(hexRgb);
     for (let yy = 0; yy < h; yy++) {
-      const f = (yy / Math.max(1, h - 1)) * (pal.length - 1);
+      const f = Math.pow(yy / Math.max(1, h - 1), curva) * (pal.length - 1);
       const i = Math.min(pal.length - 2, Math.floor(f));
-      const fr = f - i;
+      const fr = Math.max(0, (f - i - 0.55) / 0.45);
       for (let xx = 0; xx < w; xx++) {
         const c = fr > bayer(x + xx, y + yy) ? pal[i + 1] : pal[i];
         this.ponto(x + xx, y + yy, `rgb(${c[0]},${c[1]},${c[2]})`);

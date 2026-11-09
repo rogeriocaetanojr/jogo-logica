@@ -1,4 +1,4 @@
-import { COR } from '../lixao/ArteLixao';
+import { CEU, COR } from '../lixao/ArteLixao';
 import type { CenaFase3 } from '../CenaFase3';
 import { TrechoLixao } from './TrechoLixao';
 import type { TemaTrecho } from './TrechoLixao';
@@ -10,7 +10,7 @@ import type { TemaTrecho } from './TrechoLixao';
  */
 export class Trecho4Noite extends TrechoLixao {
   public readonly tema: TemaTrecho = {
-    ceu: [COR.noiteRoxoEscuro, COR.noiteRoxo],
+    ceu: CEU.noite,
     astro: 'lua',
     nuvem: COR.noiteRoxo,
     horizonte: COR.noiteRoxoEscuro,

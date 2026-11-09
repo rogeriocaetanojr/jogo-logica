@@ -202,7 +202,10 @@ export class CenarioLixao {
     const w = LARGURA_TELA / ESCALA;
     const h = ALTURA_TELA / ESCALA;
     texturaPixel(this.cena, chave, w, h, (p) => {
-      p.degradePontilhado(0, 0, w, h, ceu);
+      // Como na Fase 2: degradê até o horizonte (y 104) e a cor mais clara sólida abaixo
+      const horizonteCeu = 104;
+      p.degradePontilhado(0, 0, w, horizonteCeu, ceu);
+      p.px(0, horizonteCeu, w, h - horizonteCeu, ceu[ceu.length - 1]);
       if (astro === 'sol') {
         // Sol baixo e abafado pela poeira
         for (let y = -16; y <= 16; y++) {
