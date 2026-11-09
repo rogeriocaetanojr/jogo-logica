@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
-import { COR, ESCALA, aleatorio, bayer, desenharPilha, hexRgb, texturaPixel } from '../lixao/ArteLixao';
-import type { Pincel, TipoPilha } from '../lixao/ArteLixao';
+import { COR, ESCALA, aleatorio, bayer, hexRgb, texturaPixel } from '../lixao/ArteLixao';
+import type { Pincel } from '../lixao/ArteLixao';
+import { CORES_FUNDO, FundoLixao } from './FundoLixao';
 import { ALTURA_TELA, CHAO_Y, LARGURA_TELA } from '../lixao/TiposLixao';
 import type { Clima } from '../lixao/TiposLixao';
 import { ClimaLixao, EFEITOS_CLIMA } from '../lixao/ClimaLixao';
@@ -8,8 +9,11 @@ import type { EstadoClima } from '../lixao/ClimaLixao';
 import { PROF } from './TrechoLixao';
 import type { TrechoLixao } from './TrechoLixao';
 
-/** Fatores de parallax: as 3 camadas de céu e a camada de pilhas. */
-const PARALLAX = { ceu: 0, nuvens: 0.1, horizonte: 0.25, pilhas: 0.55 } as const;
+/**
+ * Fatores de parallax das camadas de céu. Cidade (0.18), máquinas (0.4) e pilhas (0.55)
+ * ficam no FundoLixao.
+ */
+const PARALLAX = { ceu: 0, nuvens: 0.1, horizonte: 0.25 } as const;
 
 /** Duração da transição de clima e tema ao trocar de trecho (a única passagem entre eles). */
 const DURACAO_TRANSICAO_MS = 3000;
@@ -19,15 +23,26 @@ interface Visual {
   tinta: Rgb;
   nuvem: Rgb;
   horizonte: Rgb;
+  /** Cores de fundo do clima (cidade, máquinas e pilhas), sem a tinta do primeiro plano. */
+  fundoLonge: Rgb;
+  fundoMeio: Rgb;
+  fundoPerto: Rgb;
   clima: EstadoClima;
 }
 
 function visualDe(trecho: TrechoLixao, clima: Clima = trecho.info.clima): Visual {
   const tema = trecho.tema;
+  const fundo = CORES_FUNDO[clima];
+  const longe = hexRgb(fundo.longe);
+  const meio = hexRgb(fundo.meio);
   return {
     tinta: hexRgb(tema.tinta ?? COR.luz),
     nuvem: hexRgb(tema.nuvem),
-    horizonte: hexRgb(tema.horizonte),
+    // Montanhas do horizonte: entre a cidade (longe) e as máquinas (meio)
+    horizonte: misturar(longe, meio, 0.5),
+    fundoLonge: longe,
+    fundoMeio: meio,
+    fundoPerto: hexRgb(fundo.perto),
     clima: { ...EFEITOS_CLIMA[clima] },
   };
 }
@@ -55,6 +70,8 @@ export class CenarioLixao {
   private readonly ceus: Phaser.GameObjects.Image[] = [];
   private nuvens!: Phaser.GameObjects.Image;
   private horizonte!: Phaser.GameObjects.Image;
+  /** Cidade, máquinas e pilhas com detalhes animados, por trecho. */
+  private fundo!: FundoLixao;
   private readonly tingiveis: Phaser.GameObjects.Components.Tint[] = [];
   public readonly clima: ClimaLixao;
 
@@ -75,7 +92,8 @@ export class CenarioLixao {
     this.trechos.forEach((t) => this.criarCeu(t));
     this.criarNuvens();
     this.criarHorizonte();
-    this.criarPilhas();
+    this.fundo = new FundoLixao(this.cena, this.trechos, this.larguraMundo);
+    this.fundo.construir();
     this.clima.construir();
   }
 
@@ -107,6 +125,7 @@ export class CenarioLixao {
   }
 
   atualizar(delta: number): void {
+    this.fundo.atualizar(delta, this.visualAtual().clima);
     if (this.progresso >= 1) return;
     this.progresso = Math.min(1, this.progresso + delta / DURACAO_TRANSICAO_MS);
     this.aplicar();
@@ -124,6 +143,9 @@ export class CenarioLixao {
       tinta: lerp3(this.de.tinta, this.para.tinta),
       nuvem: lerp3(this.de.nuvem, this.para.nuvem),
       horizonte: lerp3(this.de.horizonte, this.para.horizonte),
+      fundoLonge: lerp3(this.de.fundoLonge, this.para.fundoLonge),
+      fundoMeio: lerp3(this.de.fundoMeio, this.para.fundoMeio),
+      fundoPerto: lerp3(this.de.fundoPerto, this.para.fundoPerto),
       clima: {
         poeira: lerp(this.de.clima.poeira, this.para.clima.poeira),
         chuva: lerp(this.de.clima.chuva, this.para.clima.chuva),
@@ -151,6 +173,7 @@ export class CenarioLixao {
     this.horizonte.setTint(rgbNum(v.horizonte));
     const tinta = rgbNum(v.tinta);
     for (const obj of this.tingiveis) obj.setTint(tinta);
+    this.fundo.aplicarCores({ longe: rgbNum(v.fundoLonge), meio: rgbNum(v.fundoMeio), perto: rgbNum(v.fundoPerto) });
 
     this.clima.aplicar(v.clima as EstadoClima);
   }
@@ -190,6 +213,13 @@ export class CenarioLixao {
           }
         }
       } else if (astro === 'lua') {
+        // Estrelas fixas (as que cintilam ficam no FundoLixao)
+        const rndEstrelas = aleatorio(trecho.info.numero * 31);
+        for (let i = 0; i < 70; i++) {
+          const ex = Math.floor(rndEstrelas() * w);
+          const ey = Math.floor(rndEstrelas() * h * 0.55);
+          p.ponto(ex, ey, rndEstrelas() < 0.2 ? COR.janela : COR.tintaNoite);
+        }
         p.disco(250, 34, 7, COR.ceuPoeiraClaro);
         p.disco(253, 32, 6, ceu[0]);
       }
@@ -228,9 +258,13 @@ export class CenarioLixao {
         const larg = 50 + Math.floor(rnd() * 70);
         const alt = 14 + Math.floor(rnd() * 30);
         const cx = x + larg / 2;
+        // Recortes variados: monte redondo, encosta reta ou platô em degraus, com pontas de sucata
+        const perfil = rnd();
         for (let xx = x; xx < x + larg; xx++) {
-          const t = 1 - Math.abs(xx - cx) / (larg / 2);
-          const topo = Math.round(base - alt * Math.sqrt(Math.max(0, t)) + rnd() * 2);
+          const t = Math.max(0, 1 - Math.abs(xx - cx) / (larg / 2));
+          const forma = perfil < 0.4 ? Math.sqrt(t) : perfil < 0.7 ? t : Math.round(Math.min(1, t * 2) * 4) / 4;
+          const ponta = rnd() < 0.05 ? 2 + Math.floor(rnd() * 5) : 0;
+          const topo = Math.round(base - alt * forma - ponta + rnd() * 2);
           p.px(xx, topo, 1, base - topo, cor);
         }
         if (rnd() < 0.3) {
@@ -247,28 +281,5 @@ export class CenarioLixao {
         x += larg - 14;
       }
     });
-  }
-
-  /** Camada de pilhas: monitores, placas e cabos alternados ao longo do mapa. */
-  private criarPilhas(): void {
-    const rnd = aleatorio(37);
-    const tipos: readonly TipoPilha[] = ['monitores', 'placas', 'cabos'];
-    const base = CHAO_Y / ESCALA + 1;
-    let anterior = -1;
-    this.registrarTingivel(
-      this.camada('lx-pilhas', PARALLAX.pilhas, PROF.pilhas, (p, w) => {
-        let x = 10 + Math.floor(rnd() * 20);
-        while (x < w) {
-          const larg = 40 + Math.floor(rnd() * 40);
-          const alt = 26 + Math.floor(rnd() * 36);
-          // Nunca o mesmo tipo duas vezes seguidas
-          let i = Math.floor(rnd() * 3);
-          if (i === anterior) i = (i + 1) % 3;
-          anterior = i;
-          desenharPilha(p, tipos[i], x + larg / 2, base, larg, alt, rnd);
-          x += Math.round(larg * 0.8 + rnd() * 40);
-        }
-      })
-    );
   }
 }

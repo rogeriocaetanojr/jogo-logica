@@ -9,44 +9,76 @@ import Phaser from 'phaser';
 export const ESCALA = 4;
 
 /**
- * Paleta da Fase 3 (ver docs/fase3/PLANO_FASE3.md, "Paleta"). Nenhuma cor da fase fica fora
+ * Paleta da Fase 3, na linha do docs/GUIA_DE_DESIGN.md: cenário quente e escuro (concreto,
+ * fuligem, céu queimado) contra informação de jogo em ciano e amarelo. Verde de placa, cobre e
+ * ciano são as marcas da fase (ver docs/fase3/PLANO_FASE3.md, "Paleta"). Nenhuma cor da fase fica fora
  * deste objeto. Ciano só no que é interativo; vermelho só no que é perigo.
  */
 export const COR = {
   // Lixo eletrônico: placas de circuito
-  verdePlaca: '#2F8A57',
-  verdePlacaClaro: '#5CBF7D',
-  verdePlacaEscuro: '#1E5C39',
+  verdePlaca: '#3A7A47',
+  verdePlacaClaro: '#62A86A',
+  verdePlacaEscuro: '#2A3A2A',
   // Lixo eletrônico: fios e trilhas de cobre
-  cobre: '#D98C4A',
-  cobreClaro: '#F0B27A',
-  cobreEscuro: '#A0663A',
+  cobre: '#C8722E',
+  cobreClaro: '#F0A050',
+  cobreEscuro: '#8A4520',
   // Sucata (metal, carcaças, chão)
-  sucataClara: '#B3A296',
-  sucata: '#8E7D71',
-  sombraSucata: '#66574E',
-  contorno: '#2E2420',
+  sucataClara: '#8A857E',
+  sucata: '#6A6662',
+  sombraSucata: '#4A4744',
+  contorno: '#1A1414',
   // Céu de poeira (trechos de sol e névoa)
-  ceuPoeiraClaro: '#FCEBCF',
-  ceuPoeira: '#F6D6A8',
-  horizonte: '#ECAC74',
-  horizonteEscuro: '#CC8858',
+  ceuPoeiraClaro: '#F2C27A',
+  ceuPoeira: '#DE7A34',
+  horizonte: '#B8502A',
+  horizonteEscuro: '#7E2E28',
   // Chuva e noite (trechos 3 e 4)
-  chuvaAzulClaro: '#9DB3DA',
-  chuvaAzul: '#6F88BA',
-  noiteRoxo: '#6A5A9C',
-  noiteRoxoEscuro: '#463A78',
+  chuvaAzulClaro: '#4A5A7A',
+  chuvaAzul: '#2B3550',
+  noiteRoxo: '#3A2440',
+  noiteRoxoEscuro: '#1E1420',
   // Tintas que esfriam o cenário conforme o clima (multiplicam as cores desenhadas)
-  tintaPo: '#FAEEDC',
-  tintaChuva: '#DCE3F2',
-  tintaNoite: '#C4BDE2',
+  tintaPo: '#F0D8B8',
+  tintaChuva: '#B8C4DC',
+  tintaNoite: '#9A90C0',
+  /*
+   * Fundo (camadas de parallax): silhuetas quentes e escuras, sem verde nem cobre, mais escuras que o primeiro plano, para não se
+   * confundir com as plataformas. As peças são desenhadas em 3 valores neutros e tingidas
+   * pela cor do clima: Longe (cidade, mais clara e perto do céu), Meio (horizonte e
+   * máquinas) e Perto (pilhas).
+   */
+  fundoValorClaro: '#FFFFFF',
+  fundoValorMedio: '#D2D2D2',
+  fundoValorEscuro: '#A0A0A0',
+  // Sol: telha e tijolo queimado
+  fundoSolLonge: '#A85A36',
+  fundoSolMeio: '#7A3A28',
+  fundoSolPerto: '#5A2A22',
+  // Névoa: terra e ferrugem empoeiradas
+  fundoNevoaLonge: '#9A6048',
+  fundoNevoaMeio: '#74402E',
+  fundoNevoaPerto: '#542E24',
+  // Chuva: ameixa escura
+  fundoChuvaLonge: '#5A4458',
+  fundoChuvaMeio: '#4A3040',
+  fundoChuvaPerto: '#3A2230',
+  // Noite: vinho quase preto
+  fundoNoiteLonge: '#4A2A3A',
+  fundoNoiteMeio: '#3A1E2C',
+  fundoNoitePerto: '#2E1620',
+  /** Janelas acesas e LEDs do fundo: amarelo quente (nunca interativos). */
+  janela: '#F7C948',
+  /** Letreiros neon quebrados do fundo: magenta, para não confundir com o ciano interativo. */
+  neonRosa: '#E85FD2',
+  neonRosaEscuro: '#9C4A8E',
   // Interativo e perigo
-  neonCiano: '#5FF5EE',
-  neonCianoEscuro: '#2BB5B0',
-  perigo: '#F0473F',
+  neonCiano: '#4FD8E8',
+  neonCianoEscuro: '#2FA4A8',
+  perigo: '#FF4A3A',
   // Baterias da HUD (a última fase da carga usa o vermelho de perigo)
-  bateriaVerde: '#5FCB5A',
-  bateriaAmarela: '#E8C440',
+  bateriaVerde: '#5CCB5A',
+  bateriaAmarela: '#F2C230',
   /** Branco neutro: base de partículas e brilhos que recebem tinta. */
   luz: '#FFFFFF',
 } as const;
