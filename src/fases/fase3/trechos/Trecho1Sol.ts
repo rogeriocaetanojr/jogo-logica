@@ -19,7 +19,7 @@ export class Trecho1Sol extends TrechoLixao {
   };
   protected readonly semente = 101;
   protected override readonly buracos = [
-    [1440, 128],
+    [1280, 128],
     [2200, 160],
     [4240, 160],
   ] as const;
@@ -49,28 +49,27 @@ export class Trecho1Sol extends TrechoLixao {
     this.viga('viga-1', 860, 172);
     this.viga('viga-2', 1060, 224);
 
-    // Primeiro buraco (1440, 128 px), curto e com chão largo dos dois lados
+    // Primeiro buraco (1280, 128 px), curto e com chão largo dos dois lados
 
-    // Morrinho de sucata: sobe e desce em degraus
-    this.bloco('morro-1', 1800, 48);
-    this.bloco('morro-2', 1864, 96);
-    this.bloco('morro-3', 1928, 48);
+    // Subida com retorno: muro alto em 1820; sobe na viga baixa (1628), volta para a
+    // esquerda até a viga alta (1404) e de lá pula de volta sobre o muro
+    this.zigueZague('zz', 1820);
 
     // Segundo buraco (2200, 160 px): pede pulo com corrida
     // Exercício em 2560; entulho em 2720 que desaba ao resolver
 
     // Primeiro cano baixo, curto, em chão livre
-    this.passagemBaixa('cano-1', 2960, 240);
+    this.passagemBaixa('cano-1', 2960);
 
     this.bloco('bloco-1', 3360, 48);
-    // Cano longo: segurar o abaixar por mais tempo
-    this.passagemBaixa('cano-2', 3560, 400);
+    // Segundo cano, também curto
+    this.passagemBaixa('cano-2', 3700);
     // [DRONE] 3500: o único drone do sol, lento, entre os canos (DRONES_POR_TRECHO em DronesLixao)
     // [QUEDA DE LIXO] 4100: entre o cano longo e o último buraco
     // [RECICLA] 3440 a 4180: patrulha passando por baixo do cano longo (PATRULHA_RECICLA em RoboLixao)
 
     // Buraco (4240, 160 px) com aterrissagem curta antes do último cano
-    this.passagemBaixa('cano-3', 4600, 200);
+    this.passagemBaixa('cano-3', 4600);
 
     // Engrenagens enferrujadas meio enterradas, cabos rompidos e placas, longe dos obstáculos
     this.decoracao(300, 'lx-fios');

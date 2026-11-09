@@ -50,11 +50,9 @@ export class Trecho2Nevoa extends TrechoLixao {
     this.viga('escada-4', 1340, 260);
     // [QUEDA DE LIXO] 1150: lixo caindo sobre a viga mais alta, com sombra visível na poeira
 
-    // Torre de blocos com duas vigas acima dela; desce de volta ao chão depois de 2308
-    this.bloco('torre-1', 1700, 96);
-    this.bloco('torre-2', 1764, 192);
-    this.viga('torre-viga-1', 1940, 300);
-    this.viga('torre-viga-2', 2180, 400);
+    // Subida com retorno: muro alto em 2100; viga baixa (1908), volta à viga alta (1684)
+    // e pula de volta sobre o muro; desce ao chão antes do terminal
+    this.zigueZague('zz', 2100);
     // [DRONE] 2060: drone pairando entre as vigas da torre; na névoa vê pouco e chega perto
 
     // Exercício em 2560; vão de 576 px em 2720 que ganha ponte ao resolver

@@ -67,6 +67,29 @@ const LARGURA_OBSTACULO: Record<ObstaculoExercicio, number> = { entulho: 64, vao
 const MARGEM_BURACO = 40;
 /** Altura livre sob um cano baixo: só cabe o jogador abaixado (em pé ele tem 96 px). */
 const VAO_ABAIXADO = 72;
+/**
+ * Largura de toda passagem baixa: 2 blocos de 64 px, cerca de 1 s abaixado (110 px/s).
+ * Nenhuma passagem é mais larga que isto.
+ */
+const LARGURA_PASSAGEM_BAIXA = 128;
+/**
+ * Subida com retorno (zigue-zague). Alcance do pulo: 225 px de altura (520² / 2·600).
+ * O muro (400 px) não se alcança do chão nem da viga baixa (160 px, sobra 240 > 225); só da
+ * viga alta (320 px), que fica atrás, à esquerda, e só se alcança pela viga baixa (+160).
+ * Da viga alta ao topo do muro: +80 px em 288 px de distância (o pulo cobre ~375 px).
+ */
+const ZIGUEZAGUE = {
+  MURO_ALTURA: 400,
+  MURO_LARGURA: 64,
+  BAIXA_ALTURA: 160,
+  BAIXA_LARGURA: 160,
+  /** Folga entre a viga baixa e o muro. */
+  BAIXA_RECUO: 32,
+  ALTA_ALTURA: 320,
+  ALTA_LARGURA: 128,
+  /** Distância da borda direita da viga alta até o muro. */
+  ALTA_RECUO: 288,
+} as const;
 
 /**
  * Base dos 4 trechos do mapa contínuo do Lixão Eletrônico. Cada trecho começa em `offset`
@@ -265,10 +288,23 @@ export abstract class TrechoLixao {
    * Passagem baixa: cano com vão de 72 px até o chão e muralha de entulho até o topo da
    * tela em cima, então só passa abaixado (não dá para pular por cima).
    */
-  protected passagemBaixa(nome: string, x: number, largura: number): void {
+  protected passagemBaixa(nome: string, x: number): void {
+    const largura = LARGURA_PASSAGEM_BAIXA;
     const baseCano = CHAO_Y - VAO_ABAIXADO;
     this.solido(`${nome}-cano`, x, baseCano - 24, largura, 24, desenharCano);
     this.solido(`${nome}-muralha`, x, 0, largura, baseCano - 24, (p, w, h) => desenharMuralha(p, w, h, this.rnd));
+  }
+
+  /**
+   * Subida com retorno com o muro em `xMuro` (borda esquerda): sobe na viga baixa junto ao
+   * muro, volta para a esquerda até a viga alta e só dela pula de volta para cima do muro.
+   * Ocupa de xMuro - 416 até xMuro + 64.
+   */
+  protected zigueZague(nome: string, xMuro: number): void {
+    const z = ZIGUEZAGUE;
+    this.bloco(`${nome}-muro`, xMuro, z.MURO_ALTURA, z.MURO_LARGURA);
+    this.viga(`${nome}-baixa`, xMuro - z.BAIXA_RECUO - z.BAIXA_LARGURA, z.BAIXA_ALTURA, z.BAIXA_LARGURA);
+    this.viga(`${nome}-alta`, xMuro - z.ALTA_RECUO - z.ALTA_LARGURA, z.ALTA_ALTURA, z.ALTA_LARGURA);
   }
 
   /** Perigo apoiado no chão: encostar tira 1 bateria (ver CenaFase3). x é o centro. */

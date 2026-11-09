@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { COR, ESCALA, aleatorio, bayer, grade, hexNum, hexRgb, texturaPixel } from './ArteLixao';
+import { COR, ESCALA, aleatorio, bayer, grade, hexNum, texturaPixel } from './ArteLixao';
 import type { JogadorLixao } from './JogadorLixao';
 import { MOVIMENTO_LIXAO } from './JogadorLixao';
 import { ALTURA_TELA, CHAO_Y, LARGURA_TELA } from './TiposLixao';
@@ -34,10 +34,11 @@ export const CHUVA = {
 
 /** Escuridão: opacidade do véu e raio da luz em volta do jogador, por clima (px de mundo). */
 const VEU = {
-  POEIRA_ALPHA: 0.86,
-  NOITE_ALPHA: 0.94,
-  RAIO_POEIRA: 300,
-  RAIO_NOITE: 140,
+  /** Véu da noite: leve, para tudo continuar legível; a névoa não usa véu (ver `nevoa`). */
+  NOITE_ALPHA: 0.4,
+  RAIO_NOITE: 260,
+  /** Camada de névoa atrás do jogador e das plataformas. */
+  NEVOA_ALPHA: 0.3,
   /** Raio da luz de um LED ciano (terminal) ou de uma fonte de faísca. */
   RAIO_LED: 96,
   RAIO_FAISCA: 72,
@@ -46,6 +47,8 @@ const VEU = {
 /** Profundidades: o véu fica acima do cenário e do jogador, abaixo do brilho neon e da HUD. */
 const PROF_CLIMA = 80;
 const PROF_VEU = 90;
+/** Névoa e pó ao fundo: acima das pilhas distantes, abaixo do chão (30). */
+const PROF_FUNDO = 22;
 
 /** Fonte de luz no mundo que fura a escuridão (LED ciano, faísca). */
 interface Luz {
@@ -80,6 +83,8 @@ export class ClimaLixao {
   private respingos!: Phaser.GameObjects.Particles.ParticleEmitter;
   private tintaChuva!: Phaser.GameObjects.Rectangle;
   private veu!: Phaser.GameObjects.RenderTexture;
+  /** Névoa leve de pó ao fundo, atrás do chão, das plataformas e do jogador. */
+  private nevoa!: Phaser.GameObjects.Rectangle;
   private acumuladoRespingo = 0;
 
   constructor(cena: Phaser.Scene) {
@@ -96,15 +101,15 @@ export class ClimaLixao {
         speedX: { min: -220, max: -120 },
         speedY: { min: -10, max: 20 },
         scale: { min: ESCALA, max: ESCALA * 2 },
-        alpha: { start: 0.7, end: 0 },
-        quantity: 4,
-        frequency: 40,
+        alpha: { start: 0.45, end: 0 },
+        quantity: 2,
+        frequency: 50,
         tint: [hexNum(COR.ceuPoeira), hexNum(COR.horizonte)],
         emitting: false,
       })
       .setScrollFactor(0)
-      // Por cima da névoa: o pó passa voando na frente de tudo
-      .setDepth(PROF_VEU + 2);
+      // Atrás do chão e das plataformas: o pó passa ao fundo e não esconde nada
+      .setDepth(PROF_FUNDO + 1);
     this.chuva = this.cena.add
       .particles(0, 0, 'lx-poeira', {
         x: { min: -100, max: LARGURA_TELA + 100 },
@@ -139,6 +144,12 @@ export class ClimaLixao {
       .setOrigin(0, 0)
       .setScrollFactor(0)
       .setDepth(PROF_CLIMA)
+      .setAlpha(0);
+    this.nevoa = this.cena.add
+      .rectangle(0, 0, LARGURA_TELA, ALTURA_TELA, hexNum(COR.tintaPo), 1)
+      .setOrigin(0, 0)
+      .setScrollFactor(0)
+      .setDepth(PROF_FUNDO)
       .setAlpha(0);
     this.veu = this.cena.add
       .renderTexture(0, 0, LARGURA_TELA, ALTURA_TELA)
@@ -179,9 +190,10 @@ export class ClimaLixao {
     this.poeira.emitting = poeira > 0.01;
     this.chuva.setAlpha(0.5 * chuva);
     this.chuva.emitting = chuva > 0.01;
-    this.tintaChuva.setAlpha(0.16 * chuva);
+    this.tintaChuva.setAlpha(0.05 * chuva);
+    this.nevoa.setAlpha(VEU.NEVOA_ALPHA * poeira);
     for (const poca of this.pocas) poca.setAlpha(0.8 * chuva);
-    this.veu.setVisible(poeira > 0.01 || noite > 0.01);
+    this.veu.setVisible(noite > 0.01);
   }
 
   /** A cada quadro: chão escorregadio, respingos e o véu furado em volta das luzes. */
@@ -219,16 +231,14 @@ export class ClimaLixao {
   }
 
   /**
-   * Véu de névoa ou de noite: cor e opacidade seguem a mistura dos dois, e a luz em volta do
-   * jogador tem 300 px na névoa e 140 px na noite. LEDs e faíscas só furam a noite.
+   * Véu leve da noite: escurece um pouco a tela e as luzes (jogador, LEDs, faíscas) o furam.
+   * A névoa não usa véu: é só a camada leve atrás do cenário.
    */
   private desenharVeu(jogador: JogadorLixao): void {
-    const { poeira, noite } = this.estado;
-    const peso = noite / Math.max(0.0001, poeira + noite);
-    const cor = misturar(COR.horizonte, COR.noiteRoxoEscuro, peso);
-    const alpha = Math.max(poeira * VEU.POEIRA_ALPHA, noite * VEU.NOITE_ALPHA);
-    // Só dois raios (um pincel cada): a luz troca de tamanho no meio da transição
-    const raio = peso < 0.5 ? VEU.RAIO_POEIRA : VEU.RAIO_NOITE;
+    const { noite } = this.estado;
+    const cor = hexNum(COR.noiteRoxoEscuro);
+    const alpha = noite * VEU.NOITE_ALPHA;
+    const raio = VEU.RAIO_NOITE;
     const cam = this.cena.cameras.main;
 
     this.veu.clear().fill(cor, alpha);
@@ -286,13 +296,6 @@ export class ClimaLixao {
     poca('lx-poca', 14);
     poca('lx-poca-larga', 20);
     // Pincéis usados pelo véu, gerados antes para não travar o primeiro quadro escuro
-    [VEU.RAIO_POEIRA, VEU.RAIO_NOITE, VEU.RAIO_LED, VEU.RAIO_FAISCA].forEach((r) => this.pincel(r));
+    [VEU.RAIO_NOITE, VEU.RAIO_LED, VEU.RAIO_FAISCA].forEach((r) => this.pincel(r));
   }
-}
-
-function misturar(a: string, b: string, t: number): number {
-  const [ar, ag, ab] = hexRgb(a);
-  const [br, bg, bb] = hexRgb(b);
-  const c = (x: number, y: number) => Math.round(x + (y - x) * t);
-  return (c(ar, br) << 16) | (c(ag, bg) << 8) | c(ab, bb);
 }

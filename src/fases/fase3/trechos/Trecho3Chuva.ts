@@ -19,7 +19,7 @@ export class Trecho3Chuva extends TrechoLixao {
   };
   protected readonly semente = 404;
   protected override readonly buracos = [
-    [900, 160],
+    [760, 160],
     [2200, 160],
     [3700, 160],
     [4100, 160],
@@ -47,8 +47,10 @@ export class Trecho3Chuva extends TrechoLixao {
     // Reta de 900 px: o jogador sente o escorregão antes do primeiro buraco
     // [DRONE] 600: drone soltando faíscas na chuva, em voo baixo
 
-    // Depois do buraco (900, 160 px), blocos baixos espaçados: frear antes ou pular por cima
-    this.bloco('bloco-1', 1500, 48);
+    // Depois do buraco (760, 160 px), subida com retorno: muro alto em 1440, viga baixa
+    // (1248), volta à viga alta (1024) e pula de volta sobre o muro. Escorregar na viga pesa.
+    this.zigueZague('zz', 1440);
+    // Bloco baixo: frear antes ou pular por cima
     this.bloco('bloco-2', 1900, 48);
     // [QUEDA DE LIXO] 1700: entre os blocos, onde parar escorregando é difícil
     // [RECICLA] 1590 a 1880: recolhe a sucata molhada entre os blocos
@@ -56,8 +58,8 @@ export class Trecho3Chuva extends TrechoLixao {
     // Buraco (2200, 160 px) e o terminal logo depois
     // Exercício em 2560; portão de sucata em 2720 que sobe ao resolver
 
-    // Reta longa com cano baixo: abaixar escorregando
-    this.passagemBaixa('cano', 3100, 320);
+    // Cano baixo curto no meio da reta: abaixar escorregando
+    this.passagemBaixa('cano', 3100);
     // [DRONE] 2900: drone soltando faíscas logo antes do cano
     // [QUEDA DE LIXO] 3550: pilha desabando antes dos buracos
 
