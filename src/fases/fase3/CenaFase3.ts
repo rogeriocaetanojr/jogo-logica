@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { CenaBase } from '../../compartilhado/CenaBase';
 import type { ResultadoComando } from '../../compartilhado/tipos';
-import { interpretarComandoFase3 } from './InterpretadorFase3';
+import { ACAO_LINHA_PARCIAL, ACAO_RESOLVER, interpretarComandoFase3 } from './InterpretadorFase3';
 import { PROF } from './trechos/TrechoLixao';
 import type { TrechoLixao } from './trechos/TrechoLixao';
 import { CenarioLixao } from './trechos/CenarioLixao';
@@ -10,11 +10,14 @@ import { ArremessoLixao, gerarTexturasReciclaveis } from './lixao/ArremessoLixao
 import { COR, gerarTexturasLixao } from './lixao/ArteLixao';
 import { DronesLixao } from './lixao/DronesLixao';
 import { CLIMAS } from './lixao/ClimaLixao';
+import { EXERCICIOS, LIMPEZA_POR_EXERCICIO } from './lixao/ExerciciosLixao';
+import type { ContextoExercicio } from './lixao/ExerciciosLixao';
 import { HudLixao } from './lixao/HudLixao';
+import { SomLixao } from './lixao/SomLixao';
 import { JogadorLixao } from './lixao/JogadorLixao';
 import { QuedasLixao } from './lixao/QuedasLixao';
 import { RoboLixao } from './lixao/RoboLixao';
-import { ALTURA_TELA, CHAO_Y, DEBUG, FADE_MORTE_MS, LARGURA_TELA, TRECHOS } from './lixao/TiposLixao';
+import { ALTURA_TELA, CHAO_Y, DEBUG, FADE_MORTE_MS, TRECHOS } from './lixao/TiposLixao';
 
 /** Distância horizontal para interagir com o ponto de exercício. */
 const ALCANCE_INTERACAO = 80;
@@ -22,6 +25,10 @@ const ALCANCE_INTERACAO = 80;
 const MARGEM_FIM = 80;
 /** Abaixo da tela, a distância em que cair num buraco mata. */
 const QUEDA_FATAL = 120;
+/** Tempo em que o aviso "Checkpoint salvo" fica na tela. */
+const AVISO_CHECKPOINT_MS = 2000;
+/** Depois de acertar, o terminal fecha sozinho para o jogador ver o obstáculo abrir. */
+const FECHAR_APOS_ACERTO_MS = 700;
 
 /**
  * CenaFase3: LIXÃO ELETRÔNICO.
@@ -52,15 +59,20 @@ export class CenaFase3 extends CenaBase {
    */
   public checkpoint = { x: 0, trecho: 0 };
   private hud!: HudLixao;
+  private som!: SomLixao;
 
   private indiceTrecho = 0;
   /** Depuração: posição em CLIMAS do clima forçado pela tecla C; -1 segue o trecho. */
   private climaForcado = -1;
   /** Trecho cujo terminal está aberto, que recebe o resultado dos comandos. */
   private trechoTerminal?: TrechoLixao;
+  /** Estado da sessão do terminal aberto: exercício e linha pendente (ver ExerciciosLixao). */
+  private contextoTerminal?: ContextoExercicio;
+  /** Trechos cujo ponto de exercício já virou checkpoint (o aviso só aparece uma vez cada). */
+  private checkpointsAtivados = new Set<number>();
+  private exerciciosResolvidos = 0;
   private teclas!: Record<string, Phaser.Input.Keyboard.Key>;
   private textoPrompt!: Phaser.GameObjects.Text;
-  private textoClima!: Phaser.GameObjects.Text;
   private fisicaPausada = false;
   private concluindo = false;
   private morrendo = false;
@@ -73,6 +85,9 @@ export class CenaFase3 extends CenaBase {
     this.indiceTrecho = 0;
     this.climaForcado = -1;
     this.trechoTerminal = undefined;
+    this.contextoTerminal = undefined;
+    this.checkpointsAtivados = new Set();
+    this.exerciciosResolvidos = 0;
     this.fisicaPausada = false;
     this.concluindo = false;
     this.morrendo = false;
@@ -123,19 +138,9 @@ export class CenaFase3 extends CenaBase {
       .setVisible(false);
 
     this.criarHUDSuperior('LIXÃO ELETRÔNICO');
-    this.textoClima = this.add
-      .text(LARGURA_TELA - 20, 16, '', {
-        fontFamily: 'Consolas, "Courier New", monospace',
-        fontSize: '13px',
-        color: COR.ceuPoeiraClaro,
-        backgroundColor: COR.contorno,
-        padding: { x: 8, y: 4 },
-      })
-      .setOrigin(1, 0)
-      .setScrollFactor(0)
-      .setDepth(9998);
-    this.atualizarTextoClima();
+    this.som = new SomLixao(this);
     this.hud = new HudLixao(this);
+    this.atualizarTextoClima();
     this.hud.atualizarVida(this.jogador.vida);
     this.arremesso.aoMudarItem = (tipo) => this.hud.atualizarItem(tipo);
     this.criarEfeitoCRT(this.scale.width, this.scale.height, 0.02);
@@ -179,17 +184,42 @@ export class CenaFase3 extends CenaBase {
         this.terminal.limpar();
         return;
       }
-      if (resultado.acao === 'RESOLVER_EXERCICIO') this.trechoTerminal?.resolverExercicio();
+      if (resultado.acao === ACAO_LINHA_PARCIAL && this.contextoTerminal) {
+        this.contextoTerminal.linhaPendente = String(resultado.valor ?? '');
+        return;
+      }
+      if (resultado.acao === ACAO_RESOLVER) this.resolverExercicioAberto();
     });
   }
 
+  /** Abre o terminal do trecho com o enunciado do exercício dele no topo. */
   private abrirTerminal(trecho: TrechoLixao): void {
+    const indice = this.trechos.indexOf(trecho);
+    const exercicio = EXERCICIOS[indice];
     this.trechoTerminal = trecho;
+    this.contextoTerminal = { exercicio: indice, linhaPendente: '', resolvido: trecho.exercicioResolvido };
     this.terminal.abrir({
-      titulo: 'LIXÃO // TERMINAL',
+      titulo: `LIXÃO // TERMINAL ${indice + 1}`,
+      contexto: this.contextoTerminal,
       linhasIniciais: trecho.exercicioResolvido
         ? ['Exercício deste trecho já resolvido. O caminho está livre.']
-        : ['Exercício ainda não definido. Digite "ok" para liberar a passagem.', 'Digite "ajuda" para ver os comandos.'],
+        : exercicio
+          ? [...exercicio.enunciado]
+          : ['Este terminal não tem exercício instalado.'],
+    });
+  }
+
+  /** Acerto no terminal: libera o obstáculo, sobe o medidor, bipa e fecha o terminal. */
+  private resolverExercicioAberto(): void {
+    const trecho = this.trechoTerminal;
+    if (!trecho || trecho.exercicioResolvido) return;
+    trecho.resolverExercicio();
+    if (this.contextoTerminal) this.contextoTerminal.resolvido = true;
+    this.exerciciosResolvidos++;
+    this.hud.atualizarLimpo(this.exerciciosResolvidos * LIMPEZA_POR_EXERCICIO);
+    this.som.bipesAcerto();
+    this.time.delayedCall(FECHAR_APOS_ACERTO_MS, () => {
+      if (this.trechoTerminal === trecho) this.terminal.fecharForcado();
     });
   }
 
@@ -289,7 +319,7 @@ export class CenaFase3 extends CenaBase {
   }
 
   private atualizarTextoClima(): void {
-    this.textoClima.setText(TRECHOS[this.indiceTrecho].rotuloClima);
+    this.hud.atualizarClima(TRECHOS[this.indiceTrecho].clima);
   }
 
   private atualizarInteracoes(): void {
@@ -300,8 +330,13 @@ export class CenaFase3 extends CenaBase {
 
     this.textoPrompt.setVisible(pertoExercicio);
     if (xExercicio !== null && pertoExercicio) {
-      // Provisório: encostar no terminal ativa o checkpoint (na T1 passa a ser ao abrir o terminal)
-      this.checkpoint = { x: xExercicio, trecho: this.indiceTrecho };
+      // Chegar ao terminal salva o checkpoint nele, com aviso só na primeira vez
+      if (!this.checkpointsAtivados.has(this.indiceTrecho)) {
+        this.checkpointsAtivados.add(this.indiceTrecho);
+        this.checkpoint = { x: xExercicio, trecho: this.indiceTrecho };
+        this.hud.mostrarAviso('Checkpoint salvo', AVISO_CHECKPOINT_MS);
+        this.som.bipesCheckpoint();
+      }
       this.textoPrompt.setPosition(xExercicio, CHAO_Y - 100).setText('[E] Terminal');
       if (Phaser.Input.Keyboard.JustDown(this.teclas.E)) this.abrirTerminal(trecho);
     }
@@ -311,13 +346,17 @@ export class CenaFase3 extends CenaBase {
   }
 
   private atualizarAtalhosDebug(): void {
-    if (Phaser.Input.Keyboard.JustDown(this.teclas.LIBERAR)) this.trechos[this.indiceTrecho].resolverExercicio();
+    if (Phaser.Input.Keyboard.JustDown(this.teclas.LIBERAR)) {
+      this.trechoTerminal = this.trechos[this.indiceTrecho];
+      this.resolverExercicioAberto();
+    }
     if (Phaser.Input.Keyboard.JustDown(this.teclas.RECICLA)) this.recicla.trazerAteJogador(this.indiceTrecho);
     if (Phaser.Input.Keyboard.JustDown(this.teclas.CLIMA)) {
       this.climaForcado = this.climaForcado + 1 < CLIMAS.length ? this.climaForcado + 1 : -1;
       const clima = this.climaForcado >= 0 ? CLIMAS[this.climaForcado] : null;
       this.cenario.forcarClima(clima);
-      this.textoClima.setText(clima ? `DEBUG ${clima.toUpperCase()}` : TRECHOS[this.indiceTrecho].rotuloClima);
+      if (clima) this.hud.atualizarClima(clima, `DEBUG ${clima.toUpperCase()}`);
+      else this.atualizarTextoClima();
     }
     for (let i = 0; i < this.trechos.length; i++) {
       const tecla = this.teclas[`TRECHO${i}`];
