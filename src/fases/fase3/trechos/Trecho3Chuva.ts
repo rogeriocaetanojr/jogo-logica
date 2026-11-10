@@ -6,9 +6,9 @@ import type { TemaTrecho } from './TrechoLixao';
 
 /**
  * Trecho 3: Pilhas Encharcadas. Chuva e chão escorregadio: combina tudo.
- * Choques em poças, ímãs sobre buracos e poças, torre do exercício com frágeis, esteira e ímã
- * (o acerto abre o portão da passarela no alto), torre de retorno e botão-alvo com choque na
- * área de arremesso. Level design em LayoutLixao.
+ * Choques em poças, ímãs sobre buracos e poças, torre do exercício em corridas curtas com ímãs
+ * (o acerto abre o portão da passarela no alto), duas alavancas em sequência sobre poças com
+ * choque e um fosso com ímã na saída. Level design em LayoutLixao.
  */
 export class Trecho3Chuva extends TrechoLixao {
   public readonly tema: TemaTrecho = {

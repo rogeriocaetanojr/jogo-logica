@@ -39,6 +39,8 @@ export const MECANISMO = {
   /** Elevador: espera antes de partir e velocidade (px/s). */
   ELEVADOR_ESPERA_MS: 350,
   ELEVADOR_VELOCIDADE: 260,
+  /** Distância do poço em que quem espera no patamar de cima chama o elevador. */
+  ELEVADOR_CHAMADA: 320,
 } as const;
 
 interface Prensa {
@@ -729,6 +731,16 @@ export class MecanismosLixao {
       const emCima = this.emCima(el.x, el.w, el.y);
       const sobre = c.right > el.x && c.left < el.x + el.w;
       if (el.sentido === 0) {
+        // Parado embaixo com o jogador esperando no patamar de cima (por exemplo depois de
+        // renascer no terminal): sobe para buscar, para ninguém precisar pular lá de cima
+        const noChao = c.blocked.down || c.touching.down;
+        const esperandoNoAlto =
+          noChao && Math.abs(c.bottom - el.yAlto) <= 4 && c.right > el.x - M.ELEVADOR_CHAMADA && c.left < el.x + el.w + M.ELEVADOR_CHAMADA;
+        if (el.y >= el.yBaixo && esperandoNoAlto && !emCima) {
+          el.sentido = -1;
+          el.liberado = true;
+          continue;
+        }
         if (!emCima) {
           // Só parte de novo depois que o jogador sair de cima dele (não basta estar no ar)
           if (!sobre) el.liberado = true;

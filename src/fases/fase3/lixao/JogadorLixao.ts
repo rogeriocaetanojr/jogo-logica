@@ -1,28 +1,14 @@
 import Phaser from 'phaser';
 import { GerenciadorEstado, type TipoPersonagem } from '../../../nucleo/GerenciadorEstado';
-import { DANO, VIDA_MAXIMA } from './TiposLixao';
+import { DANO, MOVIMENTO_LIXAO, VIDA_MAXIMA } from './TiposLixao';
+
+export { MOVIMENTO_LIXAO };
 
 /**
  * Parâmetros de movimento do jogador no lixão (px/s e px/s²). Cada jogador guarda uma cópia
  * em `parametros`, para o clima (por exemplo a chuva na frenagem) poder alterá-la por trecho.
+ * Os valores ficam em TiposLixao (MOVIMENTO_LIXAO).
  */
-export const MOVIMENTO_LIXAO = {
-  VELOCIDADE: 240,
-  VELOCIDADE_ABAIXADO: 110,
-  ACELERACAO_CHAO: 2400,
-  ACELERACAO_AR: 1600,
-  FRENAGEM_CHAO: 2800,
-  FRENAGEM_AR: 1000,
-  /** Velocidade vertical inicial do pulo (negativa sobe). */
-  IMPULSO_PULO: -520,
-  /** Gravidade somada ao soltar o pulo ainda subindo: soltar cedo dá um pulo curto. */
-  GRAVIDADE_PULO_CURTO: 1500,
-  /** Janela para pular logo depois de sair de uma beirada. */
-  TEMPO_COYOTE_MS: 110,
-  /** Janela em que um pulo apertado antes de tocar o chão ainda vale. */
-  TEMPO_BUFFER_PULO_MS: 110,
-} as const;
-
 export type ParametrosMovimento = { -readonly [K in keyof typeof MOVIMENTO_LIXAO]: number };
 
 /** Hitbox em pé (na escala do quadro de 128x128) e achatamento visual ao abaixar. */

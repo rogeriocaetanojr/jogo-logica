@@ -7,6 +7,11 @@ import type { TipoReciclavel } from '../lixao/TiposLixao';
  *
  * Alcance do pulo (MOVIMENTO_LIXAO, gravidade 600): 225 px de altura e 416 px no mesmo nível.
  * Regras usadas aqui, com margem: degrau de até 152 px com vão de até 120 px entre bordas.
+ * O caminho obrigatório nunca pede queda maior que QUEDA_SEGURA nem tomar dano: quem desce de
+ * uma torre usa os degraus ou um elevador. scripts/verificarAlcanceFase3.ts confere tudo isso.
+ *
+ * Cada trecho tem puzzles próprios (nada de torre ou portão copiado de outro trecho):
+ * sol com esteiras e prensas, névoa com frágeis e guindastes, chuva com choques e ímãs.
  *
  * Nada de paredão: nenhuma estrutura sólida passa de 3 blocos (192 px). Portões, passagens
  * baixas e o obstáculo do exercício têm espinhos de perigo no topo (ver ALTURA_BARREIRA), o
@@ -17,6 +22,11 @@ import type { TipoReciclavel } from '../lixao/TiposLixao';
 export const ALTURA_BARREIRA = 192;
 /** Altura dos espinhos de perigo sobre a barreira: o total passa do pulo máximo (225 px). */
 export const ALTURA_ESPINHOS = 40;
+/**
+ * Maior queda que o caminho obrigatório pode pedir (px). Quedas maiores só acontecem por erro
+ * do jogador (cair de uma torre), nunca como único caminho.
+ */
+export const QUEDA_SEGURA = 400;
 
 export type Elemento =
   | { tipo: 'viga'; x: number; alt: number; w: number }
@@ -38,7 +48,10 @@ export type Elemento =
   | { tipo: 'botao'; x: number; alt: number; alvo: string }
   /** Ponte que aparece quando o alvo é ativado. */
   | { tipo: 'ponte'; id: string; x: number; alt: number; w: number }
-  /** Elevador de sucata entre o chão e `alt`: anda para a outra ponta quando o jogador sobe nele. */
+  /**
+   * Elevador de sucata entre o chão e `alt`: anda para a outra ponta quando o jogador sobe
+   * nele e é chamado de volta ao alto por quem espera no patamar.
+   */
   | { tipo: 'elevador'; x: number; alt: number; w: number }
   /** Checkpoint extra; `ordem` só cresce ao longo da fase (ver CenaFase3). */
   | { tipo: 'checkpoint'; x: number; alt: number; ordem: number }
@@ -74,17 +87,21 @@ export interface LayoutTrecho {
   reciclaveis: readonly (readonly [number, TipoReciclavel])[];
   /** Faixa de patrulha do Recicla, em chão plano. */
   patrulhaRecicla: readonly [number, number];
+  /** Faixa x de cada puzzle do trecho (o verificador confere que nenhum se repete). */
+  puzzles: readonly { nome: string; de: number; ate: number }[];
 }
 
 /** Plataforma de torre: largura padrão e distância entre centros de degraus vizinhos. */
 export const TORRE = { LARGURA: 112, PASSO_X: 200 } as const;
 
 /** Tipo especial de um degrau da torre, pelo índice. */
-type Especial = 'fragil' | { esteira: number };
+type Especial = 'fragil' | 'prensa' | 'guindaste' | { esteira: number };
 
 /**
  * Torre em zigue-zague: corridas de degraus que sobem para um lado e depois voltam, cada
- * degrau `passo` acima do anterior e a 200 px de centro a centro (vão de 88 px).
+ * degrau `passo` acima do anterior e a 200 px de centro a centro (vão de 88 px). Ao virar, o
+ * primeiro degrau da nova corrida fica uma coluna de volta, dois passos acima de um já pisado.
+ * Cada trecho usa corridas, passo e especiais diferentes.
  */
 function torre(
   x0: number,
@@ -98,8 +115,6 @@ function torre(
   let primeira = true;
   for (const [dir, n] of corridas) {
     for (let i = 0; i < n; i++) {
-      // Cada degrau anda uma coluna no sentido da corrida; ao virar, o primeiro degrau da
-      // nova corrida fica uma coluna de volta, dois degraus acima de um já pisado
       if (!(primeira && i === 0)) {
         x += dir * TORRE.PASSO_X;
         alt += passo;
@@ -108,11 +123,16 @@ function torre(
     }
     primeira = false;
   }
-  const elementos: Elemento[] = degraus.map(({ x: dx, alt: a }, i) => {
+  const L = TORRE.LARGURA;
+  const elementos: Elemento[] = degraus.flatMap(({ x: dx, alt: a }, i): Elemento[] => {
     const esp = especiais[i];
-    if (esp === 'fragil') return { tipo: 'fragil', x: dx, alt: a, w: TORRE.LARGURA };
-    if (esp) return { tipo: 'esteira', x: dx, alt: a, w: TORRE.LARGURA, v: esp.esteira };
-    return { tipo: 'viga', x: dx, alt: a, w: TORRE.LARGURA };
+    if (esp === 'fragil') return [{ tipo: 'fragil', x: dx, alt: a, w: L }];
+    // Prensa batendo sobre o degrau: subir no intervalo
+    if (esp === 'prensa') return [{ tipo: 'viga', x: dx, alt: a, w: L }, { tipo: 'prensa', x: dx + 8, w: 96, alt: a, atraso: i * 300 }];
+    // Guindaste curto no lugar do degrau, indo e voltando 40 px para cada lado
+    if (esp === 'guindaste') return [{ tipo: 'guindaste', x: dx - 40, ate: dx + 40, alt: a, w: L, v: 40 }];
+    if (esp) return [{ tipo: 'esteira', x: dx, alt: a, w: L, v: esp.esteira }];
+    return [{ tipo: 'viga', x: dx, alt: a, w: L }];
   });
   return { elementos, topo: degraus[degraus.length - 1], degraus };
 }
@@ -123,34 +143,31 @@ const LARGURA_TERMINAL = 320;
 const VAO_EXERCICIO = 576;
 /**
  * Patamar depois do obstáculo e elevador que desce ao chão. O patamar é largo para o fosso
- * embaixo passar do planeio de quem pula do terminal (cerca de 820 px a 1670 px de altura).
+ * embaixo passar do planeio de quem pula do terminal.
  */
 const PATAMAR = 480;
 const ELEVADOR = 128;
 
 /**
- * Torre do exercício: sobe em zigue-zague (direita, esquerda, direita) até a plataforma larga
- * do terminal, no ponto mais alto do trecho. À frente, no mesmo nível, o obstáculo do
- * exercício; depois dele um patamar e um elevador que desce ao chão. Embaixo, um fosso largo
- * do pé da torre até o elevador: o único caminho é por cima.
- *
- * Devolve os elementos, o exercício e o fosso (para a lista de buracos).
+ * Topo do exercício sobre uma torre já montada (a última corrida precisa subir para a
+ * direita): o último degrau vira a plataforma larga do terminal; à frente, no mesmo nível,
+ * o obstáculo do exercício, o patamar e o elevador que desce até o chão firme. Embaixo, um
+ * fosso do pé da torre até o elevador: o único caminho é por cima. Logo depois do elevador
+ * fica um checkpoint no chão, para quem morrer ali não renascer no alto.
  */
-function torreExercicio(
-  x0: number,
-  passo: number,
+function topoExercicio(
+  t: ReturnType<typeof torre>,
   obstaculo: ObstaculoExercicio,
-  especiais: Record<number, Especial> = {}
+  indiceMeio: number
 ): { elementos: Elemento[]; exercicio: ExercicioLayout; fosso: readonly [number, number]; fimElevador: number } {
-  const t = torre(x0, [[1, 3], [-1, 4], [1, 4]], passo, especiais);
-  // O último degrau vira a plataforma larga do terminal
   const degraus = t.elementos.slice(0, -1);
   const alt = t.topo.alt;
   const xPlataforma = t.topo.x;
   const fimPlataforma = xPlataforma + LARGURA_TERMINAL;
   const xPatamar = fimPlataforma + VAO_EXERCICIO;
   const xElevador = xPatamar + PATAMAR;
-  const meio = t.degraus[6];
+  const fimElevador = xElevador + ELEVADOR;
+  const meio = t.degraus[indiceMeio];
   const elementos: Elemento[] = [
     ...degraus,
     { tipo: 'viga', x: xPlataforma, alt, w: LARGURA_TERMINAL },
@@ -162,7 +179,11 @@ function torreExercicio(
   } else {
     elementos.push({ tipo: 'viga', x: xPatamar, alt, w: PATAMAR });
   }
-  elementos.push({ tipo: 'elevador', x: xElevador, alt, w: ELEVADOR });
+  elementos.push(
+    { tipo: 'elevador', x: xElevador, alt, w: ELEVADOR },
+    // Chão firme ao lado do elevador embaixo: o jogador desce e segue andando
+    { tipo: 'checkpoint', x: fimElevador + 80, alt: 0, ordem: 60 }
+  );
   return {
     elementos,
     exercicio: {
@@ -171,35 +192,11 @@ function torreExercicio(
       obstaculo,
       xObstaculo: fimPlataforma,
       largura: obstaculo === 'portao' ? 64 : VAO_EXERCICIO,
-      xChaoSeguinte: xElevador + ELEVADOR + 60,
+      xChaoSeguinte: fimElevador + 60,
     },
-    // Fosso do pé da torre (40 px antes do fim da plataforma) até o início do elevador
     fosso: [fimPlataforma - 40, xElevador - (fimPlataforma - 40)],
-    fimElevador: xElevador + ELEVADOR,
+    fimElevador,
   };
-}
-
-/**
- * Distância do degrau mais à direita da torre de retorno até o portão: mais que o planeio de
- * quem pula do degrau mais alto daquele lado (cerca de 630 px), para o portão pequeno não
- * poder ser pulado de cima.
- */
-const AFASTAMENTO_PORTAO = 700;
-
-/**
- * Torre de retorno: o caminho à direita está fechado por um portão pequeno; a torre sobe para a
- * esquerda (esquerda, direita, esquerda) até a alavanca no alto, que abre o portão lá embaixo.
- */
-function torreRetorno(x0: number, passo: number, portao: string, especiais: Record<number, Especial> = {}): Elemento[] {
-  const t = torre(x0, [[-1, 3], [1, 3], [-1, 5]], passo, especiais);
-  const meio = t.degraus[6];
-  const maisDireita = Math.max(...t.degraus.map((d) => d.x)) + TORRE.LARGURA;
-  return [
-    ...t.elementos,
-    { tipo: 'portao', id: portao, x: maisDireita + AFASTAMENTO_PORTAO },
-    { tipo: 'alavanca', x: t.topo.x + 24, alt: t.topo.alt, alvo: portao },
-    { tipo: 'checkpoint', x: meio.x + TORRE.LARGURA / 2, alt: meio.alt, ordem: 70 },
-  ];
 }
 
 /** Largura dos trechos 1 a 3. */
@@ -209,11 +206,16 @@ const LARGURA_TRECHO = 7040;
  * TRECHO 1: SOL (ensina esteiras e prensas)
  * ========================================================================= */
 
-const solExercicio = torreExercicio(1800, 136, 'vao', { 1: { esteira: -50 }, 5: { esteira: 50 } });
+/** Torre de 10 degraus de 150 px (4 para a direita, 3 de volta, 3 para a direita) com esteiras e uma prensa. */
+const solExercicio = topoExercicio(
+  torre(1800, [[1, 4], [-1, 3], [1, 3]], 150, { 1: { esteira: -50 }, 3: 'prensa', 6: { esteira: 50 } }),
+  'vao',
+  5
+);
 
 const SOL: LayoutTrecho = {
   largura: LARGURA_TRECHO,
-  buracos: [solExercicio.fosso, [6060, 576]],
+  buracos: [solExercicio.fosso, [6400, 448]],
   exercicio: solExercicio.exercicio,
   elementos: [
     // Esteiras no chão: a primeira ajuda, a segunda empurra contra o avanço
@@ -225,46 +227,61 @@ const SOL: LayoutTrecho = {
     { tipo: 'prensa', x: 1360, w: 96, alt: 0, atraso: 1740 },
     // Torre do exercício: terminal no alto, ponte sobre o vão e elevador para descer
     ...solExercicio.elementos,
-    { tipo: 'baixa', x: 3800 },
-    // Torre de retorno pela alavanca; esteiras nos degraus
-    ...torreRetorno(4750, 136, 'portao-sol', { 4: { esteira: 50 }, 8: { esteira: -50 } }),
-    // Antes do portão: prensa e esteira contra o avanço juntas
-    { tipo: 'prensa', x: 5340, w: 96, alt: 0, atraso: 400 },
-    { tipo: 'esteira', x: 5100, alt: 24, w: 160, v: -60 },
+    // Alavanca na esteira suspensa: dois degraus baixos, esteira contra o avanço com duas
+    // prensas em cima e a alavanca no fim. Para voltar: os degraus ou uma queda de 384 px
+    { tipo: 'viga', x: 4400, alt: 128, w: 112 },
+    { tipo: 'viga', x: 4600, alt: 256, w: 112 },
+    { tipo: 'esteira', x: 4800, alt: 384, w: 480, v: -60 },
+    { tipo: 'prensa', x: 4920, w: 96, alt: 384, atraso: 0 },
+    { tipo: 'prensa', x: 5110, w: 96, alt: 384, atraso: 1300 },
+    { tipo: 'alavanca', x: 5240, alt: 384, alvo: 'portao-sol' },
+    // Longe da esteira: quem pula lá de cima não alcança o topo do portão
+    { tipo: 'portao', id: 'portao-sol', x: 5900 },
+    { tipo: 'baixa', x: 6100 },
     // Botão-alvo pendurado sobre o fosso: acertar um reciclável estende a ponte
-    { tipo: 'ponte', id: 'ponte-sol', x: 6060, alt: 0, w: 576 },
-    { tipo: 'botao', x: 6350, alt: 420, alvo: 'ponte-sol' },
-    { tipo: 'prensa', x: 6820, w: 96, alt: 0, atraso: 0 },
+    { tipo: 'ponte', id: 'ponte-sol', x: 6400, alt: 0, w: 448 },
+    { tipo: 'botao', x: 6624, alt: 420, alvo: 'ponte-sol' },
+    { tipo: 'prensa', x: 6900, w: 96, alt: 0, atraso: 0 },
   ],
   drones: [
     [1700, 1100],
-    [4450, 1250],
+    [5000, 750],
   ],
   quedas: [
     [1600, 1300],
-    [4400, 1300],
+    [4700, 600],
     [5600, 0],
   ],
   reciclaveis: [
     [600, 'placa'],
     [960, 'lata'],
     [1600, 'monitor'],
-    [4050, 'bateria'],
-    [5900, 'lata'],
-    [5960, 'placa'],
+    [4100, 'bateria'],
+    [6280, 'lata'],
+    [6330, 'placa'],
   ],
-  patrulhaRecicla: [4000, 4200],
+  patrulhaRecicla: [4000, 4300],
+  puzzles: [
+    { nome: 'sol: torre de esteiras e prensa', de: 1800, ate: solExercicio.fimElevador },
+    { nome: 'sol: alavanca na esteira com prensas', de: 4400, ate: 5964 },
+    { nome: 'sol: botão-alvo e ponte', de: 6400, ate: 6996 },
+  ],
 };
 
 /* =========================================================================
  * TRECHO 2: NÉVOA (complica: plataformas frágeis e guindastes)
  * ========================================================================= */
 
-const nevoaExercicio = torreExercicio(1800, 144, 'plataforma', { 2: 'fragil', 5: 'fragil', 8: 'fragil' });
+/** Torre de 12 degraus de 128 px (2 para a direita, 5 de volta, 5 para a direita) com frágeis e guindastes. */
+const nevoaExercicio = topoExercicio(
+  torre(2500, [[1, 2], [-1, 5], [1, 5]], 128, { 1: 'guindaste', 3: 'fragil', 6: 'guindaste', 8: 'fragil', 10: 'fragil' }),
+  'plataforma',
+  7
+);
 
 const NEVOA: LayoutTrecho = {
   largura: LARGURA_TRECHO,
-  buracos: [[380, 520], [1050, 450], nevoaExercicio.fosso, [6250, 480]],
+  buracos: [[380, 520], [1050, 450], nevoaExercicio.fosso, [6620, 320]],
   exercicio: nevoaExercicio.exercicio,
   elementos: [
     // Frágeis sobre o primeiro fosso: tremem e caem 0,5 s depois de pisar
@@ -273,47 +290,59 @@ const NEVOA: LayoutTrecho = {
     { tipo: 'fragil', x: 770, alt: 40, w: 96 },
     // Plataforma de guindaste atravessando o segundo fosso
     { tipo: 'guindaste', x: 1060, ate: 1340, alt: 40, w: 128, v: 80 },
-    // Torre do exercício com degraus frágeis: o acerto desce uma plataforma sobre o vão
+    { tipo: 'baixa', x: 1560 },
+    // Torre do exercício: o acerto desce uma plataforma sobre o vão
     ...nevoaExercicio.elementos,
-    { tipo: 'baixa', x: 3800 },
-    // Torre de retorno pela alavanca, com frágeis
-    ...torreRetorno(4750, 144, 'portao-nevoa', { 1: 'fragil', 4: 'fragil', 8: 'fragil' }),
-    // Portão com botão-alvo pendurado no alto: só abre com um reciclável certeiro
-    { tipo: 'portao', id: 'portao-alvo-nevoa', x: 6000 },
-    { tipo: 'botao', x: 6032, alt: 420, alvo: 'portao-alvo-nevoa' },
+    // Ilha da alavanca: duas frágeis em escada e um guindaste até a ilha. Para voltar: o
+    // guindaste e as frágeis (que voltam em 3 s) ou uma queda de 352 px
+    { tipo: 'fragil', x: 4700, alt: 128, w: 96 },
+    { tipo: 'fragil', x: 4880, alt: 256, w: 96 },
+    { tipo: 'guindaste', x: 5060, ate: 5300, alt: 320, w: 128, v: 70 },
+    { tipo: 'viga', x: 5520, alt: 352, w: 160 },
+    { tipo: 'alavanca', x: 5600, alt: 352, alvo: 'portao-nevoa' },
+    { tipo: 'portao', id: 'portao-nevoa', x: 6200 },
+    // Segundo portão, aberto por um botão-alvo pendurado no alto
+    { tipo: 'portao', id: 'portao-alvo-nevoa', x: 6450 },
+    { tipo: 'botao', x: 6482, alt: 420, alvo: 'portao-alvo-nevoa' },
     // Saída: guindaste sobre um fosso
-    { tipo: 'guindaste', x: 6260, ate: 6590, alt: 40, w: 128, v: 90 },
+    { tipo: 'guindaste', x: 6630, ate: 6810, alt: 40, w: 128, v: 90 },
   ],
   drones: [
-    [1650, 1150],
-    [2100, 600],
-    [4450, 1300],
-    [4700, 500],
+    [2100, 1150],
+    [2500, 600],
+    [5000, 800],
+    [5300, 500],
   ],
   quedas: [
-    [1700, 1350],
-    [4400, 1350],
-    [5600, 0],
+    [2300, 1350],
+    [5000, 0],
+    [6000, 0],
   ],
   reciclaveis: [
     [300, 'placa'],
     [975, 'lata'],
-    [4050, 'bateria'],
-    [5880, 'lata'],
-    [5930, 'monitor'],
+    [4500, 'bateria'],
+    [6340, 'lata'],
+    [6380, 'monitor'],
   ],
-  patrulhaRecicla: [4000, 4200],
+  patrulhaRecicla: [4350, 4600],
+  puzzles: [
+    { nome: 'névoa: torre de frágeis e guindastes', de: 1700, ate: nevoaExercicio.fimElevador },
+    { nome: 'névoa: ilha da alavanca pelo guindaste', de: 4700, ate: 6264 },
+    { nome: 'névoa: portão do botão-alvo e guindaste', de: 6450, ate: 6940 },
+  ],
 };
 
 /* =========================================================================
- * TRECHO 3: CHUVA (combina: choque, ímãs, chão escorregadio e tudo o que veio antes)
+ * TRECHO 3: CHUVA (combina: choques, ímãs e chão escorregadio)
  * ========================================================================= */
 
-const chuvaExercicio = torreExercicio(1800, 152, 'portao', { 2: 'fragil', 4: { esteira: -60 }, 8: 'fragil' });
+/** Torre de 13 degraus de 136 px em cinco corridas curtas, com ímãs puxando dos lados. */
+const chuvaExercicio = topoExercicio(torre(2000, [[1, 3], [-1, 2], [1, 3], [-1, 2], [1, 3]], 136), 'portao', 6);
 
 const CHUVA: LayoutTrecho = {
   largura: LARGURA_TRECHO,
-  buracos: [[1000, 160], chuvaExercicio.fosso, [6060, 576]],
+  buracos: [[1000, 160], chuvaExercicio.fosso, [6800, 200]],
   exercicio: chuvaExercicio.exercicio,
   elementos: [
     // Cabos desencapados em poças: aviso piscando antes do choque
@@ -324,44 +353,54 @@ const CHUVA: LayoutTrecho = {
     // Ímã puxando para cima de uma poça com choque
     { tipo: 'choque', x: 1380, w: 128, atraso: 400 },
     { tipo: 'ima', x: 1520, alt: 240, atraso: 1200 },
-    // Torre do exercício com frágeis, esteira e um ímã ao lado; o acerto abre o portão da passarela
+    // Torre do exercício com ímãs nos dois lados; o acerto abre o portão da passarela
     ...chuvaExercicio.elementos,
-    { tipo: 'ima', x: 1560, alt: 1150, atraso: 500 },
-    { tipo: 'baixa', x: 3800 },
-    // Torre de retorno pela alavanca com esteira, frágeis e ímã
-    ...torreRetorno(4750, 152, 'portao-chuva', { 1: { esteira: 60 }, 5: 'fragil', 9: 'fragil' }),
-    { tipo: 'ima', x: 4350, alt: 1300, atraso: 0 },
-    // Antes do portão: choque e ímã juntos no chão molhado
-    { tipo: 'choque', x: 5250, w: 160, atraso: 0 },
-    { tipo: 'ima', x: 5450, alt: 240, atraso: 1500 },
-    // Botão-alvo sobre o fosso, com um cabo de choque na área de arremesso
-    { tipo: 'choque', x: 5850, w: 96, atraso: 600 },
-    { tipo: 'ponte', id: 'ponte-chuva', x: 6060, alt: 0, w: 576 },
-    { tipo: 'botao', x: 6350, alt: 420, alvo: 'ponte-chuva' },
+    { tipo: 'ima', x: 1760, alt: 700, atraso: 500 },
+    { tipo: 'ima', x: 2960, alt: 1300, atraso: 2000 },
+    { tipo: 'baixa', x: 4680 },
+    // Duas alavancas em sequência. A primeira fica numa viga baixa sobre uma poça com choque
+    { tipo: 'choque', x: 4880, w: 160, atraso: 0 },
+    { tipo: 'viga', x: 4900, alt: 144, w: 128 },
+    { tipo: 'alavanca', x: 4964, alt: 144, alvo: 'portao-chuva-1' },
+    { tipo: 'portao', id: 'portao-chuva-1', x: 5440 },
+    // Atrás do primeiro portão: degraus sobre uma poça longa e um ímã puxando de volta
+    { tipo: 'ima', x: 5600, alt: 240, atraso: 1500 },
+    { tipo: 'choque', x: 5660, w: 320, atraso: 600 },
+    { tipo: 'viga', x: 5640, alt: 128, w: 112 },
+    { tipo: 'viga', x: 5840, alt: 256, w: 112 },
+    { tipo: 'viga', x: 6040, alt: 384, w: 128 },
+    { tipo: 'alavanca', x: 6104, alt: 384, alvo: 'portao-chuva-2' },
+    { tipo: 'portao', id: 'portao-chuva-2', x: 6700 },
+    // Saída: fosso curto com um ímã puxando para dentro
+    { tipo: 'ima', x: 6900, alt: 300, atraso: 2400 },
   ],
   drones: [
     [600, 180],
-    [1700, 1250],
-    [2150, 700],
-    [4400, 1400],
-    [4700, 600],
-    [5600, 200],
+    [1800, 1300],
+    [2600, 700],
+    [5200, 500],
+    [5900, 700],
+    [6400, 200],
   ],
   quedas: [
-    [1750, 1450],
-    [4400, 1450],
+    [2300, 1500],
+    [5800, 600],
     [1300, 0],
-    [6800, 0],
+    [6500, 0],
   ],
   reciclaveis: [
     [300, 'lata'],
     [900, 'placa'],
     [1250, 'monitor'],
-    [4050, 'bateria'],
-    [5980, 'lata'],
-    [6010, 'placa'],
+    [4450, 'bateria'],
+    [6400, 'lata'],
   ],
-  patrulhaRecicla: [4000, 4200],
+  patrulhaRecicla: [4400, 4640],
+  puzzles: [
+    { nome: 'chuva: torre de corridas curtas com ímãs', de: 1700, ate: chuvaExercicio.fimElevador },
+    { nome: 'chuva: duas alavancas sobre choques', de: 4880, ate: 6764 },
+    { nome: 'chuva: fosso com ímã', de: 6800, ate: 7000 },
+  ],
 };
 
 /** Layout dos trechos 1 a 3; o trecho 4 (arena) não usa. */

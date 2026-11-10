@@ -9,6 +9,24 @@
  */
 export const DEBUG = false;
 
+/** Física do jogador (gravidade do mundo: 600 px/s²). Também usada pelo verificador de alcance. */
+export const MOVIMENTO_LIXAO = {
+  VELOCIDADE: 240,
+  VELOCIDADE_ABAIXADO: 110,
+  ACELERACAO_CHAO: 2400,
+  ACELERACAO_AR: 1600,
+  FRENAGEM_CHAO: 2800,
+  FRENAGEM_AR: 1000,
+  /** Velocidade vertical inicial do pulo (negativa sobe). */
+  IMPULSO_PULO: -520,
+  /** Gravidade somada ao soltar o pulo ainda subindo: soltar cedo dá um pulo curto. */
+  GRAVIDADE_PULO_CURTO: 1500,
+  /** Janela para pular logo depois de sair de uma beirada. */
+  TEMPO_COYOTE_MS: 110,
+  /** Janela em que um pulo apertado antes de tocar o chão ainda vale. */
+  TEMPO_BUFFER_PULO_MS: 110,
+} as const;
+
 /** Vida máxima do jogador, em baterias. */
 export const VIDA_MAXIMA = 5;
 

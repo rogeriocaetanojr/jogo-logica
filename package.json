@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "verificar:fase3": "node scripts/verificarAlcanceFase3.ts"
   },
   "devDependencies": {
     "typescript": "~6.0.2",

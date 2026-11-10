@@ -6,9 +6,9 @@ import type { TemaTrecho } from './TrechoLixao';
 
 /**
  * Trecho 2: Tempestade de Pó. Névoa: complica com plataformas frágeis e de guindaste.
- * Frágeis sobre um fosso, guindaste sobre outro, torre do exercício com degraus frágeis (o
- * acerto desce uma plataforma sobre o vão), torre de retorno até a alavanca e portão com
- * botão-alvo. Level design em LayoutLixao.
+ * Frágeis sobre um fosso, guindaste sobre outro, torre do exercício com frágeis e guindastes
+ * (o acerto desce uma plataforma sobre o vão), ilha da alavanca alcançada por frágeis e um
+ * guindaste, e portão com botão-alvo. Level design em LayoutLixao.
  */
 export class Trecho2Nevoa extends TrechoLixao {
   public readonly tema: TemaTrecho = {

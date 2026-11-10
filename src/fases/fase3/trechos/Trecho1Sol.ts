@@ -6,9 +6,9 @@ import type { TemaTrecho } from './TrechoLixao';
 
 /**
  * Trecho 1: Portão do Lixão. Sol, sem efeito de clima: ensina os mecanismos.
- * Esteiras (uma contra o avanço) e prensas em onda; a torre do exercício sobe até o terminal
- * no alto, onde o acerto ergue a ponte sobre o vão e um elevador desce ao chão; a torre de
- * retorno leva à alavanca do portão; um botão-alvo sobre o fosso estende a ponte. Level design
+ * Esteiras (uma contra o avanço) e prensas em onda; a torre de esteiras e prensa sobe até o
+ * terminal, onde o acerto ergue a ponte sobre o vão e um elevador desce ao chão; a alavanca do
+ * portão fica no fim de uma esteira suspensa com prensas; um botão-alvo estende a ponte. Level design
  * em LayoutLixao.
  */
 export class Trecho1Sol extends TrechoLixao {
