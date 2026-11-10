@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { FPS_ANDAR, QUADROS_ANDAR } from '../compartilhado/animacoesPersonagens';
 import { CenaBase } from '../compartilhado/CenaBase';
 import { GerenciadorEstado, type TipoPersonagem } from '../nucleo/GerenciadorEstado';
 
@@ -378,8 +379,8 @@ export class CenaSelecaoPersonagem extends CenaBase {
       if (!this.anims.exists(`${t}_run`)) {
         this.anims.create({
           key: `${t}_run`,
-          frames: this.anims.generateFrameNumbers(t, { frames: [0, 1] }),
-          frameRate: 6,
+          frames: this.anims.generateFrameNumbers(t, { frames: QUADROS_ANDAR }),
+          frameRate: FPS_ANDAR,
           repeat: -1,
         });
       }

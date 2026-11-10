@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { FPS_ANDAR, QUADROS_ANDAR } from '../compartilhado/animacoesPersonagens';
 import { GerenciadorEstado, type TipoPersonagem } from '../nucleo/GerenciadorEstado';
 import { MusicaHub } from './MusicaHub';
 
@@ -588,8 +589,8 @@ export class CenaHub extends Phaser.Scene {
       if (!this.anims.exists(`${t}_run`)) {
         this.anims.create({
           key: `${t}_run`,
-          frames: this.anims.generateFrameNumbers(t, { frames: [1] }),
-          frameRate: 8,
+          frames: this.anims.generateFrameNumbers(t, { frames: QUADROS_ANDAR }),
+          frameRate: FPS_ANDAR,
           repeat: -1,
         });
       }

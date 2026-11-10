@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { FPS_ANDAR, QUADROS_ANDAR } from './animacoesPersonagens';
 import { GerenciadorEstado } from '../nucleo/GerenciadorEstado';
 import { Comunicador } from './Comunicador';
 import { Terminal } from './Terminal';
@@ -190,8 +191,8 @@ export abstract class CenaBase extends Phaser.Scene {
       if (!this.anims.exists(`${p}_run`)) {
         this.anims.create({
           key: `${p}_run`,
-          frames: this.anims.generateFrameNumbers(p, { frames: [1] }),
-          frameRate: 8,
+          frames: this.anims.generateFrameNumbers(p, { frames: QUADROS_ANDAR }),
+          frameRate: FPS_ANDAR,
           repeat: -1,
         });
       }

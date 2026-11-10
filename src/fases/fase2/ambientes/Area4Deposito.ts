@@ -15,6 +15,9 @@ const CHAO = 3620;
 const PASSO = 370;
 const PISO_ARENA = 520;
 const SHELF_ALTURA = 16;
+const VEL_PNEU = 190;
+/** Raio do pneu na tela (arte de 11 px a 4x). */
+const RAIO_PNEU = 22;
 
 /** Linha do topo da prateleira N (1 a 8). */
 function yPrateleira(n: number): number {
@@ -395,9 +398,10 @@ export class Area4Deposito extends AreaPorto {
     }
     for (const p of [...this.pneus]) {
       const body = p.img.body as Phaser.Physics.Arcade.Body;
-      body.setVelocityX(p.dir * 190);
-      p.img.rotation += p.dir * delta * 0.012;
-      p.chama.setPosition(p.img.x, p.img.y - 10);
+      body.setVelocityX(p.dir * VEL_PNEU);
+      // Rola sem deslizar: velocidade angular = velocidade / raio. No ar gira mais devagar
+      p.img.rotation += (p.dir * VEL_PNEU * (delta / 1000) / RAIO_PNEU) * (body.blocked.down ? 1 : 0.35);
+      p.chama.setPosition(p.img.x, p.img.y - RAIO_PNEU * 0.6);
       if (tempo - p.criadoEm > 9000 || body.blocked.right || body.blocked.left || p.img.y > CHAO) {
         this.removerPneu(p, false);
         continue;
@@ -415,11 +419,24 @@ export class Area4Deposito extends AreaPorto {
     }
   }
 
+  /** Pneu visto de lado (11x11): anel com sulcos e cubo assimétricos, para o giro ser visível. */
+  private texturaPneuRolando(): void {
+    texturaPixel(this.cena, 'pb-a4-pneu', 11, 11, (p) => {
+      p.disco(5, 5, 5, '#141212');
+      p.disco(5, 5, 3, '#2A2626');
+      for (const [x, y] of [[5, 0], [9, 7], [1, 7]]) p.ponto(x, y, '#4A4646');
+      p.disco(5, 5, 1, '#6A6060');
+      p.px(5, 5, 4, 1, '#8A7A70');
+    });
+  }
+
   private lancarPneu(x: number, y: number, dir: number): void {
-    const img = this.grupoPneus.create(x, y, 'pb-lixo', 0) as Phaser.Physics.Arcade.Image;
-    img.setScale(ESCALA * 1.4).setDepth(PROF.inimigos);
+    this.texturaPneuRolando();
+    const img = this.grupoPneus.create(x, y, 'pb-a4-pneu') as Phaser.Physics.Arcade.Image;
+    img.setScale(ESCALA).setDepth(PROF.inimigos);
     const body = img.body as Phaser.Physics.Arcade.Body;
-    body.setSize(8, 5);
+    body.setSize(9, 9); // um pouco menor que o desenho: encostar de raspão não machuca
+    body.setBounce(0, 0.15);
     const chama = this.cena.add.sprite(x, y, 'pb-fogo-p', 0).setOrigin(0.5, 1).setScale(ESCALA * 0.8).setDepth(PROF.emissivo);
     chama.play('pb-anim-fogo-p');
     this.pneus.push({ img, chama, dir, criadoEm: this.cena.time.now });
