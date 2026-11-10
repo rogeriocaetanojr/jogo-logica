@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { LAYOUTS } from '../trechos/LayoutLixao';
 import type { CenaFase3 } from '../CenaFase3';
 import { PROF } from '../trechos/TrechoLixao';
 import { COR, ESCALA, grade, texturaPixel } from './ArteLixao';
@@ -16,12 +17,7 @@ export const EVENTO_RECICLA_ENTREGA = 'lixao-recicla-entrega';
  * nem buracos (passa por baixo dos canos). null: o trecho não tem Recicla. Na arena ele só
  * entra no final, para comemorar (etapa do chefão).
  */
-export const PATRULHA_RECICLA: readonly (readonly [number, number] | null)[] = [
-  [3440, 4180],
-  [3380, 3640],
-  [1590, 1880],
-  null,
-];
+export const PATRULHA_RECICLA: readonly (readonly [number, number] | null)[] = [...LAYOUTS.map((l) => l.patrulhaRecicla), null];
 
 export const RECICLA = {
   /** Velocidade da patrulha e de quando vai buscar lixo (px/s). */

@@ -39,47 +39,47 @@ export const COR = {
   noiteRoxo: '#3A2440',
   noiteRoxoEscuro: '#1E1420',
   /*
-   * Céus em 8 faixas, do topo escuro ao horizonte claro, como os céus da Fase 2
-   * (entardecer, fumacento e noite) mais um céu de chuva próprio.
+   * Céus em 8 faixas roxas, do roxo bem escuro no topo ao lilás perto do horizonte, com a
+   * técnica de degradê da Fase 2. Sol mais lilás e claro, noite mais escura.
    */
-  ceuSol1: '#24161E',
-  ceuSol2: '#3A1C24',
-  ceuSol3: '#5A2328',
-  ceuSol4: '#7E2E28',
-  ceuSol5: '#A8402A',
-  ceuSol6: '#C95A2C',
-  ceuSol7: '#DE7A34',
-  ceuSol8: '#E99A4A',
-  ceuNevoa1: '#161012',
-  ceuNevoa2: '#1E1416',
-  ceuNevoa3: '#2A1A1C',
-  ceuNevoa4: '#3A1E1E',
-  ceuNevoa5: '#5A2624',
-  ceuNevoa6: '#7A3226',
-  ceuNevoa7: '#9A4228',
-  ceuNevoa8: '#B4562C',
-  ceuChuva1: '#0E1420',
-  ceuChuva2: '#141C2C',
-  ceuChuva3: '#1C2638',
-  ceuChuva4: '#283246',
-  ceuChuva5: '#3A3E52',
-  ceuChuva6: '#524656',
-  ceuChuva7: '#6E5056',
-  ceuChuva8: '#8A5C52',
-  ceuNoite1: '#080A18',
-  ceuNoite2: '#0D1024',
-  ceuNoite3: '#141530',
-  ceuNoite4: '#201836',
-  ceuNoite5: '#341C34',
-  ceuNoite6: '#52222E',
-  ceuNoite7: '#7A2E2A',
-  ceuNoite8: '#A0442A',
+  ceuSol1: '#1A1030',
+  ceuSol2: '#24163E',
+  ceuSol3: '#30204E',
+  ceuSol4: '#3E2C60',
+  ceuSol5: '#503C74',
+  ceuSol6: '#66508A',
+  ceuSol7: '#8068A2',
+  ceuSol8: '#9C86BC',
+  ceuNevoa1: '#1C1428',
+  ceuNevoa2: '#261C36',
+  ceuNevoa3: '#322646',
+  ceuNevoa4: '#403256',
+  ceuNevoa5: '#504068',
+  ceuNevoa6: '#62507A',
+  ceuNevoa7: '#76628C',
+  ceuNevoa8: '#8C78A0',
+  ceuChuva1: '#110C24',
+  ceuChuva2: '#181230',
+  ceuChuva3: '#21193E',
+  ceuChuva4: '#2B224C',
+  ceuChuva5: '#372C5C',
+  ceuChuva6: '#44386E',
+  ceuChuva7: '#544680',
+  ceuChuva8: '#665894',
+  ceuNoite1: '#08061A',
+  ceuNoite2: '#0E0A24',
+  ceuNoite3: '#150F30',
+  ceuNoite4: '#1E163C',
+  ceuNoite5: '#281E4A',
+  ceuNoite6: '#342858',
+  ceuNoite7: '#423468',
+  ceuNoite8: '#524278',
   // Tintas que esfriam o cenário conforme o clima (multiplicam as cores desenhadas)
   tintaPo: '#F0D8B8',
   tintaChuva: '#B8C4DC',
   tintaNoite: '#9A90C0',
   /*
-   * Fundo (camadas de parallax): silhuetas quentes e escuras, sem verde nem cobre, mais escuras que o primeiro plano, para não se
+   * Fundo (camadas de parallax): silhuetas roxas mais apagadas que o céu, sem verde nem cobre, para as plataformas cinza e os perigos saltarem à frente, para não se
    * confundir com as plataformas. As peças são desenhadas em 3 valores neutros e tingidas
    * pela cor do clima: Longe (cidade, mais clara e perto do céu), Meio (horizonte e
    * máquinas) e Perto (pilhas).
@@ -87,22 +87,22 @@ export const COR = {
   fundoValorClaro: '#FFFFFF',
   fundoValorMedio: '#D2D2D2',
   fundoValorEscuro: '#A0A0A0',
-  // Sol: telha e tijolo queimado
-  fundoSolLonge: '#A85A36',
-  fundoSolMeio: '#7A3A28',
-  fundoSolPerto: '#5A2A22',
-  // Névoa: terra e ferrugem empoeiradas
-  fundoNevoaLonge: '#9A6048',
-  fundoNevoaMeio: '#74402E',
-  fundoNevoaPerto: '#542E24',
-  // Chuva: ameixa escura
-  fundoChuvaLonge: '#5A4458',
-  fundoChuvaMeio: '#4A3040',
-  fundoChuvaPerto: '#3A2230',
-  // Noite: vinho quase preto
-  fundoNoiteLonge: '#4A2A3A',
-  fundoNoiteMeio: '#3A1E2C',
-  fundoNoitePerto: '#2E1620',
+  // Sol: roxo lilás apagado
+  fundoSolLonge: '#6A5890',
+  fundoSolMeio: '#54447A',
+  fundoSolPerto: '#423664',
+  // Névoa: roxo acinzentado
+  fundoNevoaLonge: '#645676',
+  fundoNevoaMeio: '#504464',
+  fundoNevoaPerto: '#3E3452',
+  // Chuva: roxo azulado
+  fundoChuvaLonge: '#4A3E70',
+  fundoChuvaMeio: '#3C325E',
+  fundoChuvaPerto: '#30284E',
+  // Noite: roxo bem escuro
+  fundoNoiteLonge: '#3A2E5E',
+  fundoNoiteMeio: '#2E244C',
+  fundoNoitePerto: '#241C3E',
   /** Janelas acesas e LEDs do fundo: amarelo quente (nunca interativos). */
   janela: '#F7C948',
   /** Letreiros neon quebrados do fundo: magenta, para não confundir com o ciano interativo. */
@@ -537,6 +537,46 @@ export function desenharPortao(p: Pincel, w: number, h: number): void {
     for (let x = 3; x < w - 2; x += 5) p.ponto(x, y + 1, COR.cobre);
   }
   p.px(0, h - 2, w, 2, COR.sombraSucata);
+}
+
+/** Altura dos espinhos no topo de uma barreira, em pixels de arte. */
+export const ESPINHOS_BARREIRA = 10;
+
+/**
+ * Barreira baixa (no máximo 3 blocos) com espinhos de perigo no topo: portão de grade ou
+ * andaime vazado de sucata, com o fundo aparecendo pelos vãos. Os espinhos impedem pular por cima.
+ */
+export function desenharBarreira(p: Pincel, w: number, h: number, tipo: 'portao' | 'andaime'): void {
+  const e = ESPINHOS_BARREIRA;
+  // Espinhos: base de sucata e pontas de perigo
+  p.px(0, e - 2, w, 2, COR.contorno);
+  for (let x = 0; x < w; x += 4) {
+    p.px(x + 1, 4, 2, e - 6, COR.sucataClara);
+    p.px(x + 1, 1, 2, 3, COR.perigo);
+    p.ponto(x + 1, 0, COR.perigo);
+  }
+  if (tipo === 'portao') {
+    // Grade: barras verticais com travessas, vãos transparentes
+    for (let x = 1; x < w - 1; x += 4) {
+      p.px(x, e, 2, h - e, COR.contorno);
+      p.px(x, e, 1, h - e, COR.sucataClara);
+    }
+    for (let y = e + 4; y < h - 2; y += 12) {
+      p.caixa(0, y, w, 3, COR.cobreEscuro);
+      for (let x = 2; x < w - 1; x += 5) p.ponto(x, y + 1, COR.cobre);
+    }
+    p.px(0, h - 2, w, 2, COR.sombraSucata);
+    return;
+  }
+  // Andaime: moldura, travessas e diagonais; o resto é vazado
+  p.px(0, e, 2, h - e, COR.sombraSucata);
+  p.px(w - 2, e, 2, h - e, COR.sombraSucata);
+  for (let y = e; y < h - 1; y += 10) p.px(0, y, w, 2, COR.sucata);
+  for (let y = e; y + 10 <= h; y += 10) {
+    p.linha(2, y + 2, w - 3, y + 9, COR.sucataClara);
+    p.linha(w - 3, y + 2, 2, y + 9, COR.sombraSucata);
+  }
+  p.px(0, h - 2, w, 2, COR.sucata);
 }
 
 /** Fosso sem fundo entre trechos de chão: paredes de sucata descendo para o escuro. */

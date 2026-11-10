@@ -30,6 +30,11 @@ export const FADE_MORTE_MS = 400;
 export const LARGURA_TELA = 1280;
 export const ALTURA_TELA = 720;
 export const CHAO_Y = 640;
+/**
+ * Topo do mundo (y de mundo, negativo): as torres sobem até 2 a 3 telas acima do chão e a
+ * câmera acompanha na vertical. Muros, portões e muralhas vão até aqui.
+ */
+export const TOPO_MUNDO = -1800;
 
 export type Clima = 'sol' | 'nevoa' | 'chuva' | 'noite';
 

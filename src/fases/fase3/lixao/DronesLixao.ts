@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { LAYOUTS } from '../trechos/LayoutLixao';
 import type { CenaFase3 } from '../CenaFase3';
 import { PROF } from '../trechos/TrechoLixao';
 import { COR, ESCALA, folhaPixel, grade, hexNum, texturaPixel } from './ArteLixao';
@@ -20,12 +21,7 @@ export interface DadosDrone {
  * Um só e lento no sol, poucos na névoa e mais na chuva. A arena não tem: o chefão ocupa o
  * espaço, mas a variante da noite já existe se um entrar ali.
  */
-export const DRONES_POR_TRECHO: readonly (readonly number[])[] = [
-  [3500],
-  [2060, 4400],
-  [600, 2900, 3980, 4600],
-  [],
-];
+export const DRONES_POR_TRECHO: readonly (readonly (readonly [number, number])[])[] = [...LAYOUTS.map((l) => l.drones), []];
 
 /** Comportamento de cada clima. */
 interface Variante {
@@ -54,8 +50,8 @@ export const VARIANTES: Record<Clima, Variante> = {
 };
 
 export const DRONE = {
-  /** Altura do centro do drone: voo baixo, logo acima da cabeça do jogador. */
-  ALTURA_VOO: 180,
+  /** Distância vertical máxima para ver o jogador. */
+  VISAO_VERTICAL: 360,
   /** Meia distância da patrulha em volta do ponto marcado. */
   PATRULHA: 160,
   /** LED piscando antes do tiro. */
@@ -63,10 +59,11 @@ export const DRONE = {
   PISCA_AVISO_MS: 80,
   /** Tiro alto (se esquiva abaixando): rápido e quase reto, passa acima do jogador abaixado. */
   TIRO_ALTO_VELOCIDADE: 600,
-  TIRO_ALTO_Y: CHAO_Y - 92,
+  /** Alturas do tiro acima dos pés do jogador. */
+  TIRO_ALTO_ACIMA: 92,
   /** Tiro baixo (se esquiva pulando): arco lento que chega aos pés. */
   TIRO_BAIXO_VELOCIDADE: 320,
-  TIRO_BAIXO_Y: CHAO_Y - 12,
+  TIRO_BAIXO_ACIMA: 12,
   GRAVIDADE_TIRO: 900,
   /** Meia largura da sucata para acertar o jogador. */
   RAIO_TIRO: 8,
@@ -88,6 +85,8 @@ type Estado = 'patrulha' | 'aproximando' | 'aviso' | 'recarga' | 'caindo' | 'der
 
 interface Drone {
   readonly origemX: number;
+  /** Altura de voo (y de mundo): drones guardam plataformas no alto das torres. */
+  readonly origemY: number;
   readonly variante: Variante;
   corpo: Phaser.GameObjects.Sprite;
   led: Phaser.GameObjects.Image;
@@ -142,13 +141,14 @@ export class DronesLixao {
     this.gerarTexturas();
     this.cena.trechos.forEach((trecho, i) => {
       const variante = VARIANTES[TRECHOS[i].clima];
-      for (const xLocal of DRONES_POR_TRECHO[i] ?? []) {
+      for (const [xLocal, alturaVoo] of DRONES_POR_TRECHO[i] ?? []) {
         const corpo = this.cena.add.sprite(0, 0, 'lx-drone', 0).setScale(ESCALA).setDepth(PROF.objetos + 2);
         this.cena.cenario.registrarTingivel(corpo);
         // LED acima do véu: na névoa e à noite é o que se vê do drone
         const led = this.cena.add.image(0, 0, 'lx-drone-led').setScale(ESCALA).setDepth(PROF.escuro + 1);
         const drone: Drone = {
           origemX: grade(trecho.offset + xLocal),
+          origemY: grade(CHAO_Y - alturaVoo),
           variante,
           corpo,
           led,
@@ -221,7 +221,7 @@ export class DronesLixao {
   private reposicionar(d: Drone): void {
     d.estado = 'patrulha';
     d.x = d.origemX;
-    d.y = CHAO_Y - DRONE.ALTURA_VOO;
+    d.y = d.origemY;
     d.direcao = 1;
     d.tempo = 0;
     d.vy = 0;
@@ -237,7 +237,8 @@ export class DronesLixao {
     const s = delta / 1000;
     const jogador = this.cena.jogador;
     const dx = jogador.x - d.x;
-    const ve = Math.abs(dx) <= d.variante.visao;
+    // Só vê quem está mais ou menos na mesma altura (torres)
+    const ve = Math.abs(dx) <= d.variante.visao && Math.abs(jogador.y - 48 - d.y) <= DRONE.VISAO_VERTICAL;
 
     switch (d.estado) {
       case 'patrulha': {
@@ -317,7 +318,7 @@ export class DronesLixao {
     const alto = d.tiroAlto;
     d.tiroAlto = !alto;
     const velocidade = alto ? DRONE.TIRO_ALTO_VELOCIDADE : DRONE.TIRO_BAIXO_VELOCIDADE;
-    const alvoY = alto ? DRONE.TIRO_ALTO_Y : DRONE.TIRO_BAIXO_Y;
+    const alvoY = jogador.y - (alto ? DRONE.TIRO_ALTO_ACIMA : DRONE.TIRO_BAIXO_ACIMA);
     const t = Phaser.Math.Clamp(Math.abs(dx) / velocidade, 0.35, 1.4);
     const g = DRONE.GRAVIDADE_TIRO;
     const vx = dx / t;

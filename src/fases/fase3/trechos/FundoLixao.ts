@@ -204,7 +204,7 @@ export class FundoLixao {
     texturaPixel(this.cena, chave, w, h, (p) => desenhar(p, w, m));
     this.neutralizar(chave);
     this.camadas.push({ fator, prof, m });
-    return this.cena.add.image(0, 0, chave).setOrigin(0, 0).setScale(ESCALA).setScrollFactor(fator, 0).setDepth(prof).setAlpha(alpha);
+    return this.cena.add.image(0, 0, chave).setOrigin(0, 0).setScale(ESCALA).setScrollFactor(fator, fator).setDepth(prof).setAlpha(alpha);
   }
 
   /** Cidade abandonada distante (0.18): prédios, torres, guindastes e chaminés numa cor só. */
@@ -231,7 +231,7 @@ export class FundoLixao {
       .image(0, 0, 'lx-fundo-janelas')
       .setOrigin(0, 0)
       .setScale(ESCALA)
-      .setScrollFactor(PARALLAX_FUNDO.cidade, 0)
+      .setScrollFactor(PARALLAX_FUNDO.cidade, PARALLAX_FUNDO.cidade)
       .setDepth(PROF_FUNDO.cidade)
       .setAlpha(0.9);
   }
@@ -306,7 +306,7 @@ export class FundoLixao {
           this.cena.add
             .rectangle(x * ESCALA, y * ESCALA, ESCALA, ESCALA, hexNum(cor))
             .setOrigin(0, 0)
-            .setScrollFactor(c.fator, 0)
+            .setScrollFactor(c.fator, c.fator)
             .setDepth(c.prof + 1)
             .setAlpha(noite ? 1 : 0.6)
         );
@@ -316,13 +316,13 @@ export class FundoLixao {
         const corpo = this.cena.add
           .rectangle(x * ESCALA, y * ESCALA, largura, ESCALA * 2, hexNum(COR.neonRosa))
           .setOrigin(0, 0)
-          .setScrollFactor(c.fator, 0)
+          .setScrollFactor(c.fator, c.fator)
           .setDepth(c.prof + 1);
         // Pedaço queimado do letreiro
         const queimado = this.cena.add
           .rectangle(x * ESCALA + Math.floor(this.rnd() * (largura - ESCALA * 2)), y * ESCALA, ESCALA * 2, ESCALA * 2, hexNum(COR.neonRosaEscuro))
           .setOrigin(0, 0)
-          .setScrollFactor(c.fator, 0)
+          .setScrollFactor(c.fator, c.fator)
           .setDepth(c.prof + 2);
         this.letreiros.push({ obj: [corpo, queimado], espera: this.rnd() * 3000 });
       }
@@ -332,7 +332,7 @@ export class FundoLixao {
           this.cena.add
             .rectangle(x * ESCALA, y * ESCALA, w * ESCALA, ESCALA, hexNum(cor))
             .setOrigin(0, 0)
-            .setScrollFactor(c.fator, 0)
+            .setScrollFactor(c.fator, c.fator)
             .setDepth(c.prof + 1)
             .setAlpha(0.4)
         );
@@ -342,7 +342,7 @@ export class FundoLixao {
           .image(x * ESCALA, y * ESCALA, this.texturaGancho(comprimento))
           .setOrigin(0.5, 0)
           .setScale(ESCALA)
-          .setScrollFactor(c.fator, 0)
+          .setScrollFactor(c.fator, c.fator)
           .setDepth(c.prof + 1)
           .setAlpha(ALPHA.maquinas);
         this.tingir('meio', gancho);
@@ -418,7 +418,7 @@ export class FundoLixao {
           .image(x * ESCALA, y * ESCALA, 'lx-poeira')
           .setScale(ESCALA * 2)
           .setTint(this.cores.longe)
-          .setScrollFactor(c.fator, 0)
+          .setScrollFactor(c.fator, c.fator)
           .setDepth(c.prof + 1)
           .setAlpha(0.5);
         const part: Particula = { obj: puff };
@@ -450,7 +450,7 @@ export class FundoLixao {
       const cor = i % 2 === 0 ? COR.janela : COR.bateriaAmarela;
       const caco = this.cena.add
         .rectangle(x * ESCALA, y * ESCALA, ESCALA, ESCALA, hexNum(cor))
-        .setScrollFactor(c.fator, 0)
+        .setScrollFactor(c.fator, c.fator)
         .setDepth(c.prof + 1)
         .setAlpha(noite > 0.5 ? 1 : 0.75);
       const ang = -Math.PI / 2 + (this.rnd() - 0.5) * 2.6;
@@ -481,7 +481,7 @@ export class FundoLixao {
     const [x, y, c] = candidatos[Math.floor(this.rnd() * candidatos.length)];
     const gota = this.cena.add
       .rectangle(x * ESCALA, y * ESCALA, ESCALA, ESCALA * 2, hexNum(COR.chuvaAzulClaro))
-      .setScrollFactor(c.fator, 0)
+      .setScrollFactor(c.fator, c.fator)
       .setDepth(c.prof + 1);
     this.cena.tweens.add({ targets: gota, y: gota.y + 48, alpha: 0, duration: 420, ease: 'Quad.easeIn', onComplete: () => gota.destroy() });
   }

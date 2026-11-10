@@ -251,7 +251,7 @@ export class ChefaoLixao {
     for (const x of [inicio - 16, this.offset + ARENA.FIM + 16]) {
       this.cena.solidos.add(this.cena.add.rectangle(x, CHAO_Y / 2, 32, CHAO_Y, 0, 0));
     }
-    this.cena.checkpoint = { x: this.xRenascer, trecho: TRECHO_ARENA };
+    this.cena.checkpoint = { x: this.xRenascer, y: CHAO_Y - 4, trecho: TRECHO_ARENA, ordem: TRECHO_ARENA * 100 + 90 };
     this.estado = 'lutando';
     this.esperaAtaque = CHEFAO.INTERVALO_ATAQUE_MS;
     this.barraFundo.setVisible(true);

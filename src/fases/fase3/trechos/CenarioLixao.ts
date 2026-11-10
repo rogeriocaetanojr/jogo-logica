@@ -192,7 +192,7 @@ export class CenarioLixao {
     const larguraArte = Math.ceil((LARGURA_TELA + (this.larguraMundo - LARGURA_TELA) * fator) / ESCALA) + 2;
     const alturaArte = Math.ceil(ALTURA_TELA / ESCALA);
     texturaPixel(this.cena, chave, larguraArte, alturaArte, (p) => desenhar(p, larguraArte, alturaArte));
-    return this.cena.add.image(0, 0, chave).setOrigin(0, 0).setScale(ESCALA).setScrollFactor(fator, 0).setDepth(profundidade);
+    return this.cena.add.image(0, 0, chave).setOrigin(0, 0).setScale(ESCALA).setScrollFactor(fator, fator).setDepth(profundidade);
   }
 
   /** Camada 1 do céu (fixa): degradê pontilhado com sol ou lua, uma imagem por trecho. */

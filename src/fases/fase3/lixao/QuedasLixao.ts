@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { LAYOUTS } from '../trechos/LayoutLixao';
 import type { CenaFase3 } from '../CenaFase3';
 import { PROF } from '../trechos/TrechoLixao';
 import { COR, ESCALA, aleatorio, grade, texturaPixel } from './ArteLixao';
@@ -21,18 +22,19 @@ export interface DadosQueda {
  * Pontos de queda por trecho, em x relativo ao trecho (ver os comentários [QUEDA DE LIXO] em
  * trechos/TrechoN). No trecho 4 caem das pilhas das bordas da arena.
  */
-export const PONTOS_QUEDA: readonly (readonly number[])[] = [
-  [4100],
-  [1150, 3500, 4500],
-  [1700, 3550, 4700],
-  [400, 1880],
+export const PONTOS_QUEDA: readonly (readonly (readonly [number, number])[])[] = [
+  ...LAYOUTS.map((l) => l.quedas),
+  [
+    [400, 0],
+    [1880, 0],
+  ],
 ];
 
 /**
  * Intervalo entre quedas por trecho, em ms; null desliga. Pouco no sol e aumentando até a
  * chuva. Na arena o ritmo cai um pouco para não competir com o chefão.
  */
-export const INTERVALO_QUEDA_MS: readonly (number | null)[] = [9000, 6000, 3500, 4000];
+export const INTERVALO_QUEDA_MS: readonly (number | null)[] = [6500, 4500, 3200, 4000];
 
 export const QUEDA = {
   /** Tremor da pilha e crescimento da sombra antes de soltar o item. */
@@ -93,6 +95,8 @@ interface Ciclo {
 
 interface Ponto {
   x: number;
+  /** Topo da pilha pendurada (y de mundo): 0 no alto da tela; acima disso, nas torres. */
+  y: number;
   trecho: number;
   pilha: Phaser.GameObjects.Image;
   ativo: boolean;
@@ -171,15 +175,16 @@ export class QuedasLixao {
   construir(): void {
     this.gerarTexturas();
     this.cena.trechos.forEach((trecho, i) => {
-      for (const xLocal of PONTOS_QUEDA[i] ?? []) {
+      for (const [xLocal, altura] of PONTOS_QUEDA[i] ?? []) {
         const x = grade(trecho.offset + xLocal);
+        const y = altura > 0 ? grade(CHAO_Y - altura) : 0;
         const pilha = this.cena.add
-          .image(x, 0, 'lx-queda-pilha')
+          .image(x, y, 'lx-queda-pilha')
           .setOrigin(0.5, 0)
           .setScale(ESCALA)
           .setDepth(PROF.objetos);
         this.cena.cenario.registrarTingivel(pilha);
-        this.pontos.push({ x, trecho: i, pilha, ativo: false });
+        this.pontos.push({ x, y, trecho: i, pilha, ativo: false });
       }
       for (const [xLocal, tipo] of trecho.reciclaveis) {
         if (!trecho.chaoLivre(xLocal, 0)) console.warn(`Reciclável solto do trecho ${i + 1} em ${xLocal} fora do chão livre.`);
@@ -241,7 +246,10 @@ export class QuedasLixao {
     this.espera -= delta;
     if (this.espera > 0) return;
     const jx = this.cena.jogador.x;
-    const livres = this.pontos.filter((p) => p.trecho === trecho && !p.ativo && Math.abs(p.x - jx) < QUEDA.ALCANCE);
+    const jy = this.cena.jogador.y;
+    const livres = this.pontos.filter(
+      (p) => p.trecho === trecho && !p.ativo && Math.abs(p.x - jx) < QUEDA.ALCANCE && p.y < jy && jy - p.y < QUEDA.ALCANCE
+    );
     // Sem ponto por perto: tenta de novo logo, sem esperar o intervalo inteiro
     if (livres.length === 0) {
       this.espera = 500;
@@ -254,7 +262,7 @@ export class QuedasLixao {
 
   private iniciar(ponto: Ponto): void {
     ponto.ativo = true;
-    const yChao = this.superficie(ponto.x);
+    const yChao = this.superficie(ponto.x, ponto.y + PILHA_H * ESCALA);
     // Sombra de perigo acima do pó e da escuridão, para continuar visível em qualquer clima
     const sombra = this.cena.add
       .image(ponto.x, yChao, 'lx-queda-sombra')
@@ -297,7 +305,7 @@ export class QuedasLixao {
     ponto.pilha.setX(ponto.x);
     ciclo.fase = 'caindo';
     ciclo.item = this.cena.add
-      .image(ponto.x, PILHA_H * ESCALA, `lx-rec-${ciclo.tipo}-perigo`)
+      .image(ponto.x, ponto.y + PILHA_H * ESCALA, `lx-rec-${ciclo.tipo}-perigo`)
       .setOrigin(0.5, 1)
       .setScale(ESCALA)
       .setDepth(PROF.jogador - 1);
@@ -354,12 +362,15 @@ export class QuedasLixao {
    * APOIO
    * ========================================================================= */
 
-  /** Topo do sólido mais alto sob x (viga, bloco ou chão); sem nada, a linha do chão. */
-  private superficie(x: number): number {
+  /**
+   * Topo do sólido mais alto sob x abaixo de `yMinimo` (viga, bloco ou chão); sem nada, a
+   * linha do chão. Por padrão ignora muralhas e o alto das torres.
+   */
+  private superficie(x: number, yMinimo: number = TOPO_MINIMO): number {
     let topo = Infinity;
     for (const obj of this.cena.solidos.getChildren()) {
       const corpo = (obj as Phaser.GameObjects.Rectangle).body as Phaser.Physics.Arcade.StaticBody | null;
-      if (!corpo || x < corpo.left || x > corpo.right || corpo.top < TOPO_MINIMO) continue;
+      if (!corpo || !corpo.enable || x < corpo.left || x > corpo.right || corpo.top < yMinimo) continue;
       topo = Math.min(topo, corpo.top);
     }
     return topo === Infinity ? CHAO_Y : topo;

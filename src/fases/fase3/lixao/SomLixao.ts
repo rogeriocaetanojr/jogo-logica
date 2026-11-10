@@ -34,6 +34,22 @@ export class SomLixao {
     this.bipe(990, 0.05, 0.08);
   }
 
+  /** Aviso de perigo de um mecanismo: dois bipes graves. */
+  aviso(): void {
+    this.bipe(330, 0.06, 0);
+    this.bipe(330, 0.06, 0.1);
+  }
+
+  /** Prensa batendo: tom grave e curto. */
+  batida(): void {
+    this.bipe(110, 0.12, 0);
+  }
+
+  /** Choque ligando: rajada de bipes agudos. */
+  choque(): void {
+    for (let i = 0; i < 4; i++) this.bipe(1800 + i * 120, 0.03, i * 0.04);
+  }
+
   private bipe(frequencia: number, duracao: number, atraso: number): void {
     const ctx = this.contexto;
     const saida = this.saida;

@@ -244,7 +244,12 @@ export class ArremessoLixao {
     if (giro.capota) p.img.setScale(ESCALA * Math.max(0.25, Math.abs(Math.cos(p.tempo / 90))), ESCALA);
 
     // Drones e o Monstro de Sucata levam dano; o Recicla é imune: o item só quica nele
-    if (this.cena.drones.atingir(p.x, p.y) || this.cena.chefao.atingir(p.x, p.y) || this.cena.recicla.atingir(p.x, p.y)) {
+    if (
+      this.cena.drones.atingir(p.x, p.y) ||
+      this.cena.chefao.atingir(p.x, p.y) ||
+      this.cena.mecanismos.atingir(p.x, p.y) ||
+      this.cena.recicla.atingir(p.x, p.y)
+    ) {
       p.img.destroy();
       this.impacto(p.tipo, grade(p.x), grade(p.y), p.vx);
       return true;

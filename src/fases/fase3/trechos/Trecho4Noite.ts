@@ -12,7 +12,7 @@ export class Trecho4Noite extends TrechoLixao {
   public readonly tema: TemaTrecho = {
     ceu: CEU.noite,
     astro: 'lua',
-    nuvem: COR.noiteRoxo,
+    nuvem: COR.ceuNoite6,
     horizonte: COR.noiteRoxoEscuro,
     tinta: COR.tintaNoite,
   };

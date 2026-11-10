@@ -9,8 +9,7 @@ import {
   desenharCano,
   desenharChao,
   desenharFosso,
-  desenharMuralha,
-  desenharPortao,
+  desenharBarreira,
   desenharViga,
   grade,
   hexNum,
@@ -18,6 +17,8 @@ import {
 } from '../lixao/ArteLixao';
 import type { CorLixao, Pincel } from '../lixao/ArteLixao';
 import { ALTURA_TELA, CHAO_Y, TRECHOS } from '../lixao/TiposLixao';
+import { ALTURA_BARREIRA, ALTURA_ESPINHOS } from './LayoutLixao';
+import type { ExercicioLayout, LayoutTrecho, ObstaculoExercicio } from './LayoutLixao';
 import type { InfoTrecho, TipoReciclavel } from '../lixao/TiposLixao';
 
 /** Profundidades de desenho comuns ao mapa. */
@@ -52,17 +53,12 @@ export interface TemaTrecho {
  * Obstáculo do caminho logo depois do ponto de exercício, que o exercício libera: entulho
  * que desaba, vão sem ponte que ganha uma ponte ou portão de sucata que sobe.
  */
-export type ObstaculoExercicio = 'entulho' | 'vao' | 'portao';
+export type { ObstaculoExercicio };
 
 /** Largura máxima de um trecho. */
-export const LARGURA_MAXIMA_TRECHO = 5120;
-/** Distância do ponto de exercício até o obstáculo. */
-const DISTANCIA_OBSTACULO = 160;
-/**
- * Largura de cada obstáculo. O vão passa do alcance do pulo com corrida (cerca de
- * 490 px somando o coyote time e a largura da hitbox), então só se cruza pela ponte.
- */
-const LARGURA_OBSTACULO: Record<ObstaculoExercicio, number> = { entulho: 64, vao: 576, portao: 64 };
+export const LARGURA_MAXIMA_TRECHO = 7040;
+/** Altura total de uma barreira com espinhos (sólida): passa do pulo máximo de 225 px. */
+const BARREIRA = ALTURA_BARREIRA + ALTURA_ESPINHOS;
 /** Distância mínima entre uma decoração de chão e a beira de um buraco. */
 const MARGEM_BURACO = 40;
 /** Altura livre sob um cano baixo: só cabe o jogador abaixado (em pé ele tem 96 px). */
@@ -73,33 +69,13 @@ const VAO_ABAIXADO = 72;
  */
 const LARGURA_PASSAGEM_BAIXA = 128;
 /**
- * Subida com retorno (zigue-zague). Alcance do pulo: 225 px de altura (520² / 2·600).
- * O muro (400 px) não se alcança do chão nem da viga baixa (160 px, sobra 240 > 225); só da
- * viga alta (320 px), que fica atrás, à esquerda, e só se alcança pela viga baixa (+160).
- * Da viga alta ao topo do muro: +80 px em 288 px de distância (o pulo cobre ~375 px).
- */
-const ZIGUEZAGUE = {
-  MURO_ALTURA: 400,
-  MURO_LARGURA: 64,
-  BAIXA_ALTURA: 160,
-  BAIXA_LARGURA: 160,
-  /** Folga entre a viga baixa e o muro. */
-  BAIXA_RECUO: 32,
-  ALTA_ALTURA: 320,
-  ALTA_LARGURA: 128,
-  /** Distância da borda direita da viga alta até o muro. */
-  ALTA_RECUO: 288,
-} as const;
-
-/**
  * Base dos 4 trechos do mapa contínuo do Lixão Eletrônico. Cada trecho começa em `offset`
- * (x de mundo) e tem largura própria; monta seu chão com buracos, o ponto de exercício no
- * meio (que também é checkpoint), o obstáculo logo à frente que o exercício libera e os
- * obstáculos e a decoração do trecho. Não há divisa no fim: o trecho seguinte continua o
- * chão e só o clima muda. Céu, parallax e clima são do mapa inteiro (ver CenarioLixao).
+ * (x de mundo) e tem largura própria; monta seu chão com buracos, o terminal do exercício no
+ * alto da torre (que também é checkpoint), o obstáculo à frente dele no mesmo nível e os
+ * mecanismos e a decoração do trecho (LayoutLixao). Não há divisa no fim: o trecho seguinte
+ * continua o chão e só o clima muda. Céu, parallax e clima são do mapa inteiro (ver CenarioLixao).
  *
- * Alcance do pulo (gravidade 600, impulso 520): cerca de 225 px de altura e 416 px de
- * distância no mesmo nível. Buracos dos trechos ficam em até 192 px e degraus em até 144 px.
+ * Nenhuma estrutura sólida passa de 3 blocos com espinhos (232 px), mais que o pulo de 225 px.
  */
 export abstract class TrechoLixao {
   /** Início do trecho em x de mundo (definido pela FabricaTrechos). */
@@ -110,9 +86,12 @@ export abstract class TrechoLixao {
    * Posição X do ponto de exercício, relativa ao início do trecho; null no trecho sem
    * exercício (a arena), cujo checkpoint é a entrada.
    */
-  protected xExercicioLocal: number | null = 2560;
-  /** Obstáculo do caminho logo depois do ponto de exercício, até o exercício ser resolvido. */
-  protected obstaculo: ObstaculoExercicio = 'entulho';
+  protected xExercicioLocal: number | null = null;
+  /**
+   * Exercício do trecho (LayoutLixao): terminal no alto da torre e o obstáculo à frente no
+   * mesmo nível. Ausente na arena.
+   */
+  protected exercicio?: ExercicioLayout;
   /**
    * Buracos no chão como [x, largura], relativos ao trecho e múltiplos de 4. Nenhum buraco
    * tem fundo: cair nele mata e devolve ao checkpoint (ver CenaFase3).
@@ -159,9 +138,15 @@ export abstract class TrechoLixao {
     return this.resolvido;
   }
 
-  /** Início do obstáculo do exercício, relativo ao trecho. */
-  protected get xObstaculoLocal(): number | null {
-    return this.xExercicioLocal === null ? null : this.xExercicioLocal + DISTANCIA_OBSTACULO;
+  /** Altura (y de mundo) da plataforma do terminal: o terminal fica no alto da torre. */
+  get yExercicio(): number {
+    return CHAO_Y - (this.exercicio?.alt ?? 0);
+  }
+
+  /** Usa o exercício do layout: terminal, altura e obstáculo. */
+  protected definirExercicio(ex: ExercicioLayout): void {
+    this.exercicio = ex;
+    this.xExercicioLocal = ex.x;
   }
 
   /**
@@ -169,10 +154,10 @@ export abstract class TrechoLixao {
    * buracos, do obstáculo do exercício e da área do terminal. Usado para espalhar poças e decoração.
    */
   chaoLivre(x: number, meiaLargura: number): boolean {
-    const xObstaculo = this.xObstaculoLocal;
-    if (this.xExercicioLocal !== null && xObstaculo !== null) {
-      const fimObstaculo = xObstaculo + LARGURA_OBSTACULO[this.obstaculo];
-      if (x + meiaLargura > this.xExercicioLocal - 120 && x - meiaLargura < fimObstaculo + 60) return false;
+    const ex = this.exercicio;
+    if (ex) {
+      const fimObstaculo = ex.xObstaculo + ex.largura;
+      if (x + meiaLargura > ex.x - 120 && x - meiaLargura < fimObstaculo + 60) return false;
     }
     if (x - meiaLargura < 0 || x + meiaLargura > this.largura) return false;
     return !this.buracos.some(([bx, bl]) => x + meiaLargura > bx - MARGEM_BURACO && x - meiaLargura < bx + bl + MARGEM_BURACO);
@@ -195,27 +180,41 @@ export abstract class TrechoLixao {
   protected decorar(): void {}
 
   /**
-   * Exercício resolvido (ou tecla de depuração): libera o caminho. O entulho desaba, o
-   * portão sobe e o vão ganha uma ponte.
+   * Monta o level design do LayoutLixao: vigas e passagens baixas aqui; esteiras,
+   * prensas, frágeis, guindastes, choques, ímãs, portões, alavancas, botões, pontes e
+   * checkpoints extras em cena.mecanismos.
+   */
+  protected montarLayout(layout: LayoutTrecho): void {
+    layout.elementos.forEach((e, i) => {
+      const nome = `${e.tipo}-${i}`;
+      if (e.tipo === 'viga') this.viga(nome, e.x, e.alt, e.w);
+      else if (e.tipo === 'baixa') this.passagemBaixa(nome, e.x);
+      else this.cena.mecanismos.adicionar(e, this.offset, TRECHOS.indexOf(this.info));
+    });
+  }
+
+  /**
+   * Exercício resolvido (ou tecla de depuração): libera o caminho no nível do terminal. O vão
+   * ganha uma ponte subindo, ou uma plataforma descendo do alto, ou o portão sobe e some.
    */
   resolverExercicio(): void {
-    if (this.resolvido) return;
+    const ex = this.exercicio;
+    if (this.resolvido || !ex) return;
     this.resolvido = true;
     this.cena.cameras.main.shake(300, 0.006);
-    if (this.obstaculo === 'vao') {
-      this.criarPonte();
+    if (ex.obstaculo !== 'portao') {
+      this.criarPassagem(ex);
       return;
     }
     const bloqueio = this.bloqueio;
     if (!bloqueio) return;
     this.cena.solidos.remove(bloqueio.corpo, true, true);
-    const desaba = this.obstaculo === 'entulho';
     this.cena.tweens.add({
       targets: bloqueio.img,
-      y: bloqueio.img.y + (desaba ? ALTURA_TELA : -CHAO_Y),
-      alpha: desaba ? 0 : 1,
-      duration: desaba ? 900 : 1200,
-      ease: desaba ? 'Quad.easeIn' : 'Sine.easeInOut',
+      y: bloqueio.img.y - BARREIRA,
+      alpha: 0,
+      duration: 900,
+      ease: 'Sine.easeInOut',
       onComplete: () => bloqueio.img.destroy(),
     });
   }
@@ -285,26 +284,15 @@ export abstract class TrechoLixao {
   }
 
   /**
-   * Passagem baixa: cano com vão de 72 px até o chão e muralha de entulho até o topo da
-   * tela em cima, então só passa abaixado (não dá para pular por cima).
+   * Passagem baixa: cano com vão de 72 px até o chão e, em cima, um andaime vazado com
+   * espinhos até 232 px, mais alto que o pulo: só passa abaixado.
    */
   protected passagemBaixa(nome: string, x: number): void {
     const largura = LARGURA_PASSAGEM_BAIXA;
     const baseCano = CHAO_Y - VAO_ABAIXADO;
     this.solido(`${nome}-cano`, x, baseCano - 24, largura, 24, desenharCano);
-    this.solido(`${nome}-muralha`, x, 0, largura, baseCano - 24, (p, w, h) => desenharMuralha(p, w, h, this.rnd));
-  }
-
-  /**
-   * Subida com retorno com o muro em `xMuro` (borda esquerda): sobe na viga baixa junto ao
-   * muro, volta para a esquerda até a viga alta e só dela pula de volta para cima do muro.
-   * Ocupa de xMuro - 416 até xMuro + 64.
-   */
-  protected zigueZague(nome: string, xMuro: number): void {
-    const z = ZIGUEZAGUE;
-    this.bloco(`${nome}-muro`, xMuro, z.MURO_ALTURA, z.MURO_LARGURA);
-    this.viga(`${nome}-baixa`, xMuro - z.BAIXA_RECUO - z.BAIXA_LARGURA, z.BAIXA_ALTURA, z.BAIXA_LARGURA);
-    this.viga(`${nome}-alta`, xMuro - z.ALTA_RECUO - z.ALTA_LARGURA, z.ALTA_ALTURA, z.ALTA_LARGURA);
+    const topo = CHAO_Y - BARREIRA;
+    this.solido(`${nome}-andaime`, x, topo, largura, baseCano - 24 - topo, (p, w, h) => desenharBarreira(p, w, h, 'andaime'));
   }
 
   /** Perigo apoiado no chão: encostar tira 1 bateria (ver CenaFase3). x é o centro. */
@@ -325,11 +313,9 @@ export abstract class TrechoLixao {
     return this.rndObstaculos;
   }
 
-  /** Chão de sucata do trecho em segmentos, separados pelos buracos e pelo vão do exercício. */
+  /** Chão de sucata do trecho em segmentos, separados pelos buracos. */
   private criarChao(): void {
     const vaos = [...this.buracos];
-    const xObstaculo = this.xObstaculoLocal;
-    if (this.obstaculo === 'vao' && xObstaculo !== null) vaos.push([xObstaculo, LARGURA_OBSTACULO.vao]);
     vaos.sort((a, b) => a[0] - b[0]);
     let x = 0;
     vaos.forEach(([inicio, largura], i) => {
@@ -383,9 +369,10 @@ export abstract class TrechoLixao {
   private criarMarcador(): void {
     const x = this.xExercicio;
     if (x === null) return;
-    const marcador = this.cena.add.sprite(x, CHAO_Y, 'lx-terminal', 0).setOrigin(0.5, 1).setScale(ESCALA).setDepth(PROF.objetos);
+    const y = this.yExercicio;
+    const marcador = this.cena.add.sprite(x, y, 'lx-terminal', 0).setOrigin(0.5, 1).setScale(ESCALA).setDepth(PROF.objetos);
     const brilho = this.cena.add
-      .image(x, CHAO_Y - 64, 'lx-brilho')
+      .image(x, y - 64, 'lx-brilho')
       .setTint(hexNum(COR.neonCiano))
       .setBlendMode(Phaser.BlendModes.ADD)
       .setScale(ESCALA)
@@ -406,30 +393,38 @@ export abstract class TrechoLixao {
   }
 
   /**
-   * Obstáculo logo depois do ponto de exercício. Entulho e portão vão do chão ao topo da
-   * tela; o vão já é um buraco do chão (ver criarChao) e só ganha a ponte ao resolver.
+   * Obstáculo do exercício no nível do terminal. Vão e plataforma são só o espaço vazio até o
+   * patamar (ver LayoutLixao); o portão é uma barreira com espinhos sobre a passarela.
    */
   private criarObstaculo(): void {
-    const xObstaculo = this.xObstaculoLocal;
-    if (xObstaculo === null || this.obstaculo === 'vao') return;
-    const rnd = aleatorio(this.semente + 91);
-    this.bloqueio = this.solido(
-      'obstaculo',
-      xObstaculo,
-      0,
-      LARGURA_OBSTACULO[this.obstaculo],
-      CHAO_Y,
-      this.obstaculo === 'portao' ? desenharPortao : (p, w, h) => desenharMuralha(p, w, h, rnd)
-    );
+    const ex = this.exercicio;
+    if (!ex || ex.obstaculo !== 'portao') return;
+    const topo = this.yExercicio - BARREIRA;
+    this.bloqueio = this.solido('obstaculo', ex.xObstaculo, topo, ex.largura, BARREIRA, (p, w, h) => desenharBarreira(p, w, h, 'portao'));
   }
 
-  /** Ponte de viga sobre o vão do exercício, com o topo rente ao chão. */
-  private criarPonte(): void {
-    const xObstaculo = this.xObstaculoLocal;
-    if (xObstaculo === null) return;
-    const ponte = this.solido('ponte', xObstaculo, CHAO_Y, LARGURA_OBSTACULO.vao, 20, desenharViga);
-    const y = ponte.img.y;
-    ponte.img.setAlpha(0).setY(y + 40);
-    this.cena.tweens.add({ targets: ponte.img, y, alpha: 1, duration: 600, ease: 'Back.easeOut' });
+  /**
+   * Passagem sobre o vão do exercício, rente à plataforma do terminal: a ponte sobe de baixo
+   * (vão) ou a plataforma desce do alto pendurada num cabo (plataforma).
+   */
+  private criarPassagem(ex: ExercicioLayout): void {
+    const passagem = this.solido('passagem', ex.xObstaculo, this.yExercicio, ex.largura, 20, desenharViga);
+    const y = passagem.img.y;
+    if (ex.obstaculo === 'vao') {
+      passagem.img.setAlpha(0).setY(y + 40);
+      this.cena.tweens.add({ targets: passagem.img, y, alpha: 1, duration: 600, ease: 'Back.easeOut' });
+      return;
+    }
+    // Plataforma descendo do alto, com os cabos acompanhando
+    const cabos = [ex.xObstaculo + 24, ex.xObstaculo + ex.largura - 24].map((cx) =>
+      this.cena.add
+        .rectangle(grade(this.offset + cx), y, ESCALA, 900, hexNum(COR.contorno))
+        .setOrigin(0.5, 1)
+        .setDepth(PROF.objetos - 1)
+    );
+    const subida = 320;
+    passagem.img.setY(y - subida);
+    cabos.forEach((c) => c.setY(y - subida));
+    this.cena.tweens.add({ targets: [passagem.img, ...cabos], y: `+=${subida}`, duration: 1000, ease: 'Sine.easeOut' });
   }
 }

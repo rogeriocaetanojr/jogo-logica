@@ -14,11 +14,12 @@ import { CLIMAS } from './lixao/ClimaLixao';
 import { EXERCICIOS, LIMPEZA_POR_EXERCICIO } from './lixao/ExerciciosLixao';
 import type { ContextoExercicio } from './lixao/ExerciciosLixao';
 import { HudLixao } from './lixao/HudLixao';
+import { MecanismosLixao } from './lixao/MecanismosLixao';
 import { SomLixao } from './lixao/SomLixao';
 import { JogadorLixao } from './lixao/JogadorLixao';
 import { QuedasLixao } from './lixao/QuedasLixao';
 import { RoboLixao } from './lixao/RoboLixao';
-import { ALTURA_TELA, CHAO_Y, DEBUG, FADE_MORTE_MS, TRECHOS } from './lixao/TiposLixao';
+import { ALTURA_TELA, CHAO_Y, DEBUG, FADE_MORTE_MS, TOPO_MUNDO, TRECHOS } from './lixao/TiposLixao';
 
 /** Distância horizontal para interagir com o ponto de exercício. */
 const ALCANCE_INTERACAO = 80;
@@ -30,6 +31,16 @@ const AVISO_CHECKPOINT_MS = 2000;
 const FECHAR_APOS_ACERTO_MS = 700;
 /** Depois do monstro compactado: céu clareando e comemoração antes de voltar ao hub. */
 const VITORIA_MS = 5000;
+/** Mostrar um portão ou ponte abrindo: ida da câmera, tempo parado nele e volta. */
+const EVENTO = { IDA_MS: 450, PARADO_MS: 1000, VOLTA_MS: 450 } as const;
+
+/** Onde o jogador volta ao morrer; `ordem` só cresce ao longo da fase. */
+export interface PontoCheckpoint {
+  x: number;
+  y: number;
+  trecho: number;
+  ordem: number;
+}
 
 /**
  * CenaFase3: LIXÃO ELETRÔNICO.
@@ -54,15 +65,17 @@ export class CenaFase3 extends CenaBase {
   public drones!: DronesLixao;
   /** Recicla, o robô reciclador: recolhe lixo temporário e entrega itens ao jogador. */
   public recicla!: RoboLixao;
+  /** Esteiras, prensas, frágeis, guindastes, choques, ímãs, portões, botões e checkpoints extras. */
+  public mecanismos!: MecanismosLixao;
   /** Monstro de Sucata, contêiner e o fim da fase na arena da noite. */
   public chefao!: ChefaoLixao;
   /**
    * Onde o jogador volta ao morrer: o último ponto de exercício ativado (o início da fase
    * conta como o primeiro) ou a entrada da arena, que não tem exercício.
    */
-  public checkpoint = { x: 0, trecho: 0 };
+  public checkpoint: PontoCheckpoint = { x: 0, y: CHAO_Y - 4, trecho: 0, ordem: 0 };
   private hud!: HudLixao;
-  private som!: SomLixao;
+  public som!: SomLixao;
 
   private indiceTrecho = 0;
   /** Depuração: posição em CLIMAS do clima forçado pela tecla C; -1 segue o trecho. */
@@ -71,8 +84,8 @@ export class CenaFase3 extends CenaBase {
   private trechoTerminal?: TrechoLixao;
   /** Estado da sessão do terminal aberto: exercício e linha pendente (ver ExerciciosLixao). */
   private contextoTerminal?: ContextoExercicio;
-  /** Trechos cujo ponto de exercício já virou checkpoint (o aviso só aparece uma vez cada). */
-  private checkpointsAtivados = new Set<number>();
+  /** Câmera mostrando um portão ou ponte abrindo: a física fica pausada. */
+  private cinematica = false;
   private exerciciosResolvidos = 0;
   private teclas!: Record<string, Phaser.Input.Keyboard.Key>;
   private textoPrompt!: Phaser.GameObjects.Text;
@@ -91,7 +104,7 @@ export class CenaFase3 extends CenaBase {
     this.climaForcado = -1;
     this.trechoTerminal = undefined;
     this.contextoTerminal = undefined;
-    this.checkpointsAtivados = new Set();
+    this.cinematica = false;
     this.exerciciosResolvidos = 0;
     this.fisicaPausada = false;
     this.concluindo = false;
@@ -109,15 +122,18 @@ export class CenaFase3 extends CenaBase {
     this.trechos = criarTrechos(this);
     this.cenario = new CenarioLixao(this, this.trechos);
     this.cenario.construir();
+    this.som = new SomLixao(this);
+    this.mecanismos = new MecanismosLixao(this, (x) => this.aoTocarPerigo(x));
     this.trechos.forEach((t) => t.construir());
     this.cenario.clima.criarPocas(this.trechos);
     this.cenario.definirTrecho(0, true);
 
     const larguraMundo = this.trechos[this.trechos.length - 1].fim;
-    this.physics.world.setBounds(0, 0, larguraMundo, ALTURA_TELA);
+    this.physics.world.setBounds(0, TOPO_MUNDO, larguraMundo, ALTURA_TELA - TOPO_MUNDO);
     // Sem borda embaixo: o jogador cai pelos buracos (ver QUEDA_FATAL)
     this.physics.world.setBoundsCollision(true, true, true, false);
-    this.cameras.main.setBounds(0, 0, larguraMundo, ALTURA_TELA);
+    // A câmera sobe com o jogador pelas torres, até o topo do mundo
+    this.cameras.main.setBounds(0, TOPO_MUNDO, larguraMundo, ALTURA_TELA - TOPO_MUNDO);
     this.cameras.main.fadeIn(400, 0, 0, 0);
 
     this.criarJogador();
@@ -147,7 +163,6 @@ export class CenaFase3 extends CenaBase {
       .setVisible(false);
 
     this.criarHUDSuperior('LIXÃO ELETRÔNICO');
-    this.som = new SomLixao(this);
     this.hud = new HudLixao(this);
     this.atualizarTextoClima();
     this.hud.atualizarVida(this.jogador.vida);
@@ -157,7 +172,7 @@ export class CenaFase3 extends CenaBase {
 
   private criarJogador(): void {
     const inicio = this.trechos[0].inicio;
-    this.checkpoint = { x: inicio.x, trecho: 0 };
+    this.checkpoint = { x: inicio.x, y: CHAO_Y - 4, trecho: 0, ordem: 0 };
     this.jogador = new JogadorLixao(this, inicio.x, inicio.y);
     this.physics.add.collider(this.jogador.sprite, this.solidos);
     this.physics.add.overlap(this.jogador.sprite, this.perigos, (_j, perigo) =>
@@ -241,7 +256,7 @@ export class CenaFase3 extends CenaBase {
     if (!this.jogador || !this.cenario) return;
 
     // Terminal aberto pausa a física (drones e perigos); o cenário segue animado
-    const pausado = this.terminal.estaAberto || this.concluindo || this.morrendo;
+    const pausado = this.terminal.estaAberto || this.concluindo || this.morrendo || this.cinematica;
     if (pausado !== this.fisicaPausada) {
       this.fisicaPausada = pausado;
       if (pausado) this.jogador.parar();
@@ -256,6 +271,7 @@ export class CenaFase3 extends CenaBase {
 
     if (DEBUG) this.atualizarAtalhosDebug();
     this.jogador.atualizar(tempo, delta);
+    this.mecanismos.atualizar(delta);
     if (!this.vitoria) this.quedas.atualizar(delta, this.indiceTrecho);
     this.drones.atualizar(delta);
     this.chefao.atualizar(delta);
@@ -281,14 +297,14 @@ export class CenaFase3 extends CenaBase {
     this.atualizarTextoClima();
     // Trecho sem exercício (a arena): a entrada dele é o checkpoint
     const trecho = this.trechos[indice];
-    if (trecho.xExercicio === null && indice > this.checkpoint.trecho) this.checkpoint = { x: trecho.inicio.x, trecho: indice };
+    if (trecho.xExercicio === null) this.salvarCheckpoint({ x: trecho.inicio.x, y: CHAO_Y - 4, trecho: indice, ordem: indice * 100 });
   }
 
   /** Algum sólido (chão, bloco, viga, muralha) contém o ponto (x, y) do mundo. */
   solidoEm(x: number, y: number): boolean {
     for (const obj of this.solidos.getChildren()) {
       const corpo = (obj as Phaser.GameObjects.Rectangle).body as Phaser.Physics.Arcade.StaticBody | null;
-      if (corpo && x >= corpo.left && x <= corpo.right && y >= corpo.top && y <= corpo.bottom) return true;
+      if (corpo && corpo.enable && x >= corpo.left && x <= corpo.right && y >= corpo.top && y <= corpo.bottom) return true;
     }
     return false;
   }
@@ -296,6 +312,40 @@ export class CenaFase3 extends CenaBase {
   /* =========================================================================
    * DANO E CHECKPOINT
    * ========================================================================= */
+
+  /**
+   * Salva o checkpoint se ele for mais adiante na fase que o atual (pela `ordem`), com aviso.
+   * Devolve true se salvou.
+   */
+  salvarCheckpoint(ponto: PontoCheckpoint): boolean {
+    if (ponto.ordem <= this.checkpoint.ordem) return false;
+    this.checkpoint = ponto;
+    this.hud.mostrarAviso('Checkpoint salvo', AVISO_CHECKPOINT_MS);
+    this.som.bipesCheckpoint();
+    return true;
+  }
+
+  /**
+   * Mostra algo abrindo longe do jogador: pausa a física, leva a câmera até (x, y), roda
+   * `acao` e fica ali por 1 s antes de voltar ao jogador.
+   */
+  mostrarEvento(x: number, y: number, acao: () => void): void {
+    const cam = this.cameras.main;
+    this.cinematica = true;
+    cam.stopFollow();
+    cam.pan(x, y, EVENTO.IDA_MS, 'Sine.easeInOut');
+    this.time.delayedCall(EVENTO.IDA_MS, () => {
+      acao();
+      this.som.bipesAcerto();
+    });
+    this.time.delayedCall(EVENTO.IDA_MS + EVENTO.PARADO_MS, () => {
+      cam.pan(this.jogador.x, this.jogador.y - 48, EVENTO.VOLTA_MS, 'Sine.easeInOut');
+    });
+    this.time.delayedCall(EVENTO.IDA_MS + EVENTO.PARADO_MS + EVENTO.VOLTA_MS, () => {
+      cam.startFollow(this.jogador.sprite, true, 0.08, 0.08);
+      this.cinematica = false;
+    });
+  }
 
   private aoTocarPerigo(origemX: number): void {
     if (this.morrendo || this.vitoria || !this.jogador.receberDano(origemX)) return;
@@ -310,9 +360,10 @@ export class CenaFase3 extends CenaBase {
     this.terminal.fecharForcado();
     this.cameras.main.fadeOut(FADE_MORTE_MS, 0, 0, 0);
     this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
-      const { x, trecho } = this.checkpoint;
+      const { x, y, trecho } = this.checkpoint;
       this.physics.world.resume();
-      this.jogador.renascer(x, CHAO_Y - 4);
+      this.jogador.renascer(x, y);
+      this.mecanismos.reiniciar();
       this.quedas.reiniciar();
       this.drones.reiniciar();
       this.recicla.reiniciar();
@@ -323,7 +374,7 @@ export class CenaFase3 extends CenaBase {
       this.cenario.definirTrecho(trecho, true);
       this.atualizarTextoClima();
       this.hud.atualizarVida(this.jogador.vida);
-      this.cameras.main.centerOn(x, ALTURA_TELA / 2);
+      this.cameras.main.centerOn(x, Math.min(y - 48, ALTURA_TELA / 2));
       this.cameras.main.fadeIn(FADE_MORTE_MS, 0, 0, 0);
       this.morrendo = false;
     });
@@ -339,17 +390,19 @@ export class CenaFase3 extends CenaBase {
     const xExercicio = trecho.xExercicio;
     const pertoExercicio = xExercicio !== null && Math.abs(x - xExercicio) < ALCANCE_INTERACAO;
 
-    this.textoPrompt.setVisible(pertoExercicio);
-    if (xExercicio !== null && pertoExercicio) {
-      // Chegar ao terminal salva o checkpoint nele, com aviso só na primeira vez
-      if (!this.checkpointsAtivados.has(this.indiceTrecho)) {
-        this.checkpointsAtivados.add(this.indiceTrecho);
-        this.checkpoint = { x: xExercicio, trecho: this.indiceTrecho };
-        this.hud.mostrarAviso('Checkpoint salvo', AVISO_CHECKPOINT_MS);
-        this.som.bipesCheckpoint();
-      }
-      this.textoPrompt.setPosition(xExercicio, CHAO_Y - 100).setText('[E] Terminal');
+    // Terminal no alto da torre: só vale na plataforma dele
+    const yTerminal = trecho.yExercicio;
+    const pertoNoChao = pertoExercicio && Math.abs(this.jogador.y - yTerminal) < 30;
+    const alavanca = this.mecanismos.alavancaPerto();
+    this.textoPrompt.setVisible(pertoNoChao || alavanca !== null);
+    if (xExercicio !== null && pertoNoChao) {
+      // Chegar ao terminal salva o checkpoint nele (meio do trecho)
+      this.salvarCheckpoint({ x: xExercicio, y: yTerminal - 4, trecho: this.indiceTrecho, ordem: this.indiceTrecho * 100 + 50 });
+      this.textoPrompt.setPosition(xExercicio, yTerminal - 100).setText('[E] Terminal');
       if (Phaser.Input.Keyboard.JustDown(this.teclas.E)) this.abrirTerminal(trecho);
+    } else if (alavanca) {
+      this.textoPrompt.setPosition(alavanca.x, alavanca.y - 70).setText('[E] Alavanca');
+      if (Phaser.Input.Keyboard.JustDown(this.teclas.E)) this.mecanismos.puxarAlavanca();
     }
   }
 

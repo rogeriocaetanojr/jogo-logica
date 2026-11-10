@@ -1,71 +1,37 @@
 import { CEU, COR } from '../lixao/ArteLixao';
 import type { CenaFase3 } from '../CenaFase3';
+import { LAYOUTS } from './LayoutLixao';
 import { TrechoLixao } from './TrechoLixao';
 import type { TemaTrecho } from './TrechoLixao';
 
 /**
- * Trecho 2: Tempestade de Pó. Névoa de poeira, pouca visibilidade.
- * Plataformas verticais: buracos largos demais para pular, cruzados subindo por vigas, e uma
- * torre de blocos. No meio, o exercício estende uma ponte sobre um vão.
+ * Trecho 2: Tempestade de Pó. Névoa: complica com plataformas frágeis e de guindaste.
+ * Frágeis sobre um fosso, guindaste sobre outro, torre do exercício com degraus frágeis (o
+ * acerto desce uma plataforma sobre o vão), torre de retorno até a alavanca e portão com
+ * botão-alvo. Level design em LayoutLixao.
  */
 export class Trecho2Nevoa extends TrechoLixao {
   public readonly tema: TemaTrecho = {
     ceu: CEU.nevoa,
     astro: null,
-    nuvem: COR.horizonte,
+    nuvem: COR.ceuNevoa7,
     horizonte: COR.horizonteEscuro,
     tinta: COR.tintaPo,
   };
   protected readonly semente = 303;
-  protected override readonly buracos = [
-    [1000, 500],
-    [3700, 512],
-  ] as const;
+  protected override readonly buracos = LAYOUTS[1].buracos;
 
   /** Munição solta pelo chão, longe dos buracos e do terminal. */
-  public override readonly reciclaveis = [
-    [450, 'placa'],
-    [1600, 'lata'],
-    [2350, 'bateria'],
-    [3450, 'monitor'],
-    [4400, 'lata'],
-    [4900, 'placa'],
-  ] as const;
+  public override readonly reciclaveis = LAYOUTS[1].reciclaveis;
 
   constructor(cena: CenaFase3) {
     super(cena, 1);
-    this.largura = 5120;
-    this.xExercicioLocal = 2560;
-    this.obstaculo = 'vao';
+    this.largura = LAYOUTS[1].largura;
+    this.definirExercicio(LAYOUTS[1].exercicio);
   }
 
   protected override decorar(): void {
-    this.bloco('bloco-entrada', 300, 48);
-
-    // Escada de vigas sobre o buraco de 500 px: sobe até 400 px e desce do outro lado.
-    // Cair das duas primeiras vigas leva ao chão; das duas últimas, ao buraco.
-    this.viga('escada-1', 600, 150);
-    this.viga('escada-2', 820, 290);
-    this.viga('escada-3', 1080, 400, 160);
-    this.viga('escada-4', 1340, 260);
-    // [QUEDA DE LIXO] 1150: lixo caindo sobre a viga mais alta, com sombra visível na poeira
-
-    // Subida com retorno: muro alto em 2100; viga baixa (1908), volta à viga alta (1684)
-    // e pula de volta sobre o muro; desce ao chão antes do terminal
-    this.zigueZague('zz', 2100);
-    // [DRONE] 2060: drone pairando entre as vigas da torre; na névoa vê pouco e chega perto
-
-    // Exercício em 2560; vão de 576 px em 2720 que ganha ponte ao resolver
-    // [QUEDA DE LIXO] 3500: pilha desabando no trecho plano depois da ponte
-    // [RECICLA] 3380 a 3640: recolhe o lixo dessa pilha, com os olhos de farol na poeira
-
-    // Buraco de 512 px cruzado por três vigas baixas
-    this.viga('ponte-1', 3770, 120, 96);
-    this.viga('ponte-2', 3960, 200, 96);
-    this.viga('ponte-3', 4100, 140, 96);
-    // [DRONE] 4400: drone na reta depois das vigas baixas
-    // [QUEDA DE LIXO] 4500: na reta antes da chuva
-
+    this.montarLayout(LAYOUTS[1]);
     for (let x = 420; x < this.largura - 200; x += 760) this.decoracao(x, 'lx-engrenagem', false, 6);
   }
 }
