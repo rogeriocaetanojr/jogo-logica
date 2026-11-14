@@ -11,12 +11,12 @@ import type { TemaTrecho } from './TrechoLixao';
  * choque e um fosso com ímã na saída. Level design em LayoutLixao.
  */
 export class Trecho3Chuva extends TrechoLixao {
+  /** Mesmo visual do trecho 1 (a fase não tem mais estações). */
   public readonly tema: TemaTrecho = {
-    ceu: CEU.chuva,
-    astro: null,
-    nuvem: COR.ceuChuva7,
-    horizonte: COR.noiteRoxo,
-    tinta: COR.tintaChuva,
+    ceu: CEU.sol,
+    astro: 'sol',
+    nuvem: COR.ceuSol8,
+    horizonte: COR.horizonteEscuro,
   };
   protected readonly semente = 404;
   protected override readonly buracos = LAYOUTS[2].buracos;

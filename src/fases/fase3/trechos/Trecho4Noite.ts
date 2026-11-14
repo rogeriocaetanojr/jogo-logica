@@ -9,12 +9,12 @@ import type { TemaTrecho } from './TrechoLixao';
  * 1792, com pilhas em degrau nas duas bordas, que se sobem dos dois lados.
  */
 export class Trecho4Noite extends TrechoLixao {
+  /** Mesmo visual do trecho 1 (a fase não tem mais estações). */
   public readonly tema: TemaTrecho = {
-    ceu: CEU.noite,
-    astro: 'lua',
-    nuvem: COR.ceuNoite6,
-    horizonte: COR.noiteRoxoEscuro,
-    tinta: COR.tintaNoite,
+    ceu: CEU.sol,
+    astro: 'sol',
+    nuvem: COR.ceuSol8,
+    horizonte: COR.horizonteEscuro,
   };
   protected readonly semente = 606;
 

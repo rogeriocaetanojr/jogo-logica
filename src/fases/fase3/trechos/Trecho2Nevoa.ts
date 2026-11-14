@@ -11,12 +11,12 @@ import type { TemaTrecho } from './TrechoLixao';
  * guindaste, e portão com botão-alvo. Level design em LayoutLixao.
  */
 export class Trecho2Nevoa extends TrechoLixao {
+  /** Mesmo visual do trecho 1 (a fase não tem mais estações). */
   public readonly tema: TemaTrecho = {
-    ceu: CEU.nevoa,
-    astro: null,
-    nuvem: COR.ceuNevoa7,
+    ceu: CEU.sol,
+    astro: 'sol',
+    nuvem: COR.ceuSol8,
     horizonte: COR.horizonteEscuro,
-    tinta: COR.tintaPo,
   };
   protected readonly semente = 303;
   protected override readonly buracos = LAYOUTS[1].buracos;

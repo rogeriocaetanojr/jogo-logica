@@ -14,7 +14,8 @@ export interface EstadoClima {
 
 /** Efeitos de cada clima do plano; cada trecho escolhe o seu em TRECHOS (TiposLixao). */
 export const EFEITOS_CLIMA: Record<Clima, EstadoClima> = {
-  sol: { poeira: 0, chuva: 0, noite: 0 },
+  /** Clima de toda a fase: o visual do início com uma garoa bem leve. */
+  sol: { poeira: 0, chuva: 0.25, noite: 0 },
   nevoa: { poeira: 1, chuva: 0, noite: 0 },
   chuva: { poeira: 0, chuva: 1, noite: 0 },
   noite: { poeira: 0, chuva: 0, noite: 1 },
@@ -188,7 +189,9 @@ export class ClimaLixao {
     const { poeira, chuva, noite } = this.estado;
     this.poeira.setAlpha(poeira);
     this.poeira.emitting = poeira > 0.01;
-    this.chuva.setAlpha(0.5 * chuva);
+    // Garoa: poucas gotas e mais apagadas; a chuva forte usa a quantidade cheia
+    this.chuva.setAlpha(0.5 * Math.min(1, chuva * 2));
+    this.chuva.setQuantity(Math.max(1, Math.round(6 * chuva)));
     this.chuva.emitting = chuva > 0.01;
     this.tintaChuva.setAlpha(0.05 * chuva);
     this.nevoa.setAlpha(VEU.NEVOA_ALPHA * poeira);
@@ -209,7 +212,8 @@ export class ClimaLixao {
 
   /** Na chuva, frenagem bem menor e aceleração um pouco menor no chão, proporcional à intensidade. */
   private aplicarChaoMolhado(jogador: JogadorLixao): void {
-    const c = this.estado.chuva;
+    // Só a chuva forte (acima de 0.5) deixa o chão escorregadio; a garoa não muda o controle
+    const c = Math.max(0, (this.estado.chuva - 0.5) * 2);
     const p = jogador.parametros;
     p.FRENAGEM_CHAO = MOVIMENTO_LIXAO.FRENAGEM_CHAO * (1 + (CHUVA.FATOR_FRENAGEM_CHAO - 1) * c);
     p.ACELERACAO_CHAO = MOVIMENTO_LIXAO.ACELERACAO_CHAO * (1 + (CHUVA.FATOR_ACELERACAO_CHAO - 1) * c);
