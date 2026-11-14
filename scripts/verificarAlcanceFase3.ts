@@ -11,7 +11,7 @@
  *
  * Uso: node scripts/verificarAlcanceFase3.ts
  */
-import { ALTURA_BARREIRA, ALTURA_ESPINHOS, LAYOUTS, QUEDA_SEGURA } from '../src/fases/fase3/trechos/LayoutLixao.ts';
+import { ALTURA_BARREIRA, ALTURA_ESPINHOS, ESCADA, LAYOUTS, QUEDA_SEGURA } from '../src/fases/fase3/trechos/LayoutLixao.ts';
 import type { Elemento, LayoutTrecho } from '../src/fases/fase3/trechos/LayoutLixao.ts';
 import { MOVIMENTO_LIXAO } from '../src/fases/fase3/lixao/TiposLixao.ts';
 
@@ -79,6 +79,16 @@ function montar(lay: LayoutTrecho, abertos: Set<string>): { sups: Sup[]; barreir
     x = bx + bw;
   }
   sups.push({ l: x, r: lay.largura, alt: 0, nome: `chão ${x}` });
+  // Corredor eletrificado (fatal) fechado: corta o chão como um buraco
+  if (ex.obstaculo === 'choque' && !abertos.has('exercicio')) {
+    const a = ex.xObstaculo;
+    const b = ex.xObstaculo + ex.largura;
+    const i = sups.findIndex((s) => s.alt === 0 && s.l <= a && s.r >= b);
+    if (i >= 0) {
+      const s = sups[i];
+      sups.splice(i, 1, { ...s, r: a }, { ...s, l: b, nome: `chão ${b}` });
+    }
+  }
   for (const e of lay.elementos as Elemento[]) {
     switch (e.tipo) {
       case 'viga':
@@ -94,7 +104,7 @@ function montar(lay: LayoutTrecho, abertos: Set<string>): { sups: Sup[]; barreir
         break;
       case 'elevador': {
         const alto = { l: e.x, r: e.x + e.w, alt: e.alt, nome: `elevador ${e.x} (alto)` };
-        const baixo = { l: e.x, r: e.x + e.w, alt: 20, nome: `elevador ${e.x} (embaixo)` };
+        const baixo = { l: e.x, r: e.x + e.w, alt: Math.max(20, e.ate ?? 0), nome: `elevador ${e.x} (embaixo)` };
         sups.push(alto, baixo);
         elevadores.push([alto, baixo]);
         break;
@@ -117,7 +127,14 @@ function montar(lay: LayoutTrecho, abertos: Set<string>): { sups: Sup[]; barreir
     const s = sups[i];
     sups.splice(i, 1, { ...s, r: br.x }, { ...s, l: br.x + PORTAO_W, nome: `chão ${br.x + PORTAO_W}` });
   }
-  if (ex.obstaculo !== 'portao' && abertos.has('exercicio')) {
+  if (ex.obstaculo === 'escada' && abertos.has('exercicio')) {
+    for (let k = 0; k < ESCADA.DEGRAUS; k++) {
+      const l = ex.xObstaculo + k * ESCADA.LARGURA;
+      sups.push({ l, r: l + ESCADA.LARGURA, alt: (k + 1) * ESCADA.PASSO, nome: `degrau ${k + 1} do Recicla` });
+    }
+  } else if (ex.obstaculo === 'choque') {
+    // Aberto: o chão do corredor volta (energia cortada); já está no chão inteiro acima
+  } else if (ex.obstaculo !== 'portao' && abertos.has('exercicio')) {
     sups.push({ l: ex.xObstaculo, r: ex.xObstaculo + ex.largura, alt: ex.alt, nome: 'passagem do exercício' });
   }
   return { sups, barreiras, elevadores };

@@ -112,6 +112,11 @@ export class ArremessoLixao {
     return this.naMao;
   }
 
+  /** O "[F] Pegar" está na tela (avisos do cenário cedem o espaço). */
+  get promptVisivel(): boolean {
+    return this.textoPegar.visible;
+  }
+
   atualizar(delta: number): void {
     this.atualizarPegar();
     this.atualizarMao();

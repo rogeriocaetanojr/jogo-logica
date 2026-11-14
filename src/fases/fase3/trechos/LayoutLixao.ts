@@ -27,6 +27,11 @@ export const ALTURA_ESPINHOS = 40;
  * do jogador (cair de uma torre), nunca como único caminho.
  */
 export const QUEDA_SEGURA = 400;
+/**
+ * Queda mais alta que isto é fatal (ver JogadorLixao). A folga sobre QUEDA_SEGURA evita matar
+ * por arredondamento. Onde dá para cair mais que isto, o layout põe um monitor de aviso.
+ */
+export const QUEDA_MORTAL = 480;
 
 export type Elemento =
   | { tipo: 'viga'; x: number; alt: number; w: number }
@@ -37,8 +42,11 @@ export type Elemento =
   | { tipo: 'fragil'; x: number; alt: number; w: number }
   /** Plataforma pendurada num guindaste, indo e voltando entre x e `ate` (borda esquerda). */
   | { tipo: 'guindaste'; x: number; ate: number; alt: number; w: number; v: number }
-  /** Cabo desencapado sobre uma poça no chão: choque intermitente. */
-  | { tipo: 'choque'; x: number; w: number; atraso: number }
+  /**
+   * Cabo desencapado sobre uma poça no chão: choque intermitente. Com `grupo`, fica ligado o
+   * tempo todo, é fatal e só desliga por um tempo quando o exercício do trecho manda.
+   */
+  | { tipo: 'choque'; x: number; w: number; atraso: number; grupo?: string }
   /** Ímã de sucata pendurado em (x, alt): ligado, puxa o jogador na horizontal até ele. */
   | { tipo: 'ima'; x: number; alt: number; atraso: number }
   /** Portão de grade pequeno (3 blocos e espinhos) no chão, aberto por alavanca ou botão. */
@@ -49,19 +57,25 @@ export type Elemento =
   /** Ponte que aparece quando o alvo é ativado. */
   | { tipo: 'ponte'; id: string; x: number; alt: number; w: number }
   /**
-   * Elevador de sucata entre o chão e `alt`: anda para a outra ponta quando o jogador sobe
-   * nele e é chamado de volta ao alto por quem espera no patamar.
+   * Elevador de sucata entre `ate` (padrão 0, o chão) e `alt`. Por gatilho, anda para a outra
+   * ponta quando o jogador sobe nele e é chamado de volta ao alto por quem espera no patamar;
+   * com `ciclo`, sobe e desce sozinho, parando um pouco em cada ponta.
    */
-  | { tipo: 'elevador'; x: number; alt: number; w: number }
+  | { tipo: 'elevador'; x: number; alt: number; w: number; ate?: number; ciclo?: boolean }
   /** Checkpoint extra; `ordem` só cresce ao longo da fase (ver CenaFase3). */
   | { tipo: 'checkpoint'; x: number; alt: number; ordem: number }
-  | { tipo: 'baixa'; x: number };
+  | { tipo: 'baixa'; x: number }
+  /**
+   * Monitor de aviso apoiado em (x, alt); `texto` troca a mensagem padrão. Estilo 'queda'
+   * (padrão): tela vermelha com seta para baixo. 'desafio': tela amarela com alvo e seta para cima.
+   */
+  | { tipo: 'aviso'; x: number; alt: number; texto?: string; estilo?: 'queda' | 'desafio' };
 
 /**
  * Obstáculo do exercício, no mesmo nível do terminal: vão que ganha uma ponte subindo, vão
  * que ganha uma plataforma descendo do alto, ou portão pequeno sobre uma passarela.
  */
-export type ObstaculoExercicio = 'vao' | 'plataforma' | 'portao';
+export type ObstaculoExercicio = 'vao' | 'plataforma' | 'portao' | 'escada' | 'choque';
 
 export interface ExercicioLayout {
   /** Terminal (x do centro) e altura da plataforma onde ele fica. */
@@ -142,18 +156,24 @@ const LARGURA_TERMINAL = 320;
 /** Vão do exercício no alto: largo demais para pular, só passa com a ponte ou a plataforma. */
 const VAO_EXERCICIO = 576;
 /**
- * Patamar depois do obstáculo e elevador que desce ao chão. O patamar é largo para o fosso
+ * Patamar depois do obstáculo e elevadores da descida. O patamar é largo para o fosso
  * embaixo passar do planeio de quem pula do terminal.
  */
 const PATAMAR = 480;
 const ELEVADOR = 128;
+/** Patamar no meio da descida, entre o elevador de cima e o de baixo, e o vão até o segundo. */
+const PATAMAR_MEIO = 160;
+/** Mensagem dos avisos ao lado dos elevadores. */
+const AVISO_ELEVADOR = 'ESPERE O ELEVADOR SUBIR\nSE PULAR, VOCÊ PODE MORRER NA QUEDA';
+const VAO_ELEVADORES = 96;
 
 /**
  * Topo do exercício sobre uma torre já montada (a última corrida precisa subir para a
  * direita): o último degrau vira a plataforma larga do terminal; à frente, no mesmo nível,
- * o obstáculo do exercício, o patamar e o elevador que desce até o chão firme. Embaixo, um
- * fosso do pé da torre até o elevador: o único caminho é por cima. Logo depois do elevador
- * fica um checkpoint no chão, para quem morrer ali não renascer no alto.
+ * o obstáculo do exercício, o patamar e a descida em dois elevadores: o primeiro vai até a
+ * metade, num patamar do meio, e dele se pula no segundo, que sobe e desce sozinho até o chão.
+ * Embaixo, um fosso do pé da torre até o primeiro elevador: o único caminho é por cima. Logo
+ * depois do segundo elevador fica um checkpoint no chão, para quem morrer ali não renascer no alto.
  */
 function topoExercicio(
   t: ReturnType<typeof torre>,
@@ -166,10 +186,29 @@ function topoExercicio(
   const fimPlataforma = xPlataforma + LARGURA_TERMINAL;
   const xPatamar = fimPlataforma + VAO_EXERCICIO;
   const xElevador = xPatamar + PATAMAR;
-  const fimElevador = xElevador + ELEVADOR;
+  // Descida em dois elevadores: o de cima vai só até a metade; do patamar do meio, pula-se no
+  // de baixo, que sobe e desce sozinho até o chão
+  const altMeio = Math.round(alt / 2 / 8) * 8;
+  const xPatamarMeio = xElevador + ELEVADOR;
+  const xElevador2 = xPatamarMeio + PATAMAR_MEIO + VAO_ELEVADORES;
+  const fimElevador = xElevador2 + ELEVADOR;
   const meio = t.degraus[indiceMeio];
+  // Avisos de queda fatal: no primeiro degrau comum (sem prensa, esteira, frágil ou guindaste)
+  // acima de QUEDA_MORTAL, na beira esquerda do terminal (longe dele, para o texto não cobrir
+  // o "[E] Terminal") e no patamar do meio da descida (de onde pular direto ao chão mata)
+  const degrauComum = (d: { x: number }) =>
+    t.elementos.every((e) => e.tipo === 'viga' || e.x + ('w' in e ? e.w : 0) < d.x - 40 || e.x > d.x + TORRE.LARGURA + 40);
+  const primeiroAlto = t.degraus.slice(0, -1).find((d) => d.alt > QUEDA_MORTAL && degrauComum(d));
+  const avisos: Elemento[] = [
+    ...(primeiroAlto ? [{ tipo: 'aviso' as const, x: primeiroAlto.x + 24, alt: primeiroAlto.alt }] : []),
+    { tipo: 'aviso', x: xPlataforma + 20, alt },
+    // Antes de cada elevador: pular nele quando está lá embaixo é queda fatal
+    { tipo: 'aviso', x: xElevador - 48, alt, texto: AVISO_ELEVADOR },
+    { tipo: 'aviso', x: xPatamarMeio + PATAMAR_MEIO - 36, alt: altMeio, texto: AVISO_ELEVADOR },
+  ];
   const elementos: Elemento[] = [
     ...degraus,
+    ...avisos,
     { tipo: 'viga', x: xPlataforma, alt, w: LARGURA_TERMINAL },
     { tipo: 'checkpoint', x: meio.x + TORRE.LARGURA / 2, alt: meio.alt, ordem: 30 },
   ];
@@ -180,7 +219,9 @@ function topoExercicio(
     elementos.push({ tipo: 'viga', x: xPatamar, alt, w: PATAMAR });
   }
   elementos.push(
-    { tipo: 'elevador', x: xElevador, alt, w: ELEVADOR },
+    { tipo: 'elevador', x: xElevador, alt, w: ELEVADOR, ate: altMeio },
+    { tipo: 'viga', x: xPatamarMeio, alt: altMeio, w: PATAMAR_MEIO },
+    { tipo: 'elevador', x: xElevador2, alt: altMeio, w: ELEVADOR, ciclo: true },
     // Chão firme ao lado do elevador embaixo: o jogador desce e segue andando
     { tipo: 'checkpoint', x: fimElevador + 80, alt: 0, ordem: 60 }
   );
@@ -197,6 +238,67 @@ function topoExercicio(
     fosso: [fimPlataforma - 40, xElevador - (fimPlataforma - 40)],
     fimElevador,
   };
+}
+
+/** Escada que o Recicla monta no exercício 2: degraus de 64 px subindo 80 px cada. */
+export const ESCADA = { DEGRAUS: 4, LARGURA: 64, PASSO: 80 } as const;
+/** Altura da passarela que a escada alcança (um pulo curto acima do último degrau). */
+const ALT_PASSARELA_ESCADA = 384;
+
+/**
+ * Exercício 2 no chão: terminal e, à frente, o lugar da escada do Recicla. A passarela alta
+ * cruza um fosso largo demais para pular; sem a escada não se alcança a passarela. No meio
+ * dela, duas frágeis; no fim, a queda de volta ao chão firme.
+ */
+function exercicioEscada(xTerminal: number) {
+  const xEscada = xTerminal + 160;
+  const largura = ESCADA.DEGRAUS * ESCADA.LARGURA;
+  const xPassarela = xEscada + largura;
+  const fosso: readonly [number, number] = [xPassarela + 64, 704];
+  const alt = ALT_PASSARELA_ESCADA;
+  const fimPassarela = xPassarela + 896;
+  const elementos: Elemento[] = [
+    { tipo: 'viga', x: xPassarela, alt, w: 320 },
+    { tipo: 'fragil', x: xPassarela + 408, alt, w: 96 },
+    { tipo: 'fragil', x: xPassarela + 592, alt, w: 96 },
+    { tipo: 'viga', x: xPassarela + 776, alt, w: 120 },
+    { tipo: 'checkpoint', x: fimPassarela + 100, alt: 0, ordem: 60 },
+  ];
+  const exercicio: ExercicioLayout = {
+    x: xTerminal,
+    alt: 0,
+    obstaculo: 'escada',
+    xObstaculo: xEscada,
+    largura,
+    xChaoSeguinte: fimPassarela + 60,
+  };
+  return { elementos, exercicio, fosso, fim: fimPassarela };
+}
+
+/** Energia cortada pelo exercício 3: tempo até o corredor voltar a ficar eletrificado. */
+export const CORREDOR = { SEGMENTOS: 6, LARGURA_SEGMENTO: 160, DESLIGADO_MS: 7000, AVISO_MS: 1500 } as const;
+
+/**
+ * Exercício 3 no chão: terminal e, à frente, um corredor de poças sempre eletrificado (fatal).
+ * O acerto corta a energia por CORREDOR.DESLIGADO_MS; dá para rodar de novo no terminal.
+ */
+function exercicioCorredor(xTerminal: number) {
+  const xCorredor = xTerminal + 120;
+  const largura = CORREDOR.SEGMENTOS * CORREDOR.LARGURA_SEGMENTO;
+  const elementos: Elemento[] = [];
+  for (let i = 0; i < CORREDOR.SEGMENTOS; i++) {
+    elementos.push({ tipo: 'choque', x: xCorredor + i * CORREDOR.LARGURA_SEGMENTO, w: CORREDOR.LARGURA_SEGMENTO, atraso: 0, grupo: 'corredor' });
+  }
+  elementos.push({ tipo: 'checkpoint', x: xCorredor + largura + 120, alt: 0, ordem: 60 });
+  const exercicio: ExercicioLayout = {
+    x: xTerminal,
+    alt: 0,
+    obstaculo: 'choque',
+    xObstaculo: xCorredor,
+    largura,
+    xChaoSeguinte: xCorredor + largura + 60,
+  };
+  return { elementos, exercicio, fim: xCorredor + largura };
 }
 
 /** Largura dos trechos 1 a 3. */
@@ -238,6 +340,8 @@ const SOL: LayoutTrecho = {
     // Longe da esteira: quem pula lá de cima não alcança o topo do portão
     { tipo: 'portao', id: 'portao-sol', x: 5900 },
     { tipo: 'baixa', x: 6100 },
+    // Monitor provocando antes da passagem baixa: dica de que o alvo lá em cima abre a ponte
+    { tipo: 'aviso', x: 6036, alt: 0, estilo: 'desafio', texto: 'APOSTO QUE VOCÊ NÃO ACERTA UM LIXO\nNAQUELE ALVO LÁ EM CIMA' },
     // Botão-alvo pendurado sobre o fosso: acertar um reciclável estende a ponte
     { tipo: 'ponte', id: 'ponte-sol', x: 6400, alt: 0, w: 448 },
     { tipo: 'botao', x: 6624, alt: 420, alvo: 'ponte-sol' },
@@ -266,12 +370,8 @@ const SOL: LayoutTrecho = {
  * TRECHO 2: NÉVOA (complica: plataformas frágeis e guindastes)
  * ========================================================================= */
 
-/** Torre de 12 degraus de 128 px (2 para a direita, 5 de volta, 5 para a direita) com frágeis e guindastes. */
-const nevoaExercicio = topoExercicio(
-  torre(2500, [[1, 2], [-1, 5], [1, 5]], 128, { 1: 'guindaste', 3: 'fragil', 6: 'guindaste', 8: 'fragil', 10: 'fragil' }),
-  'plataforma',
-  7
-);
+/** Exercício no chão: o Recicla monta a escada até a passarela das frágeis. */
+const nevoaExercicio = exercicioEscada(2400);
 
 const NEVOA: LayoutTrecho = {
   largura: LARGURA_TRECHO,
@@ -285,7 +385,7 @@ const NEVOA: LayoutTrecho = {
     // Plataforma de guindaste atravessando o segundo fosso
     { tipo: 'guindaste', x: 1060, ate: 1340, alt: 40, w: 128, v: 80 },
     { tipo: 'baixa', x: 1560 },
-    // Torre do exercício: o acerto desce uma plataforma sobre o vão
+    // Exercício no chão: o acerto faz o Recicla montar a escada até a passarela
     ...nevoaExercicio.elementos,
     // Ilha da alavanca: duas frágeis em escada e um guindaste até a ilha. Para voltar: o
     // guindaste e as frágeis (que voltam em 3 s) ou uma queda de 352 px
@@ -295,6 +395,8 @@ const NEVOA: LayoutTrecho = {
     { tipo: 'viga', x: 5520, alt: 352, w: 160 },
     { tipo: 'alavanca', x: 5600, alt: 352, alvo: 'portao-nevoa' },
     { tipo: 'portao', id: 'portao-nevoa', x: 6200 },
+    // Monitor provocando entre os dois portões: o alvo lá em cima abre o segundo
+    { tipo: 'aviso', x: 6300, alt: 0, estilo: 'desafio', texto: 'APOSTO QUE VOCÊ NÃO ACERTA UM LIXO\nNAQUELE ALVO LÁ EM CIMA' },
     // Segundo portão, aberto por um botão-alvo pendurado no alto
     { tipo: 'portao', id: 'portao-alvo-nevoa', x: 6450 },
     { tipo: 'botao', x: 6482, alt: 420, alvo: 'portao-alvo-nevoa' },
@@ -302,13 +404,13 @@ const NEVOA: LayoutTrecho = {
     { tipo: 'guindaste', x: 6630, ate: 6810, alt: 40, w: 128, v: 90 },
   ],
   drones: [
-    [2100, 1150],
-    [2500, 600],
+    [2100, 300],
+    [3300, 600],
     [5000, 800],
     [5300, 500],
   ],
   quedas: [
-    [2300, 1350],
+    [1900, 0],
     [5000, 0],
     [6000, 0],
   ],
@@ -316,7 +418,7 @@ const NEVOA: LayoutTrecho = {
   reciclaveis: [[6360, 'lata']],
   patrulhaRecicla: [4350, 4600],
   puzzles: [
-    { nome: 'névoa: torre de frágeis e guindastes', de: 1700, ate: nevoaExercicio.fimElevador },
+    { nome: 'névoa: escada do Recicla e passarela de frágeis', de: 2400, ate: nevoaExercicio.fim },
     { nome: 'névoa: ilha da alavanca pelo guindaste', de: 4700, ate: 6264 },
     { nome: 'névoa: portão do botão-alvo e guindaste', de: 6450, ate: 6940 },
   ],
@@ -326,12 +428,12 @@ const NEVOA: LayoutTrecho = {
  * TRECHO 3: CHUVA (combina: choques, ímãs e chão escorregadio)
  * ========================================================================= */
 
-/** Torre de 13 degraus de 136 px em cinco corridas curtas, com ímãs puxando dos lados. */
-const chuvaExercicio = topoExercicio(torre(2000, [[1, 3], [-1, 2], [1, 3], [-1, 2], [1, 3]], 136), 'portao', 6);
+/** Exercício no chão: corredor eletrificado que o acerto desliga por alguns segundos. */
+const chuvaExercicio = exercicioCorredor(2000);
 
 const CHUVA: LayoutTrecho = {
   largura: LARGURA_TRECHO,
-  buracos: [[1000, 160], chuvaExercicio.fosso, [6800, 200]],
+  buracos: [[1000, 160], [6800, 200]],
   exercicio: chuvaExercicio.exercicio,
   elementos: [
     // Cabos desencapados em poças: aviso piscando antes do choque
@@ -342,10 +444,8 @@ const CHUVA: LayoutTrecho = {
     // Ímã puxando para cima de uma poça com choque
     { tipo: 'choque', x: 1380, w: 128, atraso: 400 },
     { tipo: 'ima', x: 1520, alt: 240, atraso: 1200 },
-    // Torre do exercício com ímãs nos dois lados; o acerto abre o portão da passarela
+    // Exercício no chão: corredor eletrificado; o acerto corta a energia e é preciso correr
     ...chuvaExercicio.elementos,
-    { tipo: 'ima', x: 1760, alt: 700, atraso: 500 },
-    { tipo: 'ima', x: 2960, alt: 1300, atraso: 2000 },
     { tipo: 'baixa', x: 4680 },
     // Duas alavancas em sequência. A primeira fica numa viga baixa sobre uma poça com choque
     { tipo: 'choque', x: 4880, w: 160, atraso: 0 },
@@ -365,14 +465,14 @@ const CHUVA: LayoutTrecho = {
   ],
   drones: [
     [600, 180],
-    [1800, 1300],
+    [1800, 400],
     [2600, 700],
     [5200, 500],
     [5900, 700],
     [6400, 200],
   ],
   quedas: [
-    [2300, 1500],
+    [3300, 0],
     [5800, 600],
     [1300, 0],
     [6500, 0],
@@ -381,7 +481,7 @@ const CHUVA: LayoutTrecho = {
   reciclaveis: [],
   patrulhaRecicla: [4400, 4640],
   puzzles: [
-    { nome: 'chuva: torre de corridas curtas com ímãs', de: 1700, ate: chuvaExercicio.fimElevador },
+    { nome: 'chuva: corredor eletrificado', de: 2000, ate: chuvaExercicio.fim },
     { nome: 'chuva: duas alavancas sobre choques', de: 4880, ate: 6764 },
     { nome: 'chuva: fosso com ímã', de: 6800, ate: 7000 },
   ],

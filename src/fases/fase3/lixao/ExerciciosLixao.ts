@@ -25,37 +25,40 @@ export interface Exercicio {
 export const EXERCICIOS: readonly Exercicio[] = [
   {
     enunciado: [
-      'EXERCÍCIO 1 // GARRA DE ENTULHO',
-      'A garra precisa remover 3 blocos de entulho.',
-      'Use um for para chamar remover() 3 vezes.',
-      'Digite o código em uma linha e aperte Enter.',
+      'EXERCÍCIO 1 // TRIAGEM',
+      'Uma bateria velha chegou na esteira da triagem.',
+      'Guarde na variável cacamba o texto "eletronico".',
+      'Exemplo de variável com texto: cor = "verde"',
     ],
-    acerto: 'Garra acionada. remover() x3. O entulho desaba.',
-    respostas: [
-      ['for _ in range(3):', 'remover()'],
-      ['for _ in range(0,3):', 'remover()'],
-    ],
+    acerto: 'cacamba = "eletronico". Sucata separada e prensada: a rampa está pronta.',
+    respostas: [["cacamba='eletronico'"], ["cacamba='eletrônico'"], ["caçamba='eletronico'"], ["caçamba='eletrônico'"]],
   },
   {
     enunciado: [
-      'EXERCÍCIO 2 // PONTE SOBRE O VÃO',
-      'Crie a variável tamanho com valor 5 e chame ponte(tamanho).',
+      'EXERCÍCIO 2 // ESCADA DO RECICLA',
+      'A passarela está alta demais para pular. O Recicla pode montar uma escada.',
+      'Crie a variável degraus com valor 4 e chame construir(degraus).',
       'Pode ser em uma linha ou em duas: a primeira fica guardada até a segunda.',
     ],
-    acerto: 'tamanho = 5. ponte(5) montada. Pode atravessar.',
-    respostas: [['tamanho=5', 'ponte(tamanho)']],
+    acerto: 'degraus = 4. construir(4): o Recicla está empilhando os blocos!',
+    respostas: [
+      ['degraus=4', 'construir(degraus)'],
+      ['degraus=4', 'construir(4)'],
+    ],
   },
   {
     enunciado: [
-      'EXERCÍCIO 3 // PORTA COM SENSOR',
-      'A porta só abre se a energia for maior que 50.',
-      'Escreva um if que chama abrir() quando energia > 50.',
-      'Digite o código em uma linha e aperte Enter.',
+      'EXERCÍCIO 3 // CORREDOR ELETRIFICADO',
+      'O corredor à frente está eletrificado: encostar é fatal.',
+      'O disjuntor só corta a energia se ela for maior que 50.',
+      'Escreva um if que chama desligar() quando energia > 50.',
+      'Exemplo: if vida < 3: curar()',
+      'A energia volta em 7 segundos. Corra!',
     ],
-    acerto: 'energia > 50: verdadeiro. abrir(). O portão sobe.',
+    acerto: 'energia > 50: verdadeiro. desligar(). CORRA!',
     respostas: [
-      ['if energia>50:', 'abrir()'],
-      ['if 50<energia:', 'abrir()'],
+      ['if energia>50:', 'desligar()'],
+      ['if 50<energia:', 'desligar()'],
     ],
   },
 ];

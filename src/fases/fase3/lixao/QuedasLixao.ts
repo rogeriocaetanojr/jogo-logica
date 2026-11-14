@@ -106,7 +106,13 @@ interface Ponto {
 interface Solto {
   x: number;
   tipo: TipoReciclavel;
+  /** Instância no chão agora; undefined depois de pega (conta o tempo até reaparecer). */
+  atual?: ReciclavelChao;
+  espera: number;
 }
+
+/** Tempo para um reciclável solto do caminho reaparecer no lugar depois de pego (errar o arremesso não trava o caminho). */
+const REAPARECER_SOLTO_MS = 2500;
 
 class ReciclavelChao implements Reciclavel {
   /** Tempo até sumir; Infinity nos soltos do caminho. */
@@ -188,7 +194,7 @@ export class QuedasLixao {
       }
       for (const [xLocal, tipo] of trecho.reciclaveis) {
         if (!trecho.chaoLivre(xLocal, 0)) console.warn(`Reciclável solto do trecho ${i + 1} em ${xLocal} fora do chão livre.`);
-        this.soltos.push({ x: grade(trecho.offset + xLocal), tipo });
+        this.soltos.push({ x: grade(trecho.offset + xLocal), tipo, espera: 0 });
       }
     });
     this.espalharSoltos();
@@ -229,6 +235,7 @@ export class QuedasLixao {
       if (this.avancar(this.ciclos[i], delta)) this.ciclos.splice(i, 1);
     }
     this.atualizarReciclaveis(delta);
+    this.reporSoltos(delta);
   }
 
   /* =========================================================================
@@ -321,10 +328,12 @@ export class QuedasLixao {
     this.criarReciclavel(tipo, item!.x, yChao);
   }
 
-  private criarReciclavel(tipo: TipoReciclavel, x: number, y: number, restante?: number): void {
+  private criarReciclavel(tipo: TipoReciclavel, x: number, y: number, restante?: number): ReciclavelChao {
     const img = this.cena.add.image(x, y, `lx-rec-${tipo}`).setOrigin(0.5, 1).setScale(ESCALA).setDepth(PROF.objetos);
     this.cena.cenario.registrarTingivel(img);
-    this.reciclaveis.push(new ReciclavelChao(tipo, img, restante));
+    const r = new ReciclavelChao(tipo, img, restante);
+    this.reciclaveis.push(r);
+    return r;
   }
 
   /** Larga um reciclável que some com o tempo sobre o sólido mais alto em x (drone derrubado). */
@@ -334,7 +343,26 @@ export class QuedasLixao {
 
   /** Põe no chão os recicláveis soltos do caminho, sobre o sólido mais alto de cada ponto. */
   private espalharSoltos(): void {
-    for (const { x, tipo } of this.soltos) this.criarReciclavel(tipo, x, this.superficie(x), Infinity);
+    for (const s of this.soltos) {
+      s.atual = this.criarReciclavel(s.tipo, s.x, this.superficie(s.x), Infinity);
+      s.espera = 0;
+    }
+  }
+
+  /** Solto pego (arremessado, acertando ou não): reaparece no mesmo lugar depois de um tempo. */
+  private reporSoltos(delta: number): void {
+    for (const s of this.soltos) {
+      if (s.atual?.disponivel) continue;
+      s.atual = undefined;
+      s.espera += delta;
+      if (s.espera < REAPARECER_SOLTO_MS) continue;
+      s.espera = 0;
+      s.atual = this.criarReciclavel(s.tipo, s.x, this.superficie(s.x), Infinity);
+      // Surge com um pulinho para chamar atenção
+      const img = s.atual.img;
+      img.setScale(ESCALA * 0.3).setAlpha(0);
+      this.cena.tweens.add({ targets: img, scale: ESCALA, alpha: 1, duration: 300, ease: 'Back.easeOut' });
+    }
   }
 
   private encerrar(ciclo: Ciclo): void {

@@ -3,11 +3,12 @@
  */
 
 /**
- * Liga atalhos de desenvolvimento: teclas 1 a 4 levam ao início de cada trecho e L libera o
+ * Atalhos de desenvolvimento, ligados só no `npm run dev` (nunca no build): 1 a 4 levam ao
+ * início de cada trecho, Shift+1 a Shift+3 direto ao terminal de cada exercício, L libera o
  * obstáculo do exercício do trecho atual, C troca o clima e R traz o Recicla até o jogador.
- * Deixar false no commit.
+ * No Node (scripts/verificarAlcanceFase3.ts) import.meta.env não existe: fica desligado.
  */
-export const DEBUG = false;
+export const DEBUG: boolean = import.meta.env?.DEV === true;
 
 /** Física do jogador (gravidade do mundo: 600 px/s²). Também usada pelo verificador de alcance. */
 export const MOVIMENTO_LIXAO = {

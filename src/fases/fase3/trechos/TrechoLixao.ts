@@ -11,6 +11,7 @@ import {
   desenharBlocoSucata,
   desenharCano,
   desenharChao,
+  desenharFardo,
   desenharFosso,
   desenharBarreira,
   desenharViga,
@@ -20,7 +21,7 @@ import {
 } from '../lixao/ArteLixao';
 import type { CorLixao, Pincel } from '../lixao/ArteLixao';
 import { ALTURA_TELA, CHAO_Y, TRECHOS } from '../lixao/TiposLixao';
-import { ALTURA_BARREIRA, ALTURA_ESPINHOS, LAYOUTS } from './LayoutLixao';
+import { ALTURA_BARREIRA, ALTURA_ESPINHOS, CORREDOR, ESCADA, LAYOUTS } from './LayoutLixao';
 import type { ExercicioLayout, LayoutTrecho, ObstaculoExercicio } from './LayoutLixao';
 import type { InfoTrecho, TipoReciclavel } from '../lixao/TiposLixao';
 
@@ -319,6 +320,14 @@ export abstract class TrechoLixao {
     const ex = this.exercicio;
     if (this.resolvido || !ex) return;
     this.resolvido = true;
+    if (ex.obstaculo === 'choque') {
+      this.cortarEnergia();
+      return;
+    }
+    if (ex.obstaculo === 'escada') {
+      this.construirEscada(ex);
+      return;
+    }
     this.cena.cameras.main.shake(300, 0.006);
     if (ex.obstaculo !== 'portao') {
       this.criarPassagem(ex);
@@ -575,18 +584,176 @@ export abstract class TrechoLixao {
     this.bloqueio = this.solido('obstaculo', ex.xObstaculo, topo, ex.largura, BARREIRA, (p, w, h) => desenharBarreira(p, w, h, 'portao'));
   }
 
+  /** O exercício deste trecho pode ser rodado de novo depois de resolvido (corredor). */
+  get exercicioRepetivel(): boolean {
+    return this.exercicio?.obstaculo === 'choque';
+  }
+
+  /** Exercício 3: corta a energia do corredor; também usado ao rodar o código de novo. */
+  cortarEnergia(): void {
+    this.cena.mecanismos.desligarGrupo('corredor', CORREDOR.DESLIGADO_MS);
+    this.cena.cameras.main.shake(150, 0.004);
+  }
+
+  /**
+   * Exercício 2: o Recicla chega andando, empilha os degraus um a um (com bipe e poeira),
+   * comemora e vai embora. Cada degrau é sólido quando assenta.
+   */
+  private construirEscada(ex: ExercicioLayout): void {
+    const xEscada = this.offset + ex.xObstaculo;
+    const robo = this.cena.add
+      .image(grade(xEscada - 120), CHAO_Y, 'lx-recicla-0')
+      .setOrigin(0.5, 1)
+      .setScale(ESCALA)
+      .setDepth(PROF.objetos + 2);
+    this.tingir(robo);
+    let quadro = 0;
+    const passos = this.cena.time.addEvent({
+      delay: 160,
+      loop: true,
+      callback: () => robo.setTexture((quadro++ % 2 === 0 ? 'lx-recicla-1' : 'lx-recicla-0')),
+    });
+    const degrau = (k: number): void => {
+      if (k >= ESCADA.DEGRAUS) {
+        // Comemora pulando e volta pelo caminho
+        passos.remove();
+        robo.setTexture('lx-recicla-0');
+        this.cena.tweens.add({
+          targets: robo,
+          y: CHAO_Y - 24,
+          duration: 160,
+          yoyo: true,
+          repeat: 2,
+          onComplete: () => {
+            robo.setFlipX(true);
+            this.cena.tweens.add({ targets: robo, x: robo.x - 400, alpha: 0, duration: 1800, onComplete: () => robo.destroy() });
+          },
+        });
+        return;
+      }
+      const x = ex.xObstaculo + k * ESCADA.LARGURA;
+      const altura = (k + 1) * ESCADA.PASSO;
+      // Anda até a frente do degrau, pega o bloco e ele sobe do chão até a altura
+      this.cena.tweens.add({
+        targets: robo,
+        x: grade(this.offset + x - 24),
+        duration: 350,
+        onComplete: () => {
+          robo.setTexture('lx-recicla-pega');
+          const bloco = this.solido(`escada-${k}`, x, CHAO_Y - altura, ESCADA.LARGURA, altura, (p, w, h) => desenharBlocoSucata(p, w, h, this.rnd));
+          const yFinal = bloco.img.y;
+          bloco.img.setY(yFinal + altura).setAlpha(0.6);
+          this.cena.som.bipesCheckpoint();
+          this.cena.tweens.add({
+            targets: bloco.img,
+            y: yFinal,
+            alpha: 1,
+            duration: 380,
+            ease: 'Back.easeOut',
+            onComplete: () => {
+              this.poeiraImpacto(grade(this.offset + x), CHAO_Y - 24, ESCADA.LARGURA);
+              this.cena.time.delayedCall(180, () => degrau(k + 1));
+            },
+          });
+        },
+      });
+    };
+    this.cena.tweens.add({ targets: robo, x: grade(xEscada - 24), duration: 700, onComplete: () => degrau(0) });
+  }
+
+  /**
+   * Vão do exercício 1 (triagem): uma prensa desce do alto trazendo a sucata separada, esmaga
+   * tudo num fardo sobre o vão (tranco, poeira e tremor) e sobe de volta. O fardo vira a
+   * passagem, rente à plataforma do terminal; o corpo sólido só aparece no impacto.
+   */
+  private criarFardoPrensado(ex: ExercicioLayout): void {
+    const x = grade(this.offset + ex.xObstaculo);
+    const topo = grade(this.yExercicio);
+    const wa = Math.round(ex.largura / ESCALA);
+    const ha = 10;
+    const rnd = aleatorio(this.semente + 999);
+    texturaPixel(this.cena, this.chave('fardo'), wa, ha, (p) => desenharFardo(p, wa, ha, rnd));
+    texturaPixel(this.cena, this.chave('prensa-fardo'), wa + 8, 14, (p) => {
+      p.caixa(0, 0, wa + 8, 14, COR.musgo);
+      p.px(1, 1, wa + 6, 2, COR.musgoClaro);
+      for (let i = 3; i < wa + 5; i += 4) p.px(i, 5, 2, 4, COR.musgoEscuro);
+      p.px(0, 12, wa + 8, 2, COR.contorno);
+      for (let i = 1; i < wa + 7; i += 2) p.ponto(i, 13, COR.perigo);
+    });
+    const subida = 420;
+    const fardo = this.tingir(
+      this.cena.add.image(x, topo - subida, this.chave('fardo')).setOrigin(0, 0).setScale(ESCALA, ESCALA * 1.8).setDepth(PROF.objetos)
+    );
+    const prensa = this.tingir(
+      this.cena.add
+        .image(x - 16, topo - subida, this.chave('prensa-fardo'))
+        .setOrigin(0, 1)
+        .setScale(ESCALA)
+        .setDepth(PROF.objetos + 1)
+    );
+    const haste = this.cena.add
+      .rectangle(x + ex.largura / 2, topo - subida - 14 * ESCALA, 24, 900, hexNum(COR.musgoEscuro))
+      .setOrigin(0.5, 1)
+      .setDepth(PROF.objetos);
+    // Desce carregando a sucata solta (alta), esmaga no vão e o fardo assenta compacto
+    this.cena.tweens.add({
+      targets: [fardo, prensa, haste],
+      y: `+=${subida}`,
+      duration: 650,
+      ease: 'Quad.easeIn',
+      onComplete: () => {
+        this.cena.cameras.main.shake(260, 0.01);
+        this.solido('passagem-corpo', ex.xObstaculo, this.yExercicio, ex.largura, 20, () => undefined).img.setVisible(false);
+        this.poeiraImpacto(x, topo, ex.largura);
+        this.cena.tweens.add({ targets: fardo, scaleY: ESCALA, duration: 140, ease: 'Back.easeOut' });
+        this.cena.tweens.add({ targets: prensa, y: topo - 6, duration: 140, yoyo: true });
+        this.cena.tweens.add({
+          targets: [prensa, haste],
+          y: `-=${subida}`,
+          alpha: 0,
+          delay: 500,
+          duration: 900,
+          ease: 'Sine.easeIn',
+          onComplete: () => {
+            prensa.destroy();
+            haste.destroy();
+          },
+        });
+      },
+    });
+  }
+
+  /** Baforada de poeira dos dois lados do impacto da prensa. */
+  private poeiraImpacto(x: number, y: number, largura: number): void {
+    for (let i = 0; i < 14; i++) {
+      const lado = i % 2 === 0 ? -1 : 1;
+      const px = lado < 0 ? x : x + largura;
+      const caco = this.cena.add
+        .rectangle(px, y + 8 + Math.random() * 24, ESCALA * 2, ESCALA * 2, hexNum(i % 3 === 0 ? COR.cobre : COR.sucataClara))
+        .setDepth(PROF.objetos + 2);
+      this.cena.tweens.add({
+        targets: caco,
+        x: px + lado * (30 + Math.random() * 60),
+        y: caco.y - 20 - Math.random() * 30,
+        alpha: 0,
+        duration: 500 + Math.random() * 300,
+        ease: 'Quad.easeOut',
+        onComplete: () => caco.destroy(),
+      });
+    }
+  }
+
   /**
    * Passagem sobre o vão do exercício, rente à plataforma do terminal: a ponte sobe de baixo
    * (vão) ou a plataforma desce do alto pendurada num cabo (plataforma).
    */
   private criarPassagem(ex: ExercicioLayout): void {
-    const passagem = this.solido('passagem', ex.xObstaculo, this.yExercicio, ex.largura, 20, desenharViga);
-    const y = passagem.img.y;
     if (ex.obstaculo === 'vao') {
-      passagem.img.setAlpha(0).setY(y + 40);
-      this.cena.tweens.add({ targets: passagem.img, y, alpha: 1, duration: 600, ease: 'Back.easeOut' });
+      this.criarFardoPrensado(ex);
       return;
     }
+    const passagem = this.solido('passagem', ex.xObstaculo, this.yExercicio, ex.largura, 20, desenharViga);
+    const y = passagem.img.y;
     // Plataforma descendo do alto, com os cabos acompanhando
     const cabos = [ex.xObstaculo + 24, ex.xObstaculo + ex.largura - 24].map((cx) =>
       this.cena.add

@@ -1,27 +1,31 @@
 import Phaser from 'phaser';
-import { COR, ESCALA, texturaPixel } from './ArteLixao';
+import { COR, ESCALA, hexNum, texturaPixel } from './ArteLixao';
 import { LARGURA_TELA, TRECHOS, VIDA_MAXIMA } from './TiposLixao';
 import type { Clima, TipoReciclavel } from './TiposLixao';
 
-/** Carga de uma bateria na HUD: as cheias mudam de cor conforme a vida restante. */
-type Carga = 'verde' | 'amarela' | 'vermelha' | 'vazia';
+/** Carga da bateria da HUD: a cor dos segmentos cheios indica quanto resta. */
+type Carga = 'verde' | 'amarela' | 'vermelha';
 
 const CORES_CARGA: Record<Carga, string> = {
   verde: COR.bateriaVerde,
   amarela: COR.bateriaAmarela,
   vermelha: COR.perigo,
-  vazia: COR.sombraSucata,
 };
 
-/** Tamanho da pilha em pixels de arte e espaço entre elas. */
-const LARGURA_PILHA = 12;
-const ALTURA_PILHA = 7;
-const ESPACO = 2;
+/**
+ * Bateria única e fina, em pixels de arte: casco de 1 px com polo à direita e um segmento
+ * de carga por vida. Segmento de SEG_W x SEG_H com 1 px de folga entre eles.
+ */
+const SEG_W = 4;
+const SEG_H = 3;
+const SEG_FOLGA = 1;
+const CASCO_W = 2 + VIDA_MAXIMA * (SEG_W + SEG_FOLGA) + 1;
+const CASCO_H = SEG_H + 4;
 /** Canto superior esquerdo, abaixo do HUD do setor (CenaBase). */
 const POSICAO = { x: 20, y: 48 } as const;
 const PROFUNDIDADE = 9998;
-/** Moldura do item na mão, em pixels de arte, logo depois da última bateria. */
-const LADO_MOLDURA = 12;
+/** Moldura do item na mão, em pixels de arte, logo depois da bateria. */
+const LADO_MOLDURA = 9;
 const ESPACO_MOLDURA = 4;
 /** Ícone do clima, em pixels de arte, e margem direita da HUD. */
 const LADO_CLIMA = 9;
@@ -29,14 +33,20 @@ const MARGEM_DIREITA = 20;
 
 const FONTE = 'Consolas, "Courier New", monospace';
 
-/** Pilha deitada: contorno, polo positivo à direita e carga dentro. */
-function desenharPilha(cena: Phaser.Scene, carga: Carga): string {
-  return texturaPixel(cena, `lx-bateria-${carga}`, LARGURA_PILHA, ALTURA_PILHA, (p) => {
-    p.caixa(0, 0, LARGURA_PILHA - 1, ALTURA_PILHA, CORES_CARGA[carga]);
-    p.px(LARGURA_PILHA - 1, 2, 1, ALTURA_PILHA - 4, COR.contorno);
-    // Reflexo na parte de cima (só nas carregadas)
-    if (carga !== 'vazia') p.px(2, 1, LARGURA_PILHA - 5, 1, COR.luz);
-    p.px(1, ALTURA_PILHA - 2, LARGURA_PILHA - 3, 1, COR.contorno);
+/** Casco da bateria: contorno claro de 1 px, sombra de 1 px embaixo e polo positivo. */
+function desenharCasco(cena: Phaser.Scene): string {
+  return texturaPixel(cena, 'lx-hud-bateria', CASCO_W + 2, CASCO_H + 1, (p) => {
+    // Sombra deslocada 1 px para baixo, para ler sobre qualquer fundo
+    p.px(1, 1, CASCO_W, CASCO_H, COR.contorno);
+    p.px(CASCO_W + 1, 3, 1, CASCO_H - 4, COR.contorno);
+    // Casco vazado
+    p.px(0, 0, CASCO_W, 1, COR.luz);
+    p.px(0, CASCO_H - 1, CASCO_W, 1, COR.luz);
+    p.px(0, 0, 1, CASCO_H, COR.luz);
+    p.px(CASCO_W - 1, 0, 1, CASCO_H, COR.luz);
+    p.px(1, 1, CASCO_W - 2, CASCO_H - 2, COR.contorno);
+    // Polo
+    p.px(CASCO_W, 2, 1, CASCO_H - 4, COR.luz);
   });
 }
 
@@ -79,14 +89,15 @@ function desenharClima(cena: Phaser.Scene, clima: Clima): string {
 }
 
 /**
- * HUD da Fase 3, fixa na câmera. Esquerda: a vida numa fileira de pilhas que descarregam com
+ * HUD da Fase 3, fixa na câmera. Esquerda: a vida numa bateria fina com um segmento por vida, que descarrega com
  * o dano (verde, amarelo e, por fim, vermelho) e a moldura com o ícone do item na mão.
  * Direita: ícone e nome do clima e o medidor "Lixão limpo". Contextuais: "[Clique]
  * Arremessar" com item na mão e avisos curtos como "Checkpoint salvo".
  */
 export class HudLixao {
   private readonly cena: Phaser.Scene;
-  private readonly pilhas: Phaser.GameObjects.Image[] = [];
+  private readonly segmentos: Phaser.GameObjects.Rectangle[] = [];
+  private vidaMostrada = VIDA_MAXIMA;
   private readonly icone: Phaser.GameObjects.Image;
   private readonly avisoArremesso: Phaser.GameObjects.Text;
   private readonly iconeClima: Phaser.GameObjects.Image;
@@ -97,18 +108,34 @@ export class HudLixao {
 
   constructor(cena: Phaser.Scene) {
     this.cena = cena;
-    (['verde', 'amarela', 'vermelha', 'vazia'] as const).forEach((c) => desenharPilha(cena, c));
+
+    // Faixa superior como na Fase 2: nome da fase à esquerda e atalho à direita, sem fundo
+    const topo = (x: number, texto: string, cor: string) =>
+      this.fixo(
+        cena.add.text(x, 14, texto, { fontFamily: FONTE, fontSize: '13px', color: cor, fontStyle: 'bold', stroke: '#000000', strokeThickness: 3 })
+      );
+    topo(16, 'FASE 3  ·  LIXÃO ABANDONADO', '#C8C2B4');
+    topo(LARGURA_TELA - 16, '[ESC] HUB', COR.neonCiano).setOrigin(1, 0);
+    this.fixo(cena.add.image(POSICAO.x, POSICAO.y, desenharCasco(cena)).setOrigin(0, 0).setScale(ESCALA).setAlpha(0.9));
     for (let i = 0; i < VIDA_MAXIMA; i++) {
-      const x = POSICAO.x + i * (LARGURA_PILHA + ESPACO) * ESCALA;
-      this.pilhas.push(this.fixo(cena.add.image(x, POSICAO.y, 'lx-bateria-verde').setOrigin(0, 0).setScale(ESCALA)));
+      const x = POSICAO.x + (2 + i * (SEG_W + SEG_FOLGA)) * ESCALA;
+      this.segmentos.push(
+        this.fixo(cena.add.rectangle(x, POSICAO.y + 2 * ESCALA, SEG_W * ESCALA, SEG_H * ESCALA, hexNum(COR.bateriaVerde)).setOrigin(0, 0))
+      );
     }
 
-    // Moldura do item: centrada na altura das pilhas, vazia até pegar algo
-    texturaPixel(cena, 'lx-hud-moldura', LADO_MOLDURA, LADO_MOLDURA, (p) => p.caixa(0, 0, LADO_MOLDURA, LADO_MOLDURA, COR.sombraSucata));
-    const xMoldura = POSICAO.x + (VIDA_MAXIMA * (LARGURA_PILHA + ESPACO) + ESPACO_MOLDURA) * ESCALA;
-    const centro = { x: xMoldura + (LADO_MOLDURA * ESCALA) / 2, y: POSICAO.y + (ALTURA_PILHA * ESCALA) / 2 };
-    this.fixo(cena.add.image(centro.x, centro.y, 'lx-hud-moldura').setScale(ESCALA));
-    this.icone = this.fixo(cena.add.image(centro.x, centro.y, '__DEFAULT').setScale(ESCALA).setVisible(false));
+    // Moldura do item: só um contorno fino, centrada na altura da bateria
+    texturaPixel(cena, 'lx-hud-moldura', LADO_MOLDURA, LADO_MOLDURA, (p) => {
+      p.px(0, 0, LADO_MOLDURA, 1, COR.luz);
+      p.px(0, LADO_MOLDURA - 1, LADO_MOLDURA, 1, COR.luz);
+      p.px(0, 0, 1, LADO_MOLDURA, COR.luz);
+      p.px(LADO_MOLDURA - 1, 0, 1, LADO_MOLDURA, COR.luz);
+    });
+    const xMoldura = POSICAO.x + (CASCO_W + 1 + ESPACO_MOLDURA) * ESCALA;
+    const centro = { x: xMoldura + (LADO_MOLDURA * ESCALA) / 2, y: POSICAO.y + (CASCO_H * ESCALA) / 2 };
+    this.fixo(cena.add.image(centro.x, centro.y, 'lx-hud-moldura').setScale(ESCALA).setAlpha(0.5));
+    // Ícone um pouco menor que a escala do mundo para caber com folga na moldura fina
+    this.icone = this.fixo(cena.add.image(centro.x, centro.y, '__DEFAULT').setScale(ESCALA - 1).setVisible(false));
     this.avisoArremesso = this.fixo(
       cena.add.text(POSICAO.x, centro.y + (LADO_MOLDURA / 2) * ESCALA + 8, '[Clique] Arremessar', this.estilo(COR.neonCiano, '14px')).setVisible(false)
     );
@@ -116,11 +143,11 @@ export class HudLixao {
     // Direita: clima (ícone + nome) e o medidor de limpeza logo abaixo
     (['sol', 'nevoa', 'chuva', 'noite'] as const).forEach((c) => desenharClima(cena, c));
     this.textoClima = this.fixo(
-      cena.add.text(LARGURA_TELA - MARGEM_DIREITA, 16, '', this.estilo(COR.ceuPoeiraClaro, '13px', { x: 8, y: 4 })).setOrigin(1, 0)
+      cena.add.text(LARGURA_TELA - MARGEM_DIREITA, 44, '', this.estilo(COR.ceuPoeiraClaro, '13px', { x: 8, y: 4 })).setOrigin(1, 0)
     );
     this.iconeClima = this.fixo(cena.add.image(0, 0, 'lx-hud-clima-sol').setOrigin(1, 0.5).setScale(ESCALA));
     this.textoLimpo = this.fixo(
-      cena.add.text(LARGURA_TELA - MARGEM_DIREITA, 16 + 30, '', this.estilo(COR.bateriaVerde, '13px', { x: 8, y: 4 })).setOrigin(1, 0)
+      cena.add.text(LARGURA_TELA - MARGEM_DIREITA, 44 + 30, '', this.estilo(COR.bateriaVerde, '13px', { x: 8, y: 4 })).setOrigin(1, 0)
     );
     this.atualizarLimpo(0);
 
@@ -137,11 +164,33 @@ export class HudLixao {
     this.avisoArremesso.setVisible(tipo !== null);
   }
 
-  /** Mostra `vida` pilhas carregadas; a cor delas indica quanto resta. */
+  /**
+   * Acende `vida` segmentos na cor da carga restante. O segmento perdido pisca branco e
+   * apaga; o recuperado acende com um brilho rápido.
+   */
   atualizarVida(vida: number): void {
     const fracao = vida / VIDA_MAXIMA;
-    const cor: Carga = fracao > 0.6 ? 'verde' : fracao > 0.2 ? 'amarela' : 'vermelha';
-    this.pilhas.forEach((pilha, i) => pilha.setTexture(`lx-bateria-${i < vida ? cor : 'vazia'}`));
+    const carga: Carga = fracao > 0.6 ? 'verde' : fracao > 0.2 ? 'amarela' : 'vermelha';
+    const cor = hexNum(CORES_CARGA[carga]);
+    const antes = this.vidaMostrada;
+    this.vidaMostrada = vida;
+    this.segmentos.forEach((seg, i) => {
+      this.cena.tweens.killTweensOf(seg);
+      seg.setFillStyle(cor).setScale(1);
+      const cheio = i < vida;
+      if (!cheio && i < antes) {
+        // Perdido agora: flash branco e some
+        seg.setFillStyle(hexNum(COR.luz)).setAlpha(1);
+        this.cena.tweens.add({ targets: seg, alpha: 0, duration: 450, ease: 'Quad.easeIn' });
+      } else if (cheio && i >= antes) {
+        seg.setAlpha(0);
+        this.cena.tweens.add({ targets: seg, alpha: 1, duration: 250 });
+      } else seg.setAlpha(cheio ? 1 : 0);
+    });
+    // Última carga: pulsa devagar para chamar atenção sem poluir
+    if (vida === 1) {
+      this.cena.tweens.add({ targets: this.segmentos[0], alpha: 0.35, duration: 500, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    }
   }
 
   /** Ícone e nome do clima; `rotulo` substitui o nome (atalho de depuração). */

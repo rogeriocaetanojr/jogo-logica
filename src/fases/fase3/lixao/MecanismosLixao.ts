@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import type { CenaFase3 } from '../CenaFase3';
 import { PROF } from '../trechos/TrechoLixao';
-import { ALTURA_BARREIRA, ALTURA_ESPINHOS } from '../trechos/LayoutLixao';
+import { ALTURA_BARREIRA, ALTURA_ESPINHOS, CORREDOR } from '../trechos/LayoutLixao';
 import type { Elemento } from '../trechos/LayoutLixao';
 import { COR, ESCALA, aleatorio, desenharBarreira, folhaPixel, grade, hexNum, texturaPixel } from './ArteLixao';
 import type { Pincel } from './ArteLixao';
@@ -36,11 +36,15 @@ export const MECANISMO = {
   ALCANCE_CHECKPOINT: 50,
   /** Raio do botão-alvo para um reciclável acertar. */
   RAIO_BOTAO: 32,
-  /** Elevador: espera antes de partir e velocidade (px/s). */
+  /** Elevador: espera antes de partir, velocidade máxima e mínima (px/s) e distância de aceleração e frenagem. */
   ELEVADOR_ESPERA_MS: 350,
-  ELEVADOR_VELOCIDADE: 260,
+  ELEVADOR_VELOCIDADE: 240,
+  ELEVADOR_VELOCIDADE_MIN: 50,
+  ELEVADOR_RAMPA: 120,
+  /** Elevador em ciclo: pausa em cada ponta. */
+  ELEVADOR_PAUSA_CICLO_MS: 1100,
   /** Distância do poço em que quem espera no patamar de cima chama o elevador. */
-  ELEVADOR_CHAMADA: 320,
+  ELEVADOR_CHAMADA: 500,
 } as const;
 
 interface Prensa {
@@ -90,6 +94,8 @@ interface Choque {
   faisca: Phaser.GameObjects.Rectangle;
   descarga: Phaser.GameObjects.Rectangle;
   ultimaFase: number;
+  /** Corredor eletrificado do exercício 3: sempre ligado e fatal, salvo quando desligado. */
+  grupo?: string;
 }
 
 interface Ima {
@@ -126,20 +132,22 @@ interface Botao {
 }
 
 interface Elevador {
+  /** Corpo dinâmico imóvel e sem gravidade, movido por velocidade (leva quem está em cima). */
   corpo: Phaser.GameObjects.Rectangle;
   img: Phaser.GameObjects.Image;
   luz: Phaser.GameObjects.Rectangle;
   x: number;
   w: number;
-  /** Topo da plataforma (y de mundo) em cima e embaixo, e a posição atual. */
+  /** Topo da plataforma (y de mundo) em cima e embaixo. */
   yAlto: number;
   yBaixo: number;
-  y: number;
   /** Para onde vai (-1 sobe, 1 desce) ou 0 parado. */
   sentido: number;
   espera: number;
-  /** Só parte de novo depois que o jogador sair e subir outra vez. */
+  /** Só parte de novo depois que o jogador sair e subir outra vez (elevador por gatilho). */
   liberado: boolean;
+  /** Em ciclo: sobe e desce sozinho, parando ELEVADOR_PAUSA_CICLO_MS em cada ponta. */
+  ciclo: boolean;
 }
 
 interface Checkpoint {
@@ -169,11 +177,18 @@ export class MecanismosLixao {
   private readonly frageis: Fragil[] = [];
   private readonly guindastes: Guindaste[] = [];
   private readonly choques: Choque[] = [];
+  /** Até quando (tempo da cena) cada grupo de choque fica desligado. */
+  private readonly desligadoAte = new Map<string, number>();
+  /** Último segundo mostrado na contagem do corredor (para avisar uma vez por segundo). */
+  private ultimoSegundo = -1;
   private readonly imas: Ima[] = [];
   private readonly alavancas: Alavanca[] = [];
   private readonly botoes: Botao[] = [];
   private readonly checkpoints: Checkpoint[] = [];
   private readonly elevadores: Elevador[] = [];
+  private readonly avisos: { img: Phaser.GameObjects.Sprite; texto: Phaser.GameObjects.Text; x: number; y: number }[] = [];
+  /** Corpos dos elevadores: a cena liga o colisor com o jogador depois de criá-lo. */
+  public readonly corposMoveis: Phaser.GameObjects.Rectangle[] = [];
   private readonly abriveis = new Map<string, Abrivel>();
   private contador = 0;
 
@@ -200,7 +215,7 @@ export class MecanismosLixao {
         this.criarGuindaste(offset + e.x, offset + e.ate, e.alt, e.w, e.v, n);
         break;
       case 'choque':
-        this.criarChoque(offset + e.x, e.w, e.atraso);
+        this.criarChoque(offset + e.x, e.w, e.atraso, e.grupo);
         break;
       case 'ima':
         this.criarIma(offset + e.x, e.alt, e.atraso);
@@ -218,10 +233,13 @@ export class MecanismosLixao {
         this.criarPonte(e.id, offset + e.x, e.alt, e.w);
         break;
       case 'elevador':
-        this.criarElevador(offset + e.x, e.alt, e.w);
+        this.criarElevador(offset + e.x, e.alt, e.w, e.ate ?? 0, e.ciclo ?? false);
         break;
       case 'checkpoint':
         this.criarCheckpoint(offset + e.x, e.alt, trecho, e.ordem);
+        break;
+      case 'aviso':
+        this.criarAviso(offset + e.x, e.alt, e.texto, e.estilo);
         break;
       default:
         break;
@@ -273,6 +291,7 @@ export class MecanismosLixao {
     this.atualizarChoques();
     this.atualizarImas(dt);
     this.atualizarCheckpoints();
+    this.atualizarAvisos();
   }
 
   /* =========================================================================
@@ -529,7 +548,13 @@ export class MecanismosLixao {
    * CABO DE CHOQUE NA POÇA
    * ========================================================================= */
 
-  private criarChoque(x: number, w: number, atraso: number): void {
+  /** Corta a energia de um grupo de choques (exercício 3) pelo tempo informado. */
+  desligarGrupo(grupo: string, ms: number): void {
+    this.desligadoAte.set(grupo, this.cena.time.now + ms);
+    this.ultimoSegundo = -1;
+  }
+
+  private criarChoque(x: number, w: number, atraso: number, grupo?: string): void {
     const wa = Math.round(w / ESCALA);
     texturaPixel(this.cena, `lx-poca-choque-${wa}`, wa, 3, (p) => {
       p.px(1, 0, wa - 2, 3, COR.chuvaAzul);
@@ -547,13 +572,18 @@ export class MecanismosLixao {
       .setOrigin(0, 1)
       .setDepth(PROF.escuro + 1)
       .setVisible(false);
-    this.choques.push({ x, w, atraso, faisca, descarga, ultimaFase: -1 });
+    this.choques.push({ x, w, atraso, faisca, descarga, ultimaFase: -1, grupo });
   }
 
   private atualizarChoques(): void {
     const M = MECANISMO;
     const c = this.jogador.corpo;
+    this.contarCorredor();
     for (const ch of this.choques) {
+      if (ch.grupo) {
+        this.atualizarCorredor(ch);
+        continue;
+      }
       const f = this.fase(M.CHOQUE_CICLO, ch.atraso);
       const avisando = f >= M.CHOQUE_AVISO && f < M.CHOQUE_LIGA;
       const ligado = f >= M.CHOQUE_LIGA;
@@ -565,6 +595,42 @@ export class MecanismosLixao {
       const noChao = c.blocked.down || c.touching.down;
       if (ligado && noChao && Math.abs(c.bottom - CHAO_Y) <= 4 && c.right > ch.x + 4 && c.left < ch.x + ch.w - 4) this.aoAtingir(ch.x + ch.w / 2);
     }
+  }
+
+  /**
+   * Segmento do corredor eletrificado: descarga contínua e fatal; desligado só depois do
+   * exercício, com aviso piscando no fim do tempo.
+   */
+  private atualizarCorredor(ch: Choque): void {
+    const agora = this.cena.time.now;
+    const resta = (this.desligadoAte.get(ch.grupo ?? '') ?? 0) - agora;
+    const ligado = resta <= 0;
+    const avisando = !ligado && resta < CORREDOR.AVISO_MS;
+    const piscar = Math.floor(agora / 60) % 2 === 0;
+    ch.faisca.setVisible(ligado || (avisando && piscar));
+    ch.descarga.setVisible(ligado && piscar).setFillStyle(hexNum(Math.floor(agora / 100) % 2 === 0 ? COR.bateriaAmarela : COR.luz));
+    const c = this.jogador.corpo;
+    const noChao = c.blocked.down || c.touching.down;
+    if (ligado && noChao && Math.abs(c.bottom - CHAO_Y) <= 4 && c.right > ch.x + 4 && c.left < ch.x + ch.w - 4) this.cena.matarJogador();
+  }
+
+  /** Contagem regressiva na HUD enquanto o corredor está desligado, com bipe no fim. */
+  private contarCorredor(): void {
+    const ate = this.desligadoAte.get('corredor');
+    if (ate === undefined) return;
+    const resta = ate - this.cena.time.now;
+    if (resta <= 0) {
+      if (this.ultimoSegundo !== 0) {
+        this.ultimoSegundo = 0;
+        this.cena.som.choque();
+      }
+      return;
+    }
+    const s = Math.ceil(resta / 1000);
+    if (s === this.ultimoSegundo) return;
+    this.ultimoSegundo = s;
+    this.cena.hud.mostrarAviso(`Energia cortada: ${s} s`, 1000);
+    if (resta < CORREDOR.AVISO_MS) this.cena.som.aviso();
   }
 
   /* =========================================================================
@@ -699,18 +765,32 @@ export class MecanismosLixao {
    * ELEVADOR DE SUCATA
    * ========================================================================= */
 
-  /** Elevador entre o chão e `alt`: começa no alto; ao subir nele, vai para a outra ponta. */
-  private criarElevador(x: number, alt: number, w: number): void {
+  /**
+   * Elevador entre `ate` (0 = chão) e `alt`. Por gatilho, começa embaixo e sobe para buscar
+   * quem chega ao patamar de cima, depois parte ao subir nele; em ciclo, sobe e desce sozinho
+   * a partir do alto. O corpo é dinâmico e imóvel: a física leva o jogador junto.
+   */
+  private criarElevador(x: number, alt: number, w: number, ate: number, ciclo: boolean): void {
     const yAlto = CHAO_Y - alt;
-    const yBaixo = CHAO_Y - 20;
-    // Trilhos vazados do andaime, do chão ao alto
+    const yBaixo = CHAO_Y - Math.max(20, ate);
+    // Trilhos vazados do andaime, do pé ao alto
+    const pe = ate > 0 ? yBaixo + 20 : CHAO_Y;
     for (const tx of [x + 4, x + w - 8]) {
-      this.cena.add.rectangle(grade(tx), yBaixo + 20, ESCALA, yBaixo + 20 - yAlto + 40, hexNum(COR.sombraSucata)).setOrigin(0, 1).setDepth(PROF.objetos - 1);
+      this.cena.add.rectangle(grade(tx), pe, ESCALA, pe - yAlto + 40, hexNum(COR.sombraSucata)).setOrigin(0, 1).setDepth(PROF.objetos - 1);
     }
-    for (let y = yBaixo; y > yAlto - 40; y -= 96) {
+    for (let y = pe - 20; y > yAlto - 40; y -= 96) {
       this.cena.add.rectangle(grade(x + 4), grade(y), w - 8, ESCALA, hexNum(COR.sombraSucata)).setOrigin(0, 0).setDepth(PROF.objetos - 1);
     }
-    const corpo = this.solido(x, yAlto, w, 20);
+    const yInicio = ciclo ? yAlto : yBaixo;
+    const corpo = this.cena.add.rectangle(x + w / 2, yInicio + 10, w, 20, 0, 0);
+    this.cena.physics.add.existing(corpo);
+    const b = corpo.body as Phaser.Physics.Arcade.Body;
+    b.setAllowGravity(false).setImmovable(true);
+    // Só o topo é sólido: dá para atravessar por baixo e pelos lados
+    b.checkCollision.down = false;
+    b.checkCollision.left = false;
+    b.checkCollision.right = false;
+    this.corposMoveis.push(corpo);
     const wa = Math.round(w / ESCALA);
     texturaPixel(this.cena, `lx-elevador-${wa}`, wa, 6, (p) => {
       p.caixa(0, 1, wa, 5, COR.musgo);
@@ -718,64 +798,130 @@ export class MecanismosLixao {
       for (let i = 2; i < wa - 2; i += 3) p.ponto(i, 4, COR.musgoEscuro);
       p.px(0, 0, wa, 1, COR.contorno);
     });
-    const img = this.tingir(this.cena.add.image(grade(x), grade(yAlto) - ESCALA, `lx-elevador-${wa}`).setOrigin(0, 0).setScale(ESCALA).setDepth(PROF.objetos));
+    const img = this.tingir(this.cena.add.image(grade(x), grade(yInicio) - ESCALA, `lx-elevador-${wa}`).setOrigin(0, 0).setScale(ESCALA).setDepth(PROF.objetos));
     // Lâmpada amarela: acende enquanto anda (não é interativo, então nada de ciano)
-    const luz = this.cena.add.rectangle(grade(x + w / 2), grade(yAlto) - ESCALA * 2, ESCALA * 2, ESCALA, hexNum(COR.bateriaAmarela)).setDepth(PROF.escuro + 1).setAlpha(0.4);
-    this.elevadores.push({ corpo, img, luz, x, w, yAlto, yBaixo, y: yAlto, sentido: 0, espera: 0, liberado: true });
+    const luz = this.cena.add.rectangle(grade(x + w / 2), grade(yInicio) - ESCALA * 2, ESCALA * 2, ESCALA, hexNum(COR.bateriaAmarela)).setDepth(PROF.escuro + 1).setAlpha(0.4);
+    this.elevadores.push({ corpo, img, luz, x, w, yAlto, yBaixo, sentido: 0, espera: 0, liberado: true, ciclo });
   }
 
+  /** Topo atual da plataforma (y de mundo). */
+  private topoElevador(el: Elevador): number {
+    return (el.corpo.body as Phaser.Physics.Arcade.Body).top;
+  }
+
+  /** Decide quando o elevador parte: em ciclo pela pausa; por gatilho com o jogador em cima. */
+  private decidirPartida(el: Elevador, y: number, delta: number): void {
+    const M = MECANISMO;
+    const c = this.jogador.corpo;
+    const noAlto = y <= el.yAlto + 1;
+    if (el.ciclo) {
+      el.espera += delta;
+      if (el.espera >= M.ELEVADOR_PAUSA_CICLO_MS) {
+        el.sentido = noAlto ? 1 : -1;
+        el.espera = 0;
+      }
+      return;
+    }
+    const emCima = this.emCima(el.x, el.w, y);
+    // Parado embaixo com o jogador esperando no patamar de cima (por exemplo depois de
+    // renascer no terminal): sobe para buscar, para ninguém precisar pular lá de cima
+    const noChao = c.blocked.down || c.touching.down;
+    const esperandoNoAlto =
+      noChao && Math.abs(c.bottom - el.yAlto) <= 4 && c.right > el.x - M.ELEVADOR_CHAMADA && c.left < el.x + el.w + M.ELEVADOR_CHAMADA;
+    if (!noAlto && esperandoNoAlto && !emCima) {
+      el.sentido = -1;
+      el.liberado = true;
+      return;
+    }
+    if (!emCima) {
+      // Só parte de novo depois que o jogador sair de cima dele (não basta estar no ar)
+      if (!(c.right > el.x && c.left < el.x + el.w)) el.liberado = true;
+      el.espera = 0;
+      return;
+    }
+    if (!el.liberado) return;
+    el.espera += delta;
+    if (el.espera >= M.ELEVADOR_ESPERA_MS) {
+      el.sentido = noAlto ? 1 : -1;
+      el.liberado = false;
+      el.espera = 0;
+      if (this.visivel(el.x, y)) this.cena.som.aviso();
+    }
+  }
+
+  /**
+   * Move cada elevador por velocidade, com aceleração na partida e frenagem na chegada, e
+   * cola quem está em cima na mesma velocidade vertical (desce junto sem quicar e pode pular).
+   */
   private atualizarElevadores(delta: number): void {
     const M = MECANISMO;
     const c = this.jogador.corpo;
+    const dt = delta / 1000;
     for (const el of this.elevadores) {
-      const emCima = this.emCima(el.x, el.w, el.y);
-      const sobre = c.right > el.x && c.left < el.x + el.w;
-      if (el.sentido === 0) {
-        // Parado embaixo com o jogador esperando no patamar de cima (por exemplo depois de
-        // renascer no terminal): sobe para buscar, para ninguém precisar pular lá de cima
-        const noChao = c.blocked.down || c.touching.down;
-        const esperandoNoAlto =
-          noChao && Math.abs(c.bottom - el.yAlto) <= 4 && c.right > el.x - M.ELEVADOR_CHAMADA && c.left < el.x + el.w + M.ELEVADOR_CHAMADA;
-        if (el.y >= el.yBaixo && esperandoNoAlto && !emCima) {
-          el.sentido = -1;
-          el.liberado = true;
-          continue;
-        }
-        if (!emCima) {
-          // Só parte de novo depois que o jogador sair de cima dele (não basta estar no ar)
-          if (!sobre) el.liberado = true;
+      const b = el.corpo.body as Phaser.Physics.Arcade.Body;
+      const y = this.topoElevador(el);
+      let vy = 0;
+      if (el.sentido === 0) this.decidirPartida(el, y, delta);
+      if (el.sentido !== 0) {
+        const alvo = el.sentido > 0 ? el.yBaixo : el.yAlto;
+        const origem = el.sentido > 0 ? el.yAlto : el.yBaixo;
+        const falta = Math.abs(alvo - y);
+        const andou = Math.abs(y - origem);
+        const fator = Math.min(1, (andou + 8) / M.ELEVADOR_RAMPA, falta / M.ELEVADOR_RAMPA);
+        const velocidade = Math.max(M.ELEVADOR_VELOCIDADE_MIN, M.ELEVADOR_VELOCIDADE * fator);
+        if (falta <= velocidade * dt) {
+          // Chegou: encaixa na ponta com um tranco leve
+          b.reset(el.x + el.w / 2, alvo + 10);
+          el.sentido = 0;
           el.espera = 0;
-          continue;
-        }
-        if (!el.liberado) continue;
-        el.espera += delta;
-        if (el.espera >= M.ELEVADOR_ESPERA_MS) {
-          el.sentido = el.y <= el.yAlto ? 1 : -1;
-          el.liberado = false;
-          if (this.visivel(el.x, el.y)) this.cena.som.aviso();
-        }
-        continue;
+          if (this.emCima(el.x, el.w, alvo) && this.visivel(el.x, alvo)) this.cena.cameras.main.shake(80, 0.002);
+        } else vy = el.sentido * velocidade;
       }
-      const alvo = el.sentido > 0 ? el.yBaixo : el.yAlto;
-      let ny = el.y + el.sentido * M.ELEVADOR_VELOCIDADE * (delta / 1000);
-      if ((el.sentido > 0 && ny >= alvo) || (el.sentido < 0 && ny <= alvo)) {
-        ny = alvo;
-        el.sentido = 0;
-        el.espera = 0;
-      }
-      const dy = ny - el.y;
-      // Leva quem está sobre a plataforma, mesmo um pouco no ar na descida
-      const levando = sobre && c.bottom <= el.y + 4 && c.bottom >= el.y - 24;
-      el.y = ny;
-      el.corpo.setPosition(el.x + el.w / 2, el.y + 10);
-      (el.corpo.body as Phaser.Physics.Arcade.StaticBody).updateFromGameObject();
-      el.img.setY(grade(el.y) - ESCALA);
-      el.luz.setY(grade(el.y) - ESCALA * 2).setAlpha(el.sentido !== 0 ? 1 : 0.4);
-      // Leva o jogador junto (descendo e subindo), sem deixar ele cair atrás da plataforma
-      if (levando) {
-        c.position.y += dy;
-        if (dy > 0) c.velocity.y = Math.min(c.velocity.y, 0);
-      }
+      b.setVelocity(0, vy);
+      // Quem está em cima (e não está pulando) acompanha a plataforma
+      const topo = this.topoElevador(el);
+      const sobre = c.right > el.x + 2 && c.left < el.x + el.w - 2;
+      const rente = Math.abs(c.bottom - topo) <= 6;
+      if (sobre && rente && c.velocity.y >= vy - 60) c.velocity.y = vy;
+      el.img.setY(grade(topo) - ESCALA);
+      el.luz.setY(grade(topo) - ESCALA * 2).setAlpha(el.sentido !== 0 ? 1 : 0.4);
+    }
+  }
+
+  /* =========================================================================
+   * AVISO DE QUEDA FATAL
+   * ========================================================================= */
+
+  /** Monitor velho num poste com a tela vermelha piscando uma seta para baixo e "!". */
+  private criarAviso(x: number, alt: number, mensagem = 'QUEDA FATAL', estilo: 'queda' | 'desafio' = 'queda'): void {
+    const y = CHAO_Y - alt;
+    const img = this.cena.add.sprite(grade(x), grade(y), `lx-aviso-${estilo}`, 0).setOrigin(0.5, 1).setScale(ESCALA).setDepth(PROF.objetos - 1);
+    const texto = this.cena.add
+      .text(grade(x), grade(y) - 96, mensagem, {
+        fontFamily: 'Consolas, "Courier New", monospace',
+        fontSize: '13px',
+        fontStyle: 'bold',
+        color: estilo === 'queda' ? COR.perigo : COR.janela,
+        stroke: '#000000',
+        strokeThickness: 3,
+        align: 'center',
+        lineSpacing: 2,
+      })
+      .setOrigin(0.5, 1)
+      .setDepth(PROF.escuro + 1)
+      .setAlpha(0);
+    this.avisos.push({ img, texto, x, y });
+  }
+
+  /** A tela pisca sempre; o texto só aparece com o jogador por perto. */
+  private atualizarAvisos(): void {
+    const quadro = Math.floor(this.tempo / 450) % 2;
+    const c = this.jogador.corpo;
+    for (const a of this.avisos) {
+      a.img.setFrame(quadro);
+      // Some quando há um prompt de interação na tela, para não disputar espaço com ele
+      const perto = Math.abs(c.center.x - a.x) < 260 && Math.abs(c.bottom - a.y) < 140 && !this.cena.promptVisivel;
+      a.texto.setAlpha(Phaser.Math.Linear(a.texto.alpha, perto ? 1 : 0, 0.15));
     }
   }
 
@@ -809,6 +955,39 @@ export class MecanismosLixao {
    * ========================================================================= */
 
   private gerarTexturas(): void {
+    // Monitor de aviso no poste: tela vermelha com "!" e seta para baixo (quadro 1 apagado)
+    folhaPixel(this.cena, 'lx-aviso-queda', 14, 22, 2, (p: Pincel, q: number) => {
+      p.px(6, 12, 2, 10, COR.contorno);
+      p.px(4, 21, 6, 1, COR.contorno);
+      p.caixa(0, 0, 14, 12, COR.sucata);
+      p.px(2, 2, 10, 8, COR.contorno);
+      const tela = q === 0 ? COR.perigo : COR.cobreEscuro;
+      // "!" à esquerda e seta para baixo à direita
+      p.px(4, 3, 1, 4, tela);
+      p.ponto(4, 8, tela);
+      p.px(9, 3, 1, 4, tela);
+      p.px(7, 6, 5, 1, tela);
+      p.px(8, 7, 3, 1, tela);
+      p.ponto(9, 8, tela);
+      // Fita de perigo no pé do monitor
+      for (let x = 1; x < 13; x += 3) p.px(x, 10, 2, 1, COR.bateriaAmarela);
+    });
+    // Monitor de desafio: tela amarela com alvo à esquerda e seta para cima à direita
+    folhaPixel(this.cena, 'lx-aviso-desafio', 14, 22, 2, (p: Pincel, q: number) => {
+      p.px(6, 12, 2, 10, COR.contorno);
+      p.px(4, 21, 6, 1, COR.contorno);
+      p.caixa(0, 0, 14, 12, COR.sucata);
+      p.px(2, 2, 10, 8, COR.contorno);
+      const tela = q === 0 ? COR.janela : COR.cobreEscuro;
+      p.px(3, 4, 3, 1, tela);
+      p.px(3, 7, 3, 1, tela);
+      p.px(3, 5, 1, 2, tela);
+      p.px(5, 5, 1, 2, tela);
+      p.ponto(9, 3, tela);
+      p.px(8, 4, 3, 1, tela);
+      p.px(7, 5, 5, 1, tela);
+      p.px(9, 6, 1, 3, tela);
+    });
     // Faixa da esteira: borracha escura com setas claras apontando para a direita
     texturaPixel(this.cena, 'lx-esteira-faixa', 8, 2, (p) => {
       p.px(0, 0, 8, 2, COR.contorno);

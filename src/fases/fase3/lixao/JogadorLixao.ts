@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { GerenciadorEstado, type TipoPersonagem } from '../../../nucleo/GerenciadorEstado';
 import { DANO, MOVIMENTO_LIXAO, VIDA_MAXIMA } from './TiposLixao';
+import { QUEDA_MORTAL } from '../trechos/LayoutLixao';
 
 export { MOVIMENTO_LIXAO };
 
@@ -17,6 +18,8 @@ const ESCALA_Y_ABAIXADO = 0.6;
 const PROFUNDIDADE = 60;
 /** Maior degrau que o jogador sobe ou desce andando, sem pular (colinas do chão). */
 const DEGRAU_MAX = 10;
+/** Queda mais alta que QUEDA_MORTAL (do ponto mais alto no ar até o pouso) é fatal. */
+export { QUEDA_MORTAL };
 
 /**
  * Jogador da Fase 3 (Alvares ou Reis): anda com aceleração e frenagem suaves, pula com
@@ -39,6 +42,10 @@ export class JogadorLixao {
   private tempoAtual = 0;
   private invencivelAte = 0;
   private controleTravadoAte = 0;
+  /** Ponto mais alto (menor y) desde que saiu do chão; null no chão. */
+  private yMaisAlto: number | null = null;
+  /** Pousou de uma queda maior que QUEDA_MORTAL (a cena consome e mata). */
+  private quedaFatal = false;
   /** Sólidos onde o jogador pisa: usados para subir e descer degraus baixos andando. */
   public solidos?: Phaser.Physics.Arcade.StaticGroup;
 
@@ -108,6 +115,8 @@ export class JogadorLixao {
     this.puloCortavel = false;
     this.tempoUltimaVezNoChao = -9999;
     this.tempoUltimoPulo = -9999;
+    this.yMaisAlto = null;
+    this.quedaFatal = false;
     this.sprite.setAlpha(1).setFlipX(false);
     this.tocarAnimacao('idle');
   }
@@ -123,6 +132,7 @@ export class JogadorLixao {
     const noChao = corpo.blocked.down || corpo.touching.down;
 
     if (noChao) this.tempoUltimaVezNoChao = tempo;
+    this.medirQueda(noChao);
     if (puloAgora) this.tempoUltimoPulo = tempo;
 
     // Abaixar só no chão; levantar só se houver espaço acima da cabeça
@@ -162,6 +172,30 @@ export class JogadorLixao {
     if (!noChao) this.tocarAnimacao('jump');
     else if (this.abaixado) this.tocarAnimacao('idle');
     else this.tocarAnimacao(direcao !== 0 ? 'run' : 'idle');
+  }
+
+  /** Mede a altura de cada queda; ao pousar de mais de QUEDA_MORTAL, marca a queda fatal. */
+  private medirQueda(noChao: boolean): void {
+    const y = this.corpo.bottom;
+    if (!noChao) {
+      this.yMaisAlto = this.yMaisAlto === null ? y : Math.min(this.yMaisAlto, y);
+      return;
+    }
+    if (this.yMaisAlto !== null && y - this.yMaisAlto > QUEDA_MORTAL) this.quedaFatal = true;
+    this.yMaisAlto = null;
+  }
+
+  /** Esquece a queda em andamento (teleporte de depuração). */
+  esquecerQueda(): void {
+    this.yMaisAlto = null;
+    this.quedaFatal = false;
+  }
+
+  /** Devolve true uma vez depois de uma queda fatal. */
+  consumirQuedaFatal(): boolean {
+    const fatal = this.quedaFatal;
+    this.quedaFatal = false;
+    return fatal;
   }
 
   /** Topo do sólido mais alto que cruza o retângulo, ou null. */

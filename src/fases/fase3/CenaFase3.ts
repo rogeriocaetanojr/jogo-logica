@@ -74,7 +74,7 @@ export class CenaFase3 extends CenaBase {
    * conta como o primeiro) ou a entrada da arena, que não tem exercício.
    */
   public checkpoint: PontoCheckpoint = { x: 0, y: CHAO_Y - 4, trecho: 0, ordem: 0 };
-  private hud!: HudLixao;
+  public hud!: HudLixao;
   public som!: SomLixao;
 
   private indiceTrecho = 0;
@@ -89,6 +89,11 @@ export class CenaFase3 extends CenaBase {
   private exerciciosResolvidos = 0;
   private teclas!: Record<string, Phaser.Input.Keyboard.Key>;
   private textoPrompt!: Phaser.GameObjects.Text;
+
+  /** Há um prompt de interação ("[E] ...") na tela: avisos do cenário cedem o espaço. */
+  get promptVisivel(): boolean {
+    return (this.textoPrompt?.visible ?? false) || (this.arremesso?.promptVisivel ?? false);
+  }
   private fisicaPausada = false;
   private concluindo = false;
   private morrendo = false;
@@ -162,7 +167,6 @@ export class CenaFase3 extends CenaBase {
       .setDepth(PROF.textos)
       .setVisible(false);
 
-    this.criarHUDSuperior('LIXÃO ELETRÔNICO');
     this.hud = new HudLixao(this);
     this.atualizarTextoClima();
     this.hud.atualizarVida(this.jogador.vida);
@@ -176,6 +180,7 @@ export class CenaFase3 extends CenaBase {
     this.jogador = new JogadorLixao(this, inicio.x, inicio.y);
     this.physics.add.collider(this.jogador.sprite, this.solidos);
     this.jogador.solidos = this.solidos;
+    this.physics.add.collider(this.jogador.sprite, this.mecanismos.corposMoveis);
     this.physics.add.overlap(this.jogador.sprite, this.perigos, (_j, perigo) =>
       this.aoTocarPerigo((perigo as Phaser.GameObjects.Image).x)
     );
@@ -263,7 +268,11 @@ export class CenaFase3 extends CenaBase {
       if (pausado) this.jogador.parar();
       if (pausado) this.arremesso.esconderMira();
       if (pausado) this.physics.world.pause();
-      else this.physics.world.resume();
+      else {
+        this.physics.world.resume();
+        // O que foi digitado no terminal não pode virar atalho (ex.: o "4" de degraus = 4)
+        for (const tecla of Object.values(this.teclas)) tecla.reset();
+      }
     }
 
     this.cenario.atualizar(delta);
@@ -278,7 +287,13 @@ export class CenaFase3 extends CenaBase {
     this.chefao.atualizar(delta);
     this.recicla.atualizar(delta);
     this.arremesso.atualizar(delta);
-    // Caiu num buraco: perde a vida toda e volta ao checkpoint
+    // Caiu num buraco ou de muito alto: perde a vida toda e volta ao checkpoint
+    if (this.jogador.consumirQuedaFatal()) {
+      this.cameras.main.shake(200, 0.012);
+      this.som.batida();
+      this.morrer();
+      return;
+    }
     if (this.jogador.y > ALTURA_TELA + QUEDA_FATAL) {
       this.morrer();
       return;
@@ -356,6 +371,12 @@ export class CenaFase3 extends CenaBase {
   }
 
   /** Vida zerada: fade, volta ao último checkpoint com vida cheia e reaparece. */
+  /** Morte instantânea (corredor eletrificado): volta ao checkpoint como numa queda. */
+  matarJogador(): void {
+    if (this.morrendo || this.vitoria) return;
+    this.morrer();
+  }
+
   private morrer(): void {
     this.morrendo = true;
     this.terminal.fecharForcado();
@@ -399,8 +420,15 @@ export class CenaFase3 extends CenaBase {
     if (xExercicio !== null && pertoNoChao) {
       // Chegar ao terminal salva o checkpoint nele (meio do trecho)
       this.salvarCheckpoint({ x: xExercicio, y: yTerminal - 4, trecho: this.indiceTrecho, ordem: this.indiceTrecho * 100 + 50 });
-      this.textoPrompt.setPosition(xExercicio, yTerminal - 100).setText('[E] Terminal');
-      if (Phaser.Input.Keyboard.JustDown(this.teclas.E)) this.abrirTerminal(trecho);
+      // Corredor: depois de resolvido, o terminal só roda o código de novo
+      const repetir = trecho.exercicioResolvido && trecho.exercicioRepetivel;
+      this.textoPrompt.setPosition(xExercicio, yTerminal - 100).setText(repetir ? '[E] Rodar o código de novo' : '[E] Terminal');
+      if (Phaser.Input.Keyboard.JustDown(this.teclas.E)) {
+        if (repetir) {
+          trecho.cortarEnergia();
+          this.som.bipesAcerto();
+        } else this.abrirTerminal(trecho);
+      }
     } else if (alavanca) {
       this.textoPrompt.setPosition(alavanca.x, alavanca.y - 70).setText('[E] Alavanca');
       if (Phaser.Input.Keyboard.JustDown(this.teclas.E)) this.mecanismos.puxarAlavanca();
@@ -423,8 +451,19 @@ export class CenaFase3 extends CenaBase {
     for (let i = 0; i < this.trechos.length; i++) {
       const tecla = this.teclas[`TRECHO${i}`];
       if (tecla && Phaser.Input.Keyboard.JustDown(tecla)) {
-        const inicio = this.trechos[i].inicio;
+        // Shift + número: direto ao terminal do exercício do trecho (salva o checkpoint lá)
+        const trecho = this.trechos[i];
+        const xTerminal = trecho.xExercicio;
+        if (tecla.shiftKey && xTerminal !== null) {
+          const y = trecho.yExercicio - 4;
+          this.jogador.corpo.reset(xTerminal - 60, y);
+          this.jogador.esquecerQueda();
+          this.cameras.main.centerOn(xTerminal, y - ALTURA_TELA / 4);
+          return;
+        }
+        const inicio = trecho.inicio;
         this.jogador.corpo.reset(inicio.x, Math.min(inicio.y, CHAO_Y));
+        this.jogador.esquecerQueda();
         this.cameras.main.centerOn(inicio.x, ALTURA_TELA / 2);
         return;
       }

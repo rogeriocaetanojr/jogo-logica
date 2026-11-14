@@ -576,6 +576,33 @@ export function desenharBlocoSucata(p: Pincel, w: number, h: number, rnd: () => 
   p.px(1, h - 2, w - 2, 1, COR.musgoEscuro);
 }
 
+/**
+ * Fardo de sucata prensada (passagem do exercício 1): camadas de carcaças, placas e cobre
+ * esmagados, presos por cintas musgo, com o topo musgo claro para ler como chão de pisar.
+ */
+export function desenharFardo(p: Pincel, w: number, h: number, rnd: () => number): void {
+  p.caixa(0, 0, w, h, COR.sombraSucata);
+  // Camadas esmagadas
+  for (let y = 2; y < h - 1; y += 2) {
+    for (let x = 1; x < w - 1; ) {
+      const pedaco = 3 + Math.floor(rnd() * 6);
+      const r = rnd();
+      const cor = r < 0.35 ? COR.sucata : r < 0.55 ? COR.verdePlacaEscuro : r < 0.7 ? COR.cobreEscuro : r < 0.85 ? COR.sucataClara : COR.sombraSucata;
+      p.px(x, y, Math.min(pedaco, w - 1 - x), 1, cor);
+      if (rnd() < 0.15) p.ponto(x + 1, y + 1, COR.cobre);
+      x += pedaco;
+    }
+  }
+  // Topo de pisar e cintas
+  p.px(0, 0, w, 2, COR.musgoClaro);
+  p.px(0, 1, w, 1, COR.musgo);
+  for (let x = 4; x < w - 2; x += 10) {
+    p.px(x, 0, 2, h, COR.musgo);
+    p.ponto(x, 1, COR.musgoClaro);
+  }
+  p.px(0, h - 1, w, 1, COR.contorno);
+}
+
 /** Viga de metal fina usada como plataforma suspensa. */
 export function desenharViga(p: Pincel, w: number, h: number): void {
   p.caixa(0, 0, w, h, COR.musgoClaro);
