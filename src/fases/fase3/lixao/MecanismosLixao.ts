@@ -330,13 +330,13 @@ export class MecanismosLixao {
     // Estrutura: caixa com rolos nas pontas e pés
     const chave = `lx-esteira-base-${n}`;
     texturaPixel(this.cena, chave, wa, ha + (noChao ? 0 : 3), (p) => {
-      p.caixa(0, 1, wa, ha - 1, COR.sombraSucata);
-      for (let rx = 1; rx < wa - 1; rx += 4) p.ponto(rx + 1, ha - 2, COR.sucata);
-      p.disco(1, Math.floor(ha / 2), Math.max(1, Math.floor(ha / 2) - 1), COR.sucataClara);
-      p.disco(wa - 2, Math.floor(ha / 2), Math.max(1, Math.floor(ha / 2) - 1), COR.sucataClara);
+      p.caixa(0, 1, wa, ha - 1, COR.musgoEscuro);
+      for (let rx = 1; rx < wa - 1; rx += 4) p.ponto(rx + 1, ha - 2, COR.musgo);
+      p.disco(1, Math.floor(ha / 2), Math.max(1, Math.floor(ha / 2) - 1), COR.musgoClaro);
+      p.disco(wa - 2, Math.floor(ha / 2), Math.max(1, Math.floor(ha / 2) - 1), COR.musgoClaro);
       if (!noChao) {
-        p.px(3, ha, 2, 3, COR.sombraSucata);
-        p.px(wa - 5, ha, 2, 3, COR.sombraSucata);
+        p.px(3, ha, 2, 3, COR.musgoEscuro);
+        p.px(wa - 5, ha, 2, 3, COR.musgoEscuro);
       }
     });
     this.tingir(this.cena.add.image(grade(x), grade(topo), chave).setOrigin(0, 0).setScale(ESCALA).setDepth(PROF.objetos));
@@ -369,20 +369,20 @@ export class MecanismosLixao {
     // Carcaça hidráulica no alto, com faixas e pistão
     const chaveCarcaca = `lx-prensa-carcaca-${wa}`;
     texturaPixel(this.cena, chaveCarcaca, wa + 8, 12, (p) => {
-      p.caixa(0, 0, wa + 8, 12, COR.sucata);
-      p.px(1, 1, wa + 6, 2, COR.sucataClara);
-      for (let i = 2; i < wa + 6; i += 4) p.px(i, 5, 2, 3, COR.sombraSucata);
+      p.caixa(0, 0, wa + 8, 12, COR.musgo);
+      p.px(1, 1, wa + 6, 2, COR.musgoClaro);
+      for (let i = 2; i < wa + 6; i += 4) p.px(i, 5, 2, 3, COR.musgoEscuro);
       p.px(Math.floor((wa + 8) / 2) - 2, 9, 4, 3, COR.cobreEscuro);
     });
     this.tingir(this.cena.add.image(grade(x - 16), grade(topoCarcaca), chaveCarcaca).setOrigin(0, 0).setScale(ESCALA).setDepth(PROF.objetos));
     const haste = this.cena.add
-      .rectangle(grade(x + w / 2) - 8, topoCarcaca + 48, 16, 10, hexNum(COR.sucataClara))
+      .rectangle(grade(x + w / 2) - 8, topoCarcaca + 48, 16, 10, hexNum(COR.musgoClaro))
       .setOrigin(0, 0)
       .setDepth(PROF.objetos);
     const chaveCabeca = `lx-prensa-cabeca-${wa}`;
     texturaPixel(this.cena, chaveCabeca, wa, 7, (p) => {
-      p.caixa(0, 0, wa, 7, COR.sucataClara);
-      p.px(1, 5, wa - 2, 1, COR.sombraSucata);
+      p.caixa(0, 0, wa, 7, COR.musgoClaro);
+      p.px(1, 5, wa - 2, 1, COR.musgoEscuro);
       for (let i = 1; i < wa - 1; i += 2) p.ponto(i, 6, COR.contorno);
     });
     const cabeca = this.cena.add.image(grade(x), 0, chaveCabeca).setOrigin(0, 1).setScale(ESCALA).setDepth(PROF.objetos + 1);
@@ -438,8 +438,8 @@ export class MecanismosLixao {
     const chave = `lx-fragil-${wa}`;
     const rnd = aleatorio(700 + n);
     texturaPixel(this.cena, chave, wa, 5, (p) => {
-      p.caixa(0, 0, wa, 5, COR.sucata);
-      p.px(1, 1, wa - 2, 1, COR.sucataClara);
+      p.caixa(0, 0, wa, 5, COR.musgo);
+      p.px(1, 1, wa - 2, 1, COR.musgoClaro);
       // Rachaduras: avisam que a chapa não aguenta
       for (let i = 3; i < wa - 3; i += 5 + Math.floor(rnd() * 4)) {
         p.linha(i, 1, i + 1, 3, COR.contorno);
@@ -496,8 +496,8 @@ export class MecanismosLixao {
     const wa = Math.round(w / ESCALA);
     const chave = `lx-guindaste-${wa}-${n}`;
     texturaPixel(this.cena, chave, wa, 7, (p) => {
-      p.caixa(0, 2, wa, 5, COR.cobreEscuro);
-      p.px(1, 3, wa - 2, 1, COR.cobre);
+      p.caixa(0, 2, wa, 5, COR.musgoEscuro);
+      p.px(1, 3, wa - 2, 1, COR.musgoClaro);
       // Ganchos presos ao cabo
       p.px(Math.floor(wa / 2) - 3, 0, 1, 2, COR.contorno);
       p.px(Math.floor(wa / 2) + 2, 0, 1, 2, COR.contorno);
@@ -649,8 +649,8 @@ export class MecanismosLixao {
       abrir: () => {
         this.solido(x, topo, w, 20);
         texturaPixel(this.cena, `lx-ponte-alvo-${wa}`, wa, 5, (p) => {
-          p.caixa(0, 0, wa, 5, COR.sucataClara);
-          p.px(1, 3, wa - 2, 1, COR.sucata);
+          p.caixa(0, 0, wa, 5, COR.musgoClaro);
+          p.px(1, 3, wa - 2, 1, COR.musgo);
           for (let i = 3; i < wa - 2; i += 6) p.ponto(i, 2, COR.contorno);
         });
         const img = this.tingir(
@@ -713,9 +713,9 @@ export class MecanismosLixao {
     const corpo = this.solido(x, yAlto, w, 20);
     const wa = Math.round(w / ESCALA);
     texturaPixel(this.cena, `lx-elevador-${wa}`, wa, 6, (p) => {
-      p.caixa(0, 1, wa, 5, COR.sucata);
-      p.px(1, 2, wa - 2, 1, COR.sucataClara);
-      for (let i = 2; i < wa - 2; i += 3) p.ponto(i, 4, COR.sombraSucata);
+      p.caixa(0, 1, wa, 5, COR.musgo);
+      p.px(1, 2, wa - 2, 1, COR.musgoClaro);
+      for (let i = 2; i < wa - 2; i += 3) p.ponto(i, 4, COR.musgoEscuro);
       p.px(0, 0, wa, 1, COR.contorno);
     });
     const img = this.tingir(this.cena.add.image(grade(x), grade(yAlto) - ESCALA, `lx-elevador-${wa}`).setOrigin(0, 0).setScale(ESCALA).setDepth(PROF.objetos));
@@ -812,10 +812,10 @@ export class MecanismosLixao {
     // Faixa da esteira: borracha escura com setas claras apontando para a direita
     texturaPixel(this.cena, 'lx-esteira-faixa', 8, 2, (p) => {
       p.px(0, 0, 8, 2, COR.contorno);
-      p.ponto(2, 0, COR.sucataClara);
-      p.ponto(3, 0, COR.sucataClara);
-      p.ponto(4, 1, COR.sucataClara);
-      p.ponto(3, 1, COR.sucataClara);
+      p.ponto(2, 0, COR.musgoClaro);
+      p.ponto(3, 0, COR.musgoClaro);
+      p.ponto(4, 1, COR.musgoClaro);
+      p.ponto(3, 1, COR.musgoClaro);
     });
     // Cabo pendurado com a ponta de cobre desencapada
     texturaPixel(this.cena, 'lx-cabo-choque', 5, 48, (p) => {

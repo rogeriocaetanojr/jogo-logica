@@ -252,14 +252,8 @@ const SOL: LayoutTrecho = {
     [4700, 600],
     [5600, 0],
   ],
-  reciclaveis: [
-    [600, 'placa'],
-    [960, 'lata'],
-    [1600, 'monitor'],
-    [4100, 'bateria'],
-    [6280, 'lata'],
-    [6330, 'placa'],
-  ],
+  // Só a munição do botão-alvo; o resto vem das quedas e do Recicla
+  reciclaveis: [[6300, 'lata']],
   patrulhaRecicla: [4000, 4300],
   puzzles: [
     { nome: 'sol: torre de esteiras e prensa', de: 1800, ate: solExercicio.fimElevador },
@@ -318,13 +312,8 @@ const NEVOA: LayoutTrecho = {
     [5000, 0],
     [6000, 0],
   ],
-  reciclaveis: [
-    [300, 'placa'],
-    [975, 'lata'],
-    [4500, 'bateria'],
-    [6340, 'lata'],
-    [6380, 'monitor'],
-  ],
+  // Só a munição do botão-alvo; o resto vem das quedas e do Recicla
+  reciclaveis: [[6360, 'lata']],
   patrulhaRecicla: [4350, 4600],
   puzzles: [
     { nome: 'névoa: torre de frágeis e guindastes', de: 1700, ate: nevoaExercicio.fimElevador },
@@ -388,13 +377,8 @@ const CHUVA: LayoutTrecho = {
     [1300, 0],
     [6500, 0],
   ],
-  reciclaveis: [
-    [300, 'lata'],
-    [900, 'placa'],
-    [1250, 'monitor'],
-    [4450, 'bateria'],
-    [6400, 'lata'],
-  ],
+  // Sem botão-alvo: a munição vem só das quedas e do Recicla
+  reciclaveis: [],
   patrulhaRecicla: [4400, 4640],
   puzzles: [
     { nome: 'chuva: torre de corridas curtas com ímãs', de: 1700, ate: chuvaExercicio.fimElevador },

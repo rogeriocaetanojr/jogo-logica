@@ -18,12 +18,10 @@ export class Trecho4Noite extends TrechoLixao {
   };
   protected readonly semente = 606;
 
-  /** Munição solta pelo chão, longe dos buracos e do terminal. */
+  /** Pouca munição solta: o resto vem das pilhas das bordas e do Recicla. */
   public override readonly reciclaveis = [
     [640, 'lata'],
-    [900, 'bateria'],
-    [1100, 'placa'],
-    [1500, 'monitor'],
+    [1500, 'bateria'],
   ] as const;
 
   constructor(cena: CenaFase3) {

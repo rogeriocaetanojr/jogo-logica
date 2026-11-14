@@ -4,6 +4,7 @@ import type { Pincel } from '../lixao/ArteLixao';
 import { CORES_FUNDO, FundoLixao } from './FundoLixao';
 import { ALTURA_TELA, CHAO_Y, LARGURA_TELA } from '../lixao/TiposLixao';
 import type { Clima } from '../lixao/TiposLixao';
+import { AmbienteLixao } from '../lixao/AmbienteLixao';
 import { ClimaLixao, EFEITOS_CLIMA } from '../lixao/ClimaLixao';
 import type { EstadoClima } from '../lixao/ClimaLixao';
 import { PROF } from './TrechoLixao';
@@ -13,7 +14,10 @@ import type { TrechoLixao } from './TrechoLixao';
  * Fatores de parallax das camadas de céu. Cidade (0.18), máquinas (0.4) e pilhas (0.55)
  * ficam no FundoLixao.
  */
-const PARALLAX = { ceu: 0, nuvens: 0.1, horizonte: 0.25 } as const;
+const PARALLAX = { ceu: 0, nuvens: 0.1, horizonte: 0.25, primeiroPlano: 1.25 } as const;
+
+/** Primeiro plano: entre o jogador (60) e o clima (80), escuro e esparso para não esconder nada. */
+const PROF_PRIMEIRO_PLANO = PROF.jogador + 5;
 
 /** Duração da transição de clima e tema ao trocar de trecho (a única passagem entre eles). */
 const DURACAO_TRANSICAO_MS = 3000;
@@ -74,6 +78,8 @@ export class CenarioLixao {
   private fundo!: FundoLixao;
   private readonly tingiveis: Phaser.GameObjects.Components.Tint[] = [];
   public readonly clima: ClimaLixao;
+  /** Lixo voando, moscas e fumaça tóxica perto do chão. */
+  private ambiente!: AmbienteLixao;
 
   private indiceAtual = -1;
   private de!: Visual;
@@ -94,6 +100,9 @@ export class CenarioLixao {
     this.criarHorizonte();
     this.fundo = new FundoLixao(this.cena, this.trechos, this.larguraMundo);
     this.fundo.construir();
+    this.criarPrimeiroPlano();
+    this.ambiente = new AmbienteLixao(this.cena, this.trechos);
+    this.ambiente.construir();
     this.clima.construir();
   }
 
@@ -125,7 +134,9 @@ export class CenarioLixao {
   }
 
   atualizar(delta: number): void {
-    this.fundo.atualizar(delta, this.visualAtual().clima);
+    const clima = this.visualAtual().clima;
+    this.fundo.atualizar(delta, clima);
+    this.ambiente.atualizar(delta, clima);
     if (this.progresso >= 1) return;
     this.progresso = Math.min(1, this.progresso + delta / DURACAO_TRANSICAO_MS);
     this.aplicar();
@@ -284,5 +295,34 @@ export class CenarioLixao {
         x += larg - 14;
       }
     });
+  }
+
+  /**
+   * Primeiro plano (1.25 na horizontal, preso ao chão na vertical, à frente do jogador): pontas
+   * de pilhas escuras subindo da borda de baixo, espaçadas para não cobrir os puzzles.
+   */
+  private criarPrimeiroPlano(): void {
+    const rnd = aleatorio(1313);
+    const baseArte = Math.ceil(ALTURA_TELA / ESCALA);
+    const chaoArte = CHAO_Y / ESCALA;
+    this.camada('lx-primeiro-plano', PARALLAX.primeiroPlano, PROF_PRIMEIRO_PLANO, (p, w) => {
+      let x = 60 + Math.floor(rnd() * 80);
+      while (x < w) {
+        // Ponta de pilha: só passa um pouco da linha do chão
+        const larg = 24 + Math.floor(rnd() * 40);
+        const alt = baseArte - chaoArte + 2 + Math.floor(rnd() * 10);
+        for (let i = 0; i < larg; i++) {
+          const t = 1 - Math.abs(i - larg / 2) / (larg / 2);
+          const topo = Math.round(baseArte - alt * Math.sqrt(Math.max(0, t)) + rnd() * 2);
+          p.px(x + i, topo, 1, baseArte - topo, COR.contorno);
+        }
+        // Recortes de objetos na silhueta
+        for (let k = 0; k < 3; k++) {
+          const ox = x + 4 + Math.floor(rnd() * (larg - 12));
+          p.px(ox, baseArte - alt + 4 + Math.floor(rnd() * 4), 6 + Math.floor(rnd() * 4), 3, COR.sombraSucata);
+        }
+        x += 140 + Math.floor(rnd() * 220);
+      }
+    }).setAlpha(0.92).setScrollFactor(PARALLAX.primeiroPlano, 1);
   }
 }

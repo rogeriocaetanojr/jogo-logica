@@ -3,8 +3,11 @@ import type { CenaFase3 } from '../CenaFase3';
 import {
   BORDA_CHAO,
   COR,
+  ENTULHO,
+  MEIA_LARGURA_ENTULHO,
   ESCALA,
   aleatorio,
+  bayer,
   desenharBlocoSucata,
   desenharCano,
   desenharChao,
@@ -17,7 +20,7 @@ import {
 } from '../lixao/ArteLixao';
 import type { CorLixao, Pincel } from '../lixao/ArteLixao';
 import { ALTURA_TELA, CHAO_Y, TRECHOS } from '../lixao/TiposLixao';
-import { ALTURA_BARREIRA, ALTURA_ESPINHOS } from './LayoutLixao';
+import { ALTURA_BARREIRA, ALTURA_ESPINHOS, LAYOUTS } from './LayoutLixao';
 import type { ExercicioLayout, LayoutTrecho, ObstaculoExercicio } from './LayoutLixao';
 import type { InfoTrecho, TipoReciclavel } from '../lixao/TiposLixao';
 
@@ -59,6 +62,32 @@ export type { ObstaculoExercicio };
 export const LARGURA_MAXIMA_TRECHO = 7040;
 /** Altura total de uma barreira com espinhos (sólida): passa do pulo máximo de 225 px. */
 const BARREIRA = ALTURA_BARREIRA + ALTURA_ESPINHOS;
+/**
+ * Colinas de entulho no chão: escada de degraus baixos na colisão (o jogador sobe andando,
+ * ver JogadorLixao) com o desenho inclinado por cima. Só em chão livre de mecanismos baixos.
+ */
+export const COLINA = {
+  /** Altura de cada degrau da colisão (px). */
+  DEGRAU: 8,
+  /** Avanço horizontal de cada degrau (px): inclinação de 1 para 2. */
+  PASSO: 16,
+  ALTURAS: [16, 24, 32],
+  /** Topo plano mínimo e máximo (px). */
+  TOPO_MIN: 32,
+  TOPO_MAX: 256,
+  /** Distância livre exigida de buracos, mecanismos e itens (px). */
+  MARGEM: 80,
+  /** Elementos com o topo a esta altura ou mais não impedem colina embaixo (px). */
+  ALTO_IGNORADO: 200,
+} as const;
+
+export interface Colina {
+  /** Borda esquerda (relativa ao trecho), largura total e altura do topo. */
+  x: number;
+  w: number;
+  alt: number;
+}
+
 /** Distância mínima entre uma decoração de chão e a beira de um buraco. */
 const MARGEM_BURACO = 40;
 /** Altura livre sob um cano baixo: só cabe o jogador abaixado (em pé ele tem 96 px). */
@@ -154,6 +183,63 @@ export abstract class TrechoLixao {
    * buracos, do obstáculo do exercício e da área do terminal. Usado para espalhar poças e decoração.
    */
   chaoLivre(x: number, meiaLargura: number): boolean {
+    if (this.colinas.some((c) => x + meiaLargura > c.x - 16 && x - meiaLargura < c.x + c.w + 16)) return false;
+    return this.chaoPlanoLivre(x, meiaLargura);
+  }
+
+  private colinasCache?: Colina[];
+
+  /** Colinas do trecho, sorteadas uma vez com a semente (sempre as mesmas). */
+  get colinas(): readonly Colina[] {
+    this.colinasCache ??= this.sortearColinas();
+    return this.colinasCache;
+  }
+
+  /** Faixas x ocupadas por buraco, mecanismo baixo, item, queda ou patrulha: sem colina. */
+  private faixasOcupadas(): [number, number][] {
+    const layout = LAYOUTS[TRECHOS.indexOf(this.info)];
+    const faixas: [number, number][] = [[0, 400], [this.largura - 240, this.largura]];
+    for (const [x] of this.reciclaveis) faixas.push([x, x]);
+    if (!layout) {
+      // Arena do chefão: só o chão antes das pilhas da entrada
+      faixas.push([300, this.largura]);
+      return faixas;
+    }
+    for (const e of layout.elementos) {
+      // O que fica no alto não atrapalha: sobra vão livre para o jogador em pé sobre a colina
+      if ('alt' in e && e.alt >= COLINA.ALTO_IGNORADO) continue;
+      const w = 'w' in e ? e.w : 0;
+      const fim = e.tipo === 'guindaste' ? e.ate + w : e.tipo === 'baixa' ? e.x + 128 : e.x + w;
+      faixas.push([e.x, fim]);
+    }
+    for (const [x, alt] of layout.quedas) if (alt === 0) faixas.push([x, x]);
+    faixas.push([layout.patrulhaRecicla[0], layout.patrulhaRecicla[1]]);
+    return faixas;
+  }
+
+  private sortearColinas(): Colina[] {
+    const rnd = aleatorio(this.semente + 313);
+    const faixas = this.faixasOcupadas();
+    const m = COLINA.MARGEM;
+    const colinas: Colina[] = [];
+    let x = 400;
+    while (x < this.largura) {
+      const alt = COLINA.ALTURAS[Math.floor(rnd() * COLINA.ALTURAS.length)];
+      const rampa = (alt / COLINA.DEGRAU) * COLINA.PASSO;
+      const topo = COLINA.TOPO_MIN + Math.floor((rnd() * (COLINA.TOPO_MAX - COLINA.TOPO_MIN)) / 16) * 16;
+      const w = rampa * 2 + topo;
+      const livre =
+        this.chaoPlanoLivre(x + w / 2, w / 2 + 40) && !faixas.some(([a, b]) => x + w + m > a && x - m < b);
+      if (livre) {
+        colinas.push({ x, w, alt });
+        x += w + 160 + Math.floor(rnd() * 320);
+      } else x += 32;
+    }
+    return colinas;
+  }
+
+  /** Chão sem buraco, terminal nem obstáculo (ignora as colinas). */
+  private chaoPlanoLivre(x: number, meiaLargura: number): boolean {
     const ex = this.exercicio;
     if (ex) {
       const fimObstaculo = ex.xObstaculo + ex.largura;
@@ -171,9 +257,41 @@ export abstract class TrechoLixao {
   construir(): void {
     if (this.largura > LARGURA_MAXIMA_TRECHO) console.warn(`Trecho ${this.info.numero} passa de ${LARGURA_MAXIMA_TRECHO} px.`);
     this.criarChao();
+    this.colinas.forEach((c, i) => this.criarColina(c, i));
     this.criarMarcador();
     this.criarObstaculo();
     this.decorar();
+    this.entulhar();
+  }
+
+  /** Intervalo médio entre peças de entulho no chão; menor deixa o trecho mais poluído. */
+  protected espacoEntulho = 110;
+
+  /**
+   * Entulho denso pelo chão inteiro (fora de buracos, terminal e obstáculo): sucata sorteada
+   * com semente fixa, às vezes em grupos de 2 ou 3 peças sobrepostas. Fica atrás dos
+   * recicláveis e do jogador, sem colisão.
+   */
+  private entulhar(): void {
+    const rnd = aleatorio(this.semente + 777);
+    let x = 40 + Math.floor(rnd() * 60);
+    while (x < this.largura - 40) {
+      const grupo = rnd() < 0.3 ? 2 + Math.floor(rnd() * 2) : 1;
+      for (let g = 0; g < grupo; g++) {
+        const gx = x + g * (16 + Math.floor(rnd() * 24));
+        if (!this.chaoLivre(gx, MEIA_LARGURA_ENTULHO)) continue;
+        const chave = ENTULHO[Math.floor(rnd() * ENTULHO.length)];
+        const afundar = chave.startsWith('lx-ent-monte') ? 2 : Math.floor(rnd() * 2);
+        const img = this.cena.add
+          .image(grade(this.offset + gx), CHAO_Y + afundar * ESCALA, chave)
+          .setOrigin(0.5, 1)
+          .setScale(ESCALA)
+          .setFlipX(rnd() < 0.5)
+          .setDepth(PROF.chao + 1 + g);
+        this.tingir(img);
+      }
+      x += Math.round(this.espacoEntulho * (0.5 + rnd()));
+    }
   }
 
   /** Obstáculos e detalhes próprios do trecho. */
@@ -348,6 +466,60 @@ export abstract class TrechoLixao {
 
     const corpo = this.cena.add.rectangle(this.offset + de + largura / 2, CHAO_Y + 40, largura, 80, 0, 0);
     this.cena.solidos.add(corpo);
+  }
+
+  /**
+   * Colina de entulho: degraus de COLINA.DEGRAU px na colisão e, por cima, terra com crosta
+   * de sucata inclinada passando pelo meio de cada degrau.
+   */
+  private criarColina(c: Colina, indice: number): void {
+    const n = c.alt / COLINA.DEGRAU;
+    for (let k = 1; k <= n; k++) {
+      const recuo = (k - 1) * COLINA.PASSO;
+      const corpo = this.cena.add.rectangle(
+        this.offset + c.x + c.w / 2,
+        CHAO_Y - k * COLINA.DEGRAU + COLINA.DEGRAU / 2,
+        c.w - recuo * 2,
+        COLINA.DEGRAU,
+        0,
+        0
+      );
+      this.cena.solidos.add(corpo);
+    }
+    const w = Math.round(c.w / ESCALA);
+    const baixo = 3;
+    const h = Math.round(c.alt / ESCALA) + 2 + baixo;
+    const rnd = aleatorio(this.semente + indice * 29 + 3);
+    texturaPixel(this.cena, this.chave(`colina-${indice}`), w, h, (p) => {
+      for (let i = 0; i < w; i++) {
+        const d = Math.min(i, w - 1 - i) * ESCALA;
+        const altura = Math.min(c.alt, d / 2 + COLINA.DEGRAU / 2);
+        const topo = h - baixo - Math.round(altura / ESCALA);
+        p.px(i, topo, 1, h - topo, COR.terra);
+        for (let y = topo + 4; y < h; y++) if ((y - topo) / 14 > bayer(i, y)) p.ponto(i, y, COR.terraEscura);
+        p.px(i, topo, 1, 2, COR.sombraSucata);
+        p.ponto(i, topo, rnd() < 0.6 ? COR.sucataClara : COR.sucata);
+        if (rnd() < 0.2) p.ponto(i, topo + 1 + Math.floor(rnd() * 2), COR.contorno);
+        if (rnd() < 0.04) p.ponto(i, topo - 1, COR.sucataClara);
+      }
+      // Lixo enterrado e chorume na encosta
+      for (let i = 6 + Math.floor(rnd() * 6); i < w - 8; i += 10 + Math.floor(rnd() * 14)) {
+        const d = Math.min(i, w - 1 - i) * ESCALA;
+        const topo = h - baixo - Math.round(Math.min(c.alt, d / 2 + 4) / ESCALA);
+        if (h - topo < 7) continue;
+        const y = topo + 3 + Math.floor(rnd() * Math.max(1, h - topo - 6));
+        if (rnd() < 0.5) p.caixa(i, y, 5 + Math.floor(rnd() * 4), 3, COR.sucata);
+        else p.px(i, y, 6, 2, COR.verdePlacaEscuro);
+        if (rnd() < 0.3) p.px(i + 2, topo + 2, 1, 2 + Math.floor(rnd() * 3), COR.chorumeEscuro);
+      }
+    });
+    this.tingir(
+      this.cena.add
+        .image(this.offset + c.x, CHAO_Y + baixo * ESCALA, this.chave(`colina-${indice}`))
+        .setOrigin(0, 1)
+        .setScale(ESCALA)
+        .setDepth(PROF.chao + 0.5)
+    );
   }
 
   /** Boca escura do buraco, atrás do chão; não tem colisão. */

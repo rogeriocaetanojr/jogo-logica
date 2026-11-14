@@ -24,10 +24,10 @@ export const COR = {
   cobreClaro: '#F0A050',
   cobreEscuro: '#8A4520',
   // Sucata (metal, carcaças, chão)
-  sucataClara: '#8A857E',
-  sucata: '#6A6662',
-  sombraSucata: '#4A4744',
-  contorno: '#1A1414',
+  sucataClara: '#9A8A72',
+  sucata: '#6E5E4C',
+  sombraSucata: '#463A30',
+  contorno: '#1A1210',
   // Céu de poeira (trechos de sol e névoa)
   ceuPoeiraClaro: '#F2C27A',
   ceuPoeira: '#DE7A34',
@@ -39,75 +39,92 @@ export const COR = {
   noiteRoxo: '#3A2440',
   noiteRoxoEscuro: '#1E1420',
   /*
-   * Céus em 8 faixas roxas, do roxo bem escuro no topo ao lilás perto do horizonte, com a
-   * técnica de degradê da Fase 2. Sol mais lilás e claro, noite mais escura.
+   * Céus em 8 faixas de "ferrugem tóxica", do marrom quase preto no topo à brasa perto do
+   * horizonte, com a técnica de degradê da Fase 2. Sol em brasa, névoa em smog oliva,
+   * chuva em ferrugem fria e noite com brasas apagadas. O laranja é complementar ao ciano
+   * interativo, que salta à frente.
    */
-  ceuSol1: '#1A1030',
-  ceuSol2: '#24163E',
-  ceuSol3: '#30204E',
-  ceuSol4: '#3E2C60',
-  ceuSol5: '#503C74',
-  ceuSol6: '#66508A',
-  ceuSol7: '#8068A2',
-  ceuSol8: '#9C86BC',
-  ceuNevoa1: '#1C1428',
-  ceuNevoa2: '#261C36',
-  ceuNevoa3: '#322646',
-  ceuNevoa4: '#403256',
-  ceuNevoa5: '#504068',
-  ceuNevoa6: '#62507A',
-  ceuNevoa7: '#76628C',
-  ceuNevoa8: '#8C78A0',
-  ceuChuva1: '#110C24',
-  ceuChuva2: '#181230',
-  ceuChuva3: '#21193E',
-  ceuChuva4: '#2B224C',
-  ceuChuva5: '#372C5C',
-  ceuChuva6: '#44386E',
-  ceuChuva7: '#544680',
-  ceuChuva8: '#665894',
-  ceuNoite1: '#08061A',
-  ceuNoite2: '#0E0A24',
-  ceuNoite3: '#150F30',
-  ceuNoite4: '#1E163C',
-  ceuNoite5: '#281E4A',
-  ceuNoite6: '#342858',
-  ceuNoite7: '#423468',
-  ceuNoite8: '#524278',
+  ceuSol1: '#1E120E',
+  ceuSol2: '#2A1812',
+  ceuSol3: '#3C2016',
+  ceuSol4: '#53291A',
+  ceuSol5: '#6E331C',
+  ceuSol6: '#8E401E',
+  ceuSol7: '#B45422',
+  ceuSol8: '#E08A3A',
+  ceuNevoa1: '#1C1810',
+  ceuNevoa2: '#272014',
+  ceuNevoa3: '#352A18',
+  ceuNevoa4: '#45351C',
+  ceuNevoa5: '#574220',
+  ceuNevoa6: '#6C5226',
+  ceuNevoa7: '#86682E',
+  ceuNevoa8: '#A8863C',
+  ceuChuva1: '#120E0E',
+  ceuChuva2: '#1A1414',
+  ceuChuva3: '#241A18',
+  ceuChuva4: '#2E201C',
+  ceuChuva5: '#3A2820',
+  ceuChuva6: '#483024',
+  ceuChuva7: '#583A28',
+  ceuChuva8: '#6C462E',
+  ceuNoite1: '#0A0706',
+  ceuNoite2: '#100B09',
+  ceuNoite3: '#170F0C',
+  ceuNoite4: '#1F140F',
+  ceuNoite5: '#281912',
+  ceuNoite6: '#331F15',
+  ceuNoite7: '#40261A',
+  ceuNoite8: '#4E2E1E',
   // Tintas que esfriam o cenário conforme o clima (multiplicam as cores desenhadas)
-  tintaPo: '#F0D8B8',
-  tintaChuva: '#B8C4DC',
-  tintaNoite: '#9A90C0',
+  tintaPo: '#F0E0B0',
+  tintaChuva: '#C4C6C8',
+  tintaNoite: '#B89480',
   /*
-   * Fundo (camadas de parallax): silhuetas roxas mais apagadas que o céu, sem verde nem cobre, para as plataformas cinza e os perigos saltarem à frente, para não se
+   * Fundo (camadas de parallax): silhuetas de ferrugem mais escuras que o céu, sem verde nem cobre, para as plataformas cinza e os perigos saltarem à frente, para não se
    * confundir com as plataformas. As peças são desenhadas em 3 valores neutros e tingidas
    * pela cor do clima: Longe (cidade, mais clara e perto do céu), Meio (horizonte e
    * máquinas) e Perto (pilhas).
    */
   fundoValorClaro: '#FFFFFF',
   fundoValorMedio: '#D2D2D2',
-  fundoValorEscuro: '#A0A0A0',
-  // Sol: roxo lilás apagado
-  fundoSolLonge: '#6A5890',
-  fundoSolMeio: '#54447A',
-  fundoSolPerto: '#423664',
-  // Névoa: roxo acinzentado
-  fundoNevoaLonge: '#645676',
-  fundoNevoaMeio: '#504464',
-  fundoNevoaPerto: '#3E3452',
-  // Chuva: roxo azulado
-  fundoChuvaLonge: '#4A3E70',
-  fundoChuvaMeio: '#3C325E',
-  fundoChuvaPerto: '#30284E',
-  // Noite: roxo bem escuro
-  fundoNoiteLonge: '#3A2E5E',
-  fundoNoiteMeio: '#2E244C',
-  fundoNoitePerto: '#241C3E',
+  fundoValorEscuro: '#8C8C8C',
+  /** Contornos e frestas do fundo: dão nitidez às silhuetas. */
+  fundoValorContorno: '#4C4C4C',
+  // Sol: ferrugem queimada
+  fundoSolLonge: '#8A5A3A',
+  fundoSolMeio: '#5E3A26',
+  fundoSolPerto: '#3A2418',
+  // Névoa: oliva de smog
+  fundoNevoaLonge: '#7A6440',
+  fundoNevoaMeio: '#56462E',
+  fundoNevoaPerto: '#382E1E',
+  // Chuva: ferrugem molhada
+  fundoChuvaLonge: '#5A4234',
+  fundoChuvaMeio: '#3E2E24',
+  fundoChuvaPerto: '#2A1E18',
+  // Noite: brasa apagada
+  fundoNoiteLonge: '#4A2E20',
+  fundoNoiteMeio: '#331F16',
+  fundoNoitePerto: '#22140E',
   /** Janelas acesas e LEDs do fundo: amarelo quente (nunca interativos). */
   janela: '#F7C948',
   /** Letreiros neon quebrados do fundo: magenta, para não confundir com o ciano interativo. */
   neonRosa: '#E85FD2',
   neonRosaEscuro: '#9C4A8E',
+  /** Chorume e fumaça tóxica: verde ácido de destaque do cenário (nunca interativo). */
+  chorume: '#9ACD32',
+  chorumeEscuro: '#5E7A1E',
+  // Terra preta do chão do lixão
+  terra: '#3A2A1E',
+  terraEscura: '#24180F',
+  /**
+   * Musgo: tudo onde se pisa no puzzle (vigas, degraus, blocos, esteiras, frágeis, guindastes,
+   * elevadores e pontes), para destacar do chão e do fundo cor de ferrugem.
+   */
+  musgoClaro: '#9DB85A',
+  musgo: '#647E32',
+  musgoEscuro: '#3C5020',
   // Interativo e perigo
   neonCiano: '#4FD8E8',
   neonCianoEscuro: '#2FA4A8',
@@ -428,43 +445,115 @@ export function desenharPilha(
  * CHÃO DE SUCATA
  * ========================================================================= */
 
-/** Altura da borda irregular do chão acima da linha de colisão, em pixels de arte. */
-export const BORDA_CHAO = 3;
+/** Altura máxima do relevo de entulho acima da linha de colisão, em pixels de arte. */
+export const BORDA_CHAO = 5;
+
+/** Objeto meio enterrado no corte do chão, desenhado com o topo em (x, y). */
+function enterrado(p: Pincel, x: number, y: number, rnd: () => number): void {
+  const r = rnd();
+  if (r < 0.18) {
+    // Monitor de lado
+    p.caixa(x, y, 9, 7, COR.sucata);
+    p.px(x + 2, y + 2, 4, 3, COR.contorno);
+  } else if (r < 0.32) {
+    // Pneu
+    p.disco(x + 4, y + 4, 4, COR.contorno);
+    p.disco(x + 4, y + 4, 2, COR.terraEscura);
+  } else if (r < 0.46) {
+    // Garrafa deitada
+    p.px(x, y + 1, 6, 3, COR.sombraSucata);
+    p.px(x + 6, y + 2, 2, 1, COR.sombraSucata);
+    p.ponto(x + 1, y + 1, COR.sucataClara);
+  } else if (r < 0.6) {
+    // Placa de circuito
+    p.px(x, y, 8, 3, COR.verdePlacaEscuro);
+    p.linha(x + 1, y + 1, x + 6, y + 1, COR.cobreEscuro);
+  } else if (r < 0.72) {
+    // Gabinete amassado
+    p.caixa(x, y, 6, 8, COR.sombraSucata);
+    p.px(x + 1, y + 2, 4, 1, COR.sucata);
+  } else if (r < 0.84) {
+    // Cabo serpenteando
+    p.linha(x, y + 2, x + 3, y, COR.contorno);
+    p.linha(x + 3, y, x + 7, y + 3, COR.contorno);
+    p.ponto(x + 8, y + 3, COR.cobre);
+  } else {
+    // Lata enferrujada esmagada
+    p.px(x, y + 1, 4, 3, COR.cobreEscuro);
+    p.ponto(x + 1, y + 1, COR.cobre);
+  }
+}
 
 /**
- * Chão de sucata: borda de entulho, chapas rebitadas, cacos de placa e fios de cobre,
- * escurecendo para baixo. A linha de colisão fica em y = BORDA_CHAO.
+ * Chão do lixão: terra preta com lixo enterrado no corte, crosta de cascalho e sucata no
+ * topo, relevo de entulho de até BORDA_CHAO pixels acima da colisão (y = BORDA_CHAO) com
+ * pontas de objetos saindo, e chorume verde escorrendo da crosta.
  */
 export function desenharChao(p: Pincel, w: number, h: number, rnd: () => number): void {
-  const topo = BORDA_CHAO;
-  p.px(0, topo, w, h - topo, COR.sucata);
-  p.px(0, topo + 9, w, h - topo - 9, COR.sombraSucata);
-  p.px(0, h - 3, w, 3, COR.contorno);
-  // Borda irregular de entulho sobre a linha do chão
+  const linha = BORDA_CHAO;
+  // Terra: preta, escurecendo para baixo com pontilhado
+  p.px(0, linha, w, h - linha, COR.terra);
+  for (let y = linha + 8; y < h; y++) {
+    const f = (y - linha - 8) / Math.max(1, h - linha - 10);
+    for (let x = 0; x < w; x++) if (f > bayer(x, y)) p.ponto(x, y, COR.terraEscura);
+  }
+  p.px(0, h - 2, w, 2, COR.contorno);
+
+  // Relevo do topo: caminhada aleatória suavizada entre 0 e BORDA_CHAO
+  const topos: number[] = [];
+  let elev = 1;
+  let alvo = 1;
   for (let x = 0; x < w; x++) {
-    const elevacao = Math.floor(rnd() * 4) === 0 ? 1 + Math.floor(rnd() * BORDA_CHAO) : 0;
-    p.px(x, topo - elevacao, 1, elevacao + 1, COR.sucataClara);
-    p.ponto(x, topo + 1, rnd() < 0.3 ? COR.contorno : COR.sucata);
+    if (rnd() < 0.08) alvo = Math.floor(rnd() * (BORDA_CHAO + 1));
+    if (rnd() < 0.5) elev += Math.sign(alvo - elev);
+    topos.push(linha - elev);
   }
-  // Chapas rebitadas
-  for (let x = Math.floor(rnd() * 20); x < w; x += 18 + Math.floor(rnd() * 22)) {
-    const cw = 7 + Math.floor(rnd() * 6);
-    const cy = topo + 3 + Math.floor(rnd() * 3);
-    p.caixa(x, cy, cw, 4, COR.sucataClara, COR.sombraSucata);
-    p.ponto(x + 1, cy + 1, COR.contorno);
-    p.ponto(x + cw - 2, cy + 1, COR.contorno);
+  // Crosta de cascalho e sucata do topo até 3 px abaixo da colisão
+  for (let x = 0; x < w; x++) {
+    const topo = topos[x];
+    p.px(x, topo, 1, linha + 3 - topo, COR.sombraSucata);
+    p.ponto(x, topo, rnd() < 0.6 ? COR.sucataClara : COR.sucata);
+    for (let y = topo + 1; y < linha + 3; y++) {
+      const r = rnd();
+      if (r < 0.25) p.ponto(x, y, COR.sucata);
+      else if (r < 0.32) p.ponto(x, y, COR.contorno);
+    }
   }
-  // Cacos de placa, fios e parafusos
-  for (let i = 0; i < w / 5; i++) {
-    const x = Math.floor(rnd() * w);
-    const y = topo + 3 + Math.floor(rnd() * (h - topo - 6));
+  // Pontas de objetos saindo dos picos do relevo
+  for (let x = 2 + Math.floor(rnd() * 10); x < w - 6; x += 10 + Math.floor(rnd() * 22)) {
+    const topo = topos[x];
     const r = rnd();
-    if (r < 0.2) {
-      p.px(x, y, 3, 2, COR.verdePlaca);
-      p.ponto(x + 1, y, COR.cobre);
-    } else if (r < 0.4) p.linha(x, y, x + 3, y + (rnd() < 0.5 ? 1 : -1), COR.cobreEscuro);
-    else if (r < 0.5) p.ponto(x, y, COR.cobreClaro);
-    else p.ponto(x, y, y > topo + 9 ? COR.contorno : COR.sombraSucata);
+    if (r < 0.3) {
+      p.px(x, topo - 2, 6, 2, COR.sucataClara);
+      p.ponto(x + 2, topo - 2, COR.sombraSucata);
+    } else if (r < 0.55) {
+      p.linha(x, topo, x + 2, topo - 3, COR.contorno);
+      p.ponto(x + 3, topo - 4, COR.cobre);
+    } else if (r < 0.75) {
+      p.disco(x + 2, topo, 2, COR.contorno);
+      p.ponto(x + 2, topo, COR.sombraSucata);
+    } else {
+      p.px(x, topo - 1, 4, 1, COR.verdePlaca);
+      p.ponto(x + 1, topo - 1, COR.cobre);
+    }
+  }
+  // Lixo enterrado no corte
+  for (let x = Math.floor(rnd() * 12); x < w - 4; x += 12 + Math.floor(rnd() * 18)) {
+    enterrado(p, x, linha + 4 + Math.floor(rnd() * Math.max(1, h - linha - 12)), rnd);
+  }
+  // Pedrinhas e cacos
+  for (let i = 0; i < w / 3; i++) {
+    const x = Math.floor(rnd() * w);
+    const y = linha + 4 + Math.floor(rnd() * (h - linha - 6));
+    p.ponto(x, y, rnd() < 0.5 ? COR.sombraSucata : rnd() < 0.5 ? COR.cobreEscuro : COR.contorno);
+  }
+  // Chorume escorrendo da crosta
+  for (let x = Math.floor(rnd() * 30); x < w; x += 30 + Math.floor(rnd() * 50)) {
+    const comp = 3 + Math.floor(rnd() * 7);
+    p.px(x, linha + 2, 2, 1, COR.chorume);
+    p.px(x, linha + 3, 1, comp, COR.chorumeEscuro);
+    p.ponto(x, linha + 3, COR.chorume);
+    p.ponto(x, linha + 3 + comp, COR.chorume);
   }
 }
 
@@ -475,22 +564,22 @@ export function desenharChao(p: Pincel, w: number, h: number, rnd: () => number)
 
 /** Bloco de sucata prensada: chapas empilhadas com rebites e frestas. */
 export function desenharBlocoSucata(p: Pincel, w: number, h: number, rnd: () => number): void {
-  p.caixa(0, 0, w, h, COR.sucata);
-  p.px(1, 1, w - 2, 1, COR.sucataClara);
+  p.caixa(0, 0, w, h, COR.musgo);
+  p.px(1, 1, w - 2, 1, COR.musgoClaro);
   for (let y = 4 + Math.floor(rnd() * 3); y < h - 2; y += 4 + Math.floor(rnd() * 3)) {
-    p.px(1, y, w - 2, 1, COR.sombraSucata);
-    p.px(1, y + 1, w - 2, 1, COR.sucataClara);
+    p.px(1, y, w - 2, 1, COR.musgoEscuro);
+    p.px(1, y + 1, w - 2, 1, COR.musgoClaro);
     const x = 2 + Math.floor(rnd() * (w - 5));
     p.ponto(x, y - 2, COR.contorno);
     if (rnd() < 0.4) p.linha(x + 2, y - 1, x + 4, y - 2, COR.cobreEscuro);
   }
-  p.px(1, h - 2, w - 2, 1, COR.sombraSucata);
+  p.px(1, h - 2, w - 2, 1, COR.musgoEscuro);
 }
 
 /** Viga de metal fina usada como plataforma suspensa. */
 export function desenharViga(p: Pincel, w: number, h: number): void {
-  p.caixa(0, 0, w, h, COR.sucataClara);
-  p.px(1, h - 2, w - 2, 1, COR.sucata);
+  p.caixa(0, 0, w, h, COR.musgoClaro);
+  p.px(1, h - 2, w - 2, 1, COR.musgo);
   for (let x = 3; x < w - 2; x += 6) p.ponto(x, Math.floor(h / 2), COR.contorno);
 }
 
@@ -612,6 +701,7 @@ function desenharBrilho(p: Pincel, r: number): void {
  * brilho neon e terminal do ponto de exercício.
  */
 export function gerarTexturasLixao(cena: Phaser.Scene): void {
+  gerarTexturasEntulho(cena);
   // Engrenagem enferrujada meio enterrada
   texturaPixel(cena, 'lx-engrenagem', 15, 15, (p) => {
     p.disco(7, 7, 6, COR.contorno);
@@ -709,5 +799,131 @@ export function gerarTexturasLixao(cena: Phaser.Scene): void {
     p.px(3, 14, 2, 1, COR.sombraSucata);
     p.px(6, 14, 2, 1, COR.sombraSucata);
     p.px(9, 14, 2, 1, COR.sombraSucata);
+  });
+}
+
+/* =========================================================================
+ * ENTULHO DE CHÃO
+ * Sucata decorativa espalhada densa pelo chão, atrás do jogador e dos recicláveis. Cores
+ * mais apagadas que a munição (nada de lata ou bateria, que são recicláveis) para não
+ * confundir o que é decoração com o que é coletável.
+ * ========================================================================= */
+
+/** Chaves das texturas de entulho, sorteadas pelo TrechoLixao. */
+export const ENTULHO = [
+  'lx-ent-crt',
+  'lx-ent-tv',
+  'lx-ent-teclado',
+  'lx-ent-gabinete',
+  'lx-ent-saco',
+  'lx-ent-pneu',
+  'lx-ent-hd',
+  'lx-ent-ventoinha',
+  'lx-ent-cabos',
+  'lx-ent-impressora',
+  'lx-ent-monte-0',
+  'lx-ent-monte-1',
+  'lx-ent-monte-2',
+] as const;
+
+/** Meia largura de cada entulho em px de mundo (para não cair na beira de buraco). */
+export const MEIA_LARGURA_ENTULHO = 40;
+
+export function gerarTexturasEntulho(cena: Phaser.Scene): void {
+  // Monitor CRT caído de lado, tela rachada
+  texturaPixel(cena, 'lx-ent-crt', 15, 12, (p) => {
+    p.caixa(0, 1, 14, 11, COR.sucata);
+    p.px(2, 3, 9, 7, COR.contorno);
+    p.px(3, 4, 7, 5, COR.sombraSucata);
+    p.linha(4, 4, 7, 8, COR.sucata);
+    p.linha(7, 6, 9, 5, COR.sucata);
+    p.px(12, 3, 3, 8, COR.sombraSucata);
+    p.px(1, 2, 12, 1, COR.sucataClara);
+  });
+  // TV velha com antena torta
+  texturaPixel(cena, 'lx-ent-tv', 16, 15, (p) => {
+    p.linha(5, 4, 2, 0, COR.contorno);
+    p.linha(9, 4, 13, 1, COR.contorno);
+    p.caixa(0, 4, 16, 11, COR.cobreEscuro);
+    p.px(2, 6, 9, 7, COR.contorno);
+    p.px(3, 7, 7, 5, COR.sombraSucata);
+    p.ponto(4, 8, COR.sucata);
+    p.disco(13, 8, 1, COR.sucata);
+    p.ponto(13, 11, COR.sucata);
+  });
+  // Teclado partido com teclas faltando
+  texturaPixel(cena, 'lx-ent-teclado', 18, 5, (p) => {
+    p.caixa(0, 1, 11, 4, COR.sucata);
+    p.caixa(10, 2, 8, 3, COR.sucata);
+    for (let x = 1; x < 17; x += 2) if (x % 5 !== 0) p.ponto(x, x < 10 ? 2 : 3, COR.sombraSucata);
+    p.ponto(10, 1, COR.contorno);
+  });
+  // Gabinete aberto com placa verde exposta
+  texturaPixel(cena, 'lx-ent-gabinete', 10, 15, (p) => {
+    p.caixa(0, 0, 10, 15, COR.sombraSucata);
+    p.px(1, 1, 8, 1, COR.sucata);
+    p.px(2, 3, 6, 9, COR.verdePlacaEscuro);
+    p.px(3, 4, 3, 2, COR.contorno);
+    p.linha(3, 8, 7, 8, COR.cobreEscuro);
+    p.linha(7, 9, 9, 13, COR.cobreEscuro);
+  });
+  // Saco de lixo preto amarrado
+  texturaPixel(cena, 'lx-ent-saco', 13, 11, (p) => {
+    p.disco(6, 6, 5, COR.contorno);
+    p.px(1, 7, 11, 4, COR.contorno);
+    p.px(5, 0, 3, 2, COR.contorno);
+    p.ponto(4, 1, COR.contorno);
+    p.ponto(8, 1, COR.contorno);
+    p.linha(3, 4, 4, 3, COR.sombraSucata);
+    p.linha(8, 5, 9, 7, COR.sombraSucata);
+  });
+  // Pneu meio enterrado
+  texturaPixel(cena, 'lx-ent-pneu', 15, 8, (p) => {
+    p.disco(7, 8, 7, COR.contorno);
+    p.disco(7, 8, 4, COR.sombraSucata);
+    p.disco(7, 8, 2, COR.contorno);
+    for (let a = 0; a < 6; a++) {
+      const ang = Math.PI + (a / 5) * Math.PI;
+      p.ponto(7 + Math.round(Math.cos(ang) * 6), 8 + Math.round(Math.sin(ang) * 6), COR.sombraSucata);
+    }
+  });
+  // HD aberto mostrando o disco
+  texturaPixel(cena, 'lx-ent-hd', 9, 6, (p) => {
+    p.caixa(0, 0, 9, 6, COR.sucata);
+    p.disco(4, 3, 2, COR.sucataClara);
+    p.ponto(4, 3, COR.contorno);
+    p.linha(6, 1, 5, 3, COR.contorno);
+  });
+  // Ventoinha torta
+  texturaPixel(cena, 'lx-ent-ventoinha', 8, 8, (p) => {
+    p.caixa(0, 0, 8, 8, COR.sombraSucata);
+    p.linha(1, 1, 6, 6, COR.sucata);
+    p.linha(6, 1, 1, 6, COR.sucata);
+    p.ponto(3, 3, COR.contorno);
+  });
+  // Emaranhado de cabos com pontas de cobre
+  texturaPixel(cena, 'lx-ent-cabos', 20, 7, (p) => {
+    p.linha(0, 6, 4, 3, COR.contorno);
+    p.linha(4, 3, 8, 6, COR.contorno);
+    p.linha(6, 6, 11, 2, COR.contorno);
+    p.linha(11, 2, 15, 6, COR.contorno);
+    p.linha(13, 6, 18, 3, COR.sombraSucata);
+    p.linha(3, 6, 9, 4, COR.sombraSucata);
+    p.ponto(19, 2, COR.cobre);
+    p.ponto(18, 1, COR.cobreEscuro);
+    p.ponto(11, 1, COR.cobreEscuro);
+  });
+  // Impressora esmagada com papel saindo
+  texturaPixel(cena, 'lx-ent-impressora', 17, 9, (p) => {
+    p.px(4, 0, 7, 3, COR.sucataClara);
+    p.ponto(5, 1, COR.sombraSucata);
+    p.caixa(0, 2, 17, 7, COR.sucata);
+    p.px(2, 4, 13, 1, COR.contorno);
+    p.px(1, 3, 15, 1, COR.sucataClara);
+    p.ponto(14, 6, COR.cobreEscuro);
+  });
+  // Montinhos mistos de sucata
+  (['monitores', 'placas', 'cabos'] as const).forEach((tipo, i) => {
+    texturaPixel(cena, `lx-ent-monte-${i}`, 30, 16, (p) => desenharPilha(p, tipo, 15, 15, 28, 13, aleatorio(900 + i)));
   });
 }

@@ -264,7 +264,7 @@ function gabinete(p: Pincel, x: number, y: number, w: number, h: number, m: Marc
   p.caixa(x, y, w, h, COR.sucata);
   p.px(x + 1, y + 1, w - 2, 1, COR.sucataClara);
   if (h > 6) p.px(x + 1, y + 3, w - 2, 1, COR.sombraSucata);
-  if (rnd() < 0.35) m.leds.push([x + 1, y + h - 2, COR.janela]);
+  if (rnd() < 0.6) m.leds.push([x + 1, y + h - 2, rnd() < 0.3 ? COR.neonRosa : COR.janela]);
 }
 
 /** Um objeto reconhecível da pilha, apoiado em (x, y = base dele). */
@@ -272,6 +272,8 @@ function objetoPilha(p: Pincel, obj: ObjetoPilha, x: number, y: number, rnd: () 
   switch (obj) {
     case 'monitor':
       monitorObj(p, x, y - 8, int(rnd, 9, 13), 8);
+      // Alguns monitores ainda piscam na tela
+      if (rnd() < 0.2) m.leds.push([x + 3, y - 5, COR.janela]);
       break;
     case 'teclado': {
       const w = int(rnd, 10, 14);

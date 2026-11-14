@@ -10,13 +10,16 @@ import { PROF } from './TrechoLixao';
 import type { TrechoLixao } from './TrechoLixao';
 
 /** Fatores de parallax das camadas novas (o céu, 0.1 e 0.25 ficam no CenarioLixao). */
-export const PARALLAX_FUNDO = { cidade: 0.18, maquinas: 0.4, pilhas: 0.55 } as const;
+export const PARALLAX_FUNDO = { cidade: 0.18, maquinas: 0.4, pilhas: 0.55, pilhasPerto: 0.72 } as const;
 
 /** Profundidades: cidade entre nuvens e horizonte, máquinas e pilhas antes da névoa (22). */
-const PROF_FUNDO = { passantes: PROF.nuvens + 1, cidade: PROF.nuvens + 2, maquinas: 15, pilhas: PROF.pilhas } as const;
+const PROF_FUNDO = { passantes: PROF.nuvens + 1, cidade: PROF.nuvens + 2, maquinas: 15, pilhas: PROF.pilhas, pilhasPerto: PROF.pilhas + 1 } as const;
 
 /** Opacidade das camadas: quanto mais longe, mais apagada contra o céu. */
-const ALPHA = { cidade: 0.7, maquinas: 0.78, pilhas: 0.9 } as const;
+const ALPHA = { cidade: 0.86, maquinas: 0.94, pilhas: 1, pilhasPerto: 1 } as const;
+
+/** Quanto a camada de pilhas mais próxima escurece a cor `perto` (contraluz). */
+const ESCURECER_PERTO = 0.72;
 
 /** Cores de fundo de cada clima, da camada mais distante à mais próxima. */
 export const CORES_FUNDO: Record<Clima, { longe: string; meio: string; perto: string }> = {
@@ -48,7 +51,7 @@ interface Identidade {
 const IDENTIDADE: Record<Clima, Identidade> = {
   // Sol: cidade e guindastes ao longe, pilhas puxadas para placas e bobinas
   sol: {
-    cidade: { cor: COR.fundoValorClaro, janelas: 0, letreiros: 0, escala: 1, ledsTorre: false },
+    cidade: { cor: COR.fundoValorClaro, janelas: 0.06, letreiros: 0.15, escala: 1, ledsTorre: true },
     pecasCidade: { predio: 4, guindaste: 3, montanha: 2, torre: 1, chamine: 1 },
     maquinas: { esteira: 3, guindaste: 3, prensa: 2, ventilador: 1, antena: 1 },
     objetos: { placa: 5, bobina: 4, engrenagem: 2, monitor: 2, teclado: 1, gabinete: 1, celular: 1, ventoinha: 1 },
@@ -57,7 +60,7 @@ const IDENTIDADE: Record<Clima, Identidade> = {
   },
   // Névoa: silhuetas grandes meio apagadas, torres e chaminés
   nevoa: {
-    cidade: { cor: COR.fundoValorClaro, janelas: 0, letreiros: 0, escala: 1.35, ledsTorre: false },
+    cidade: { cor: COR.fundoValorClaro, janelas: 0.04, letreiros: 0.12, escala: 1.35, ledsTorre: true },
     pecasCidade: { torre: 3, chamine: 3, predio: 2, montanha: 1 },
     maquinas: { prensa: 3, antena: 2, guindaste: 2, ventilador: 2, esteira: 1 },
     objetos: { monitor: 3, gabinete: 3, teclado: 2, ventoinha: 2, engrenagem: 2, placa: 1, celular: 1 },
@@ -66,7 +69,7 @@ const IDENTIDADE: Record<Clima, Identidade> = {
   },
   // Chuva: poças refletindo luzes, cabos pingando, letreiros neon quebrados
   chuva: {
-    cidade: { cor: COR.fundoValorClaro, janelas: 0.1, letreiros: 0.3, escala: 1, ledsTorre: true },
+    cidade: { cor: COR.fundoValorClaro, janelas: 0.2, letreiros: 0.45, escala: 1, ledsTorre: true },
     pecasCidade: { predio: 5, torre: 2, chamine: 1, montanha: 1 },
     maquinas: { antena: 3, prensa: 2, esteira: 2, ventilador: 2, guindaste: 1 },
     objetos: { monitor: 3, teclado: 3, celular: 3, placa: 2, gabinete: 2, ventoinha: 1, bobina: 1 },
@@ -75,7 +78,7 @@ const IDENTIDADE: Record<Clima, Identidade> = {
   },
   // Noite: janelas acesas, LEDs e letreiros; lua e estrelas ficam no céu
   noite: {
-    cidade: { cor: COR.fundoValorClaro, janelas: 0.35, letreiros: 0.25, escala: 1, ledsTorre: true },
+    cidade: { cor: COR.fundoValorClaro, janelas: 0.5, letreiros: 0.4, escala: 1, ledsTorre: true },
     pecasCidade: { predio: 5, torre: 2, montanha: 1, guindaste: 1 },
     maquinas: { prensa: 3, antena: 3, esteira: 1, guindaste: 1, ventilador: 1 },
     objetos: { gabinete: 4, monitor: 3, placa: 2, celular: 2, teclado: 1, ventoinha: 1 },
@@ -102,9 +105,9 @@ interface Passante {
   fase: number;
 }
 
-const LIMITE_FUMACA = 40;
+const LIMITE_FUMACA = 70;
 const QTD_ESTRELAS = 16;
-const QTD_PASSANTES = 3;
+const QTD_PASSANTES = 7;
 
 /**
  * Fundo detalhado do Lixão: três camadas novas de parallax geradas uma vez em textura, a
@@ -153,7 +156,13 @@ export class FundoLixao {
     for (const chave of ['longe', 'meio', 'perto'] as const) {
       for (const obj of this.tingidos[chave]) obj.setTint(cores[chave]);
     }
+    const k = ESCURECER_PERTO;
+    const escuro = (Math.round(((cores.perto >> 16) & 255) * k) << 16) | (Math.round(((cores.perto >> 8) & 255) * k) << 8) | Math.round((cores.perto & 255) * k);
+    this.pilhasPerto?.setTint(escuro);
   }
+
+  /** Camada de pilhas mais próxima (tingida mais escura que `perto`). */
+  private pilhasPerto?: Phaser.GameObjects.Image;
 
   private tingir<T extends Phaser.GameObjects.Components.Tint>(chave: keyof CoresFundo, obj: T): T {
     this.tingidos[chave].push(obj);
@@ -165,6 +174,7 @@ export class FundoLixao {
     this.criarCidade();
     this.criarMaquinas();
     this.criarPilhas();
+    this.criarPilhasPerto();
     this.criarDetalhes();
   }
 
@@ -287,10 +297,44 @@ export class FundoLixao {
             p.px(px0 + 1, base - 1, vao - 2, 1, COR.chuvaAzulClaro);
             m.reflexos.push([px0 + 2, base - 1, Math.max(2, vao - 6)]);
           }
-          x += Math.round(larg * 0.75) + Math.max(0, vao);
+          x += Math.round(larg * 0.6) + Math.max(0, vao - 8);
         }
       })
     );
+  }
+
+  /**
+   * Pilhas próximas (0.72): montes altos e colados uns nos outros, mais escuros, com placas
+   * tortas de "proibido descartar", focos de lixo queimando (fumaça) e cabos entre os topos.
+   */
+  private criarPilhasPerto(): void {
+    const rnd = aleatorio(919);
+    const base = Math.round(CHAO_Y / ESCALA) + 2;
+    this.pilhasPerto = this.camada('lx-fundo-pilhas-perto', PARALLAX_FUNDO.pilhasPerto, PROF_FUNDO.pilhasPerto, ALPHA.pilhasPerto, (p, w, m) => {
+      let x = Math.floor(rnd() * 30);
+      let topoAnterior: { x: number; y: number } | null = null;
+      while (x < w) {
+        const id = IDENTIDADE[this.climaEm(x, PARALLAX_FUNDO.pilhasPerto)];
+        const larg = 44 + Math.floor(rnd() * 70);
+        const alt = 30 + Math.floor(rnd() * 46);
+        const cx = x + larg / 2;
+        const topo = pilhaMista(p, cx, base, larg, alt, rnd, id.objetos, m);
+        if (rnd() < 0.22) m.fumaca.push([Math.round(cx), topo + 2]);
+        if (rnd() < 0.18) {
+          // Placa torta fincada na encosta
+          const sx = Math.round(cx + larg * 0.3);
+          const sy = base - Math.round(alt * 0.35);
+          p.linha(sx, sy, sx + 1, sy - 14, COR.contorno);
+          p.caixa(sx - 6, sy - 21, 14, 8, COR.sucataClara);
+          for (let k = 0; k < 12; k += 4) p.linha(sx - 5 + k, sy - 15, sx - 3 + k, sy - 20, COR.contorno);
+        }
+        if (topoAnterior && rnd() < id.cabos + 0.2) {
+          caboPendurado(p, topoAnterior.x, topoAnterior.y + 3, cx - larg / 4, topo + 3, 5 + rnd() * 10, COR.contorno, m);
+        }
+        topoAnterior = { x: Math.round(cx + larg / 4), y: topo };
+        x += Math.round(larg * (0.45 + rnd() * 0.3));
+      }
+    });
   }
 
   /* =========================================================================
@@ -413,7 +457,7 @@ export class FundoLixao {
     for (const c of this.camadas) {
       for (const [x, y] of c.m.fumaca) {
         if (this.particulas.length >= LIMITE_FUMACA) return;
-        if (this.rnd() < 0.55 || !this.naTela(x * ESCALA, c.fator)) continue;
+        if (this.rnd() < 0.35 || !this.naTela(x * ESCALA, c.fator)) continue;
         const puff = this.cena.add
           .image(x * ESCALA, y * ESCALA, 'lx-poeira')
           .setScale(ESCALA * 2)
@@ -535,8 +579,9 @@ export class FundoLixao {
   }
 
   /**
-   * Converte a textura da camada em 3 valores neutros (claro, médio, escuro) pelo brilho de
-   * cada pixel: tira verde, cobre e marrom e baixa o contraste interno. A cor vem da tinta.
+   * Converte a textura da camada em 4 valores neutros (claro, médio, escuro e contorno) pelo
+   * brilho de cada pixel: tira verde, cobre e marrom mas mantém contraste para as peças
+   * continuarem nítidas e legíveis. A cor vem da tinta.
    */
   private neutralizar(chave: string): void {
     const tex = this.cena.textures.get(chave) as Phaser.Textures.CanvasTexture;
@@ -544,11 +589,11 @@ export class FundoLixao {
     const { width, height } = tex;
     const img = ctx.getImageData(0, 0, width, height);
     const d = img.data;
-    const [claro, medio, escuro] = [COR.fundoValorClaro, COR.fundoValorMedio, COR.fundoValorEscuro].map(hexRgb);
+    const [claro, medio, escuro, contorno] = [COR.fundoValorClaro, COR.fundoValorMedio, COR.fundoValorEscuro, COR.fundoValorContorno].map(hexRgb);
     for (let i = 0; i < d.length; i += 4) {
       if (d[i + 3] === 0) continue;
       const brilho = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
-      const v = brilho > 150 ? claro : brilho > 100 ? medio : escuro;
+      const v = brilho > 150 ? claro : brilho > 110 ? medio : brilho > 60 ? escuro : contorno;
       d[i] = v[0];
       d[i + 1] = v[1];
       d[i + 2] = v[2];

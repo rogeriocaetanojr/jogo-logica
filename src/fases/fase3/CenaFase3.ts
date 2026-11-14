@@ -175,6 +175,7 @@ export class CenaFase3 extends CenaBase {
     this.checkpoint = { x: inicio.x, y: CHAO_Y - 4, trecho: 0, ordem: 0 };
     this.jogador = new JogadorLixao(this, inicio.x, inicio.y);
     this.physics.add.collider(this.jogador.sprite, this.solidos);
+    this.jogador.solidos = this.solidos;
     this.physics.add.overlap(this.jogador.sprite, this.perigos, (_j, perigo) =>
       this.aoTocarPerigo((perigo as Phaser.GameObjects.Image).x)
     );

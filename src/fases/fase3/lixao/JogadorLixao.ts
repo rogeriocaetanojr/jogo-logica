@@ -15,6 +15,8 @@ export type ParametrosMovimento = { -readonly [K in keyof typeof MOVIMENTO_LIXAO
 const HITBOX = { LARGURA: 44, ALTURA: 96, OFFSET_X: 42, OFFSET_Y: 26 } as const;
 const ESCALA_Y_ABAIXADO = 0.6;
 const PROFUNDIDADE = 60;
+/** Maior degrau que o jogador sobe ou desce andando, sem pular (colinas do chão). */
+const DEGRAU_MAX = 10;
 
 /**
  * Jogador da Fase 3 (Alvares ou Reis): anda com aceleração e frenagem suaves, pula com
@@ -37,6 +39,8 @@ export class JogadorLixao {
   private tempoAtual = 0;
   private invencivelAte = 0;
   private controleTravadoAte = 0;
+  /** Sólidos onde o jogador pisa: usados para subir e descer degraus baixos andando. */
+  public solidos?: Phaser.Physics.Arcade.StaticGroup;
 
   constructor(cena: Phaser.Scene, x: number, y: number) {
     this.cena = cena;
@@ -134,6 +138,8 @@ export class JogadorLixao {
     const vx = corpo.velocity.x;
     if (controleLivre) this.sprite.setVelocityX(vx + Phaser.Math.Clamp(alvo - vx, -passo, passo));
 
+    this.acompanharDegraus(noChao, direcao, dt, tempo);
+
     // Pulo com coyote time e buffer; abaixado não pula
     const podePular = tempo - this.tempoUltimaVezNoChao <= p.TEMPO_COYOTE_MS;
     const pediuPulo = tempo - this.tempoUltimoPulo <= p.TEMPO_BUFFER_PULO_MS;
@@ -156,6 +162,41 @@ export class JogadorLixao {
     if (!noChao) this.tocarAnimacao('jump');
     else if (this.abaixado) this.tocarAnimacao('idle');
     else this.tocarAnimacao(direcao !== 0 ? 'run' : 'idle');
+  }
+
+  /** Topo do sólido mais alto que cruza o retângulo, ou null. */
+  private topoSolido(x: number, y: number, w: number, h: number): number | null {
+    const grupo = this.solidos;
+    if (!grupo || w <= 0 || h <= 0) return null;
+    const corpos = this.cena.physics.overlapRect(x, y, w, h, false, true) as Phaser.Physics.Arcade.StaticBody[];
+    let topo: number | null = null;
+    for (const c of corpos) if (grupo.contains(c.gameObject)) topo = topo === null ? c.top : Math.min(topo, c.top);
+    return topo;
+  }
+
+  /**
+   * Degraus baixos (colinas): andando contra um degrau de até DEGRAU_MAX, sobe antes de
+   * bater; saindo de um degrau logo depois de estar no chão, desce colado sem cair.
+   */
+  private acompanharDegraus(noChao: boolean, direcao: number, dt: number, tempo: number): void {
+    const corpo = this.corpo;
+    const vx = corpo.velocity.x;
+    const dir = Math.sign(vx) || direcao;
+    if (noChao && dir !== 0) {
+      const alcance = Math.abs(vx) * dt + 4;
+      const x = dir > 0 ? corpo.right : corpo.left - alcance;
+      const topo = this.topoSolido(x, corpo.bottom - DEGRAU_MAX, alcance, DEGRAU_MAX - 1);
+      if (topo !== null) {
+        const subir = corpo.bottom - topo;
+        const livre = this.topoSolido(x, topo - corpo.height, alcance, corpo.height - 1) === null;
+        if (subir > 0 && subir <= DEGRAU_MAX && livre) this.sprite.y -= subir;
+      }
+      return;
+    }
+    if (!noChao && corpo.velocity.y >= 0 && !this.puloCortavel && tempo - this.tempoUltimaVezNoChao < 120) {
+      const topo = this.topoSolido(corpo.left + 2, corpo.bottom, corpo.width - 4, DEGRAU_MAX + 1);
+      if (topo !== null && topo - corpo.bottom > 0 && topo - corpo.bottom <= DEGRAU_MAX) this.sprite.y += topo - corpo.bottom;
+    }
   }
 
   /** Para o jogador (terminal aberto, morte). */

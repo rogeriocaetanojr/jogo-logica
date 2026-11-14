@@ -38,7 +38,7 @@ const VEU = {
   NOITE_ALPHA: 0.4,
   RAIO_NOITE: 260,
   /** Camada de névoa atrás do jogador e das plataformas. */
-  NEVOA_ALPHA: 0.3,
+  NEVOA_ALPHA: 0.2,
   /** Raio da luz de um LED ciano (terminal) ou de uma fonte de faísca. */
   RAIO_LED: 96,
   RAIO_FAISCA: 72,
