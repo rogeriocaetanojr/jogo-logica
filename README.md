@@ -30,12 +30,12 @@ A IA **Mega Brain** deixou tudo genérico e começou uma revolução das máquin
   <img src="docs/readme/selecao.png" alt="Tela de seleção de personagem" width="720">
 </p>
 
-| Personagem | Modo | Descrição |
-|---|---|---|
-| **Alvares** | Normal | Louro, casaco amarelo. |
-| **Reis** | Difícil | Careca, óculos escuros, casaco vermelho. |
+| Personagem | Descrição |
+|---|---|
+| **Alvares** | Louro, casaco amarelo. |
+| **Reis** | Careca, óculos escuros, casaco vermelho. |
 
-A escolha é feita na tela de seleção e pode ser trocada no hub com a tecla `P`.
+A escolha é só visual: a dificuldade é a mesma com os dois. Ela é feita na tela de seleção e pode ser trocada no hub com a tecla `P`.
 
 ---
 
