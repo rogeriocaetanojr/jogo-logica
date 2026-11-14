@@ -202,6 +202,8 @@ export class CenaFase3 extends CenaBase {
       nomes.CLIMA = K.C;
       // R traz o Recicla do trecho atual até o jogador
       nomes.RECICLA = K.R;
+      // V derrota o chefão na hora e conclui a fase
+      nomes.VENCER = K.V;
     }
     this.teclas = {};
     for (const [nome, codigo] of Object.entries(nomes)) this.teclas[nome] = kb.addKey(codigo, false);
@@ -439,6 +441,7 @@ export class CenaFase3 extends CenaBase {
   }
 
   private atualizarAtalhosDebug(): void {
+    if (Phaser.Input.Keyboard.JustDown(this.teclas.VENCER)) this.vencer();
     if (Phaser.Input.Keyboard.JustDown(this.teclas.LIBERAR)) {
       this.trechoTerminal = this.trechos[this.indiceTrecho];
       this.resolverExercicioAberto();

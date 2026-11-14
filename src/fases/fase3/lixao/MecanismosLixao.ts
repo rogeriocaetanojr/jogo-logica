@@ -536,7 +536,9 @@ export class MecanismosLixao {
       const naColuna = c.right > p.x + 4 && c.left < p.x + p.w - 4;
       const naCabeca = perigosa && c.top < base && c.bottom > base - 28;
       // Por cima da cabeça é a haste e a carcaça: pular por cima da prensa também machuca
-      const porCima = c.bottom < base - 8;
+      // Só até o topo da carcaça: plataformas bem acima da prensa (ex.: a do terminal) não machucam
+      const topoCarcaca = topoHaste - 48;
+      const porCima = c.bottom < base - 8 && c.bottom > topoCarcaca - 8;
       if (naColuna && (naCabeca || porCima)) this.aoAtingir(p.x + p.w / 2);
     }
   }

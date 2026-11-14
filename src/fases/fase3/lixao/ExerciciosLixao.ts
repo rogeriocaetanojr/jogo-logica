@@ -12,6 +12,8 @@
 export interface Exercicio {
   /** Linhas do enunciado, impressas no topo do terminal. */
   enunciado: readonly string[];
+  /** Deboches específicos deste exercício ao errar (somados aos gerais de DEBOCHES). */
+  deboches: readonly string[];
   /** Mensagem do terminal ao acertar. */
   acerto: string;
   /**
@@ -26,9 +28,23 @@ export const EXERCICIOS: readonly Exercicio[] = [
   {
     enunciado: [
       'EXERCÍCIO 1 // TRIAGEM',
-      'Uma bateria velha chegou na esteira da triagem.',
-      'Guarde na variável cacamba o texto "eletronico".',
-      'Exemplo de variável com texto: cor = "verde"',
+      'Uma bateria velha chegou na esteira e precisa ir para a caçamba certa.',
+      'TAREFA: crie a variável cacamba e guarde nela o texto "eletronico".',
+      'Lembre: texto em Python vai entre aspas.',
+      'Exemplo parecido: cor = "verde"',
+      'Digite sua resposta e aperte Enter.',
+    ],
+    deboches: [
+      'Até a bateria velha entendeu o enunciado. E ela tá sem carga.',
+      'A bateria está vazando ácido, e mesmo assim ela pensa melhor que você.',
+      'Tava escrito. No enunciado. Que você claramente não leu.',
+      'Isso é aula do primeiro dia, gênio. Você faltou?',
+      'Errou a triagem. Parabéns, agora você também vai pra caçamba de lixo.',
+      'Até a esteira parou de girar de vergonha alheia.',
+      'O exemplo tá ali em cima, implorando pra ser lido.',
+      'Se burrice reciclasse, esse lixão estaria limpo agora.',
+      'Você separa lixo assim em casa também? Coitada da sua rua.',
+      'A bateria pediu pra ser jogada no rio. Menos tóxico que esse código.',
     ],
     acerto: 'cacamba = "eletronico". Sucata separada e prensada: a rampa está pronta.',
     respostas: [["cacamba='eletronico'"], ["cacamba='eletrônico'"], ["caçamba='eletronico'"], ["caçamba='eletrônico'"]],
@@ -36,9 +52,24 @@ export const EXERCICIOS: readonly Exercicio[] = [
   {
     enunciado: [
       'EXERCÍCIO 2 // ESCADA DO RECICLA',
-      'A passarela está alta demais para pular. O Recicla pode montar uma escada.',
-      'Crie a variável degraus com valor 4 e chame construir(degraus).',
-      'Pode ser em uma linha ou em duas: a primeira fica guardada até a segunda.',
+      'A passarela é alta demais para pular. O Recicla pode montar uma escada.',
+      'TAREFA (2 passos):',
+      '  1) Crie a variável degraus com o valor 4 (número, sem aspas).',
+      '  2) Chame a função construir passando degraus: construir(degraus)',
+      'Digite o passo 1 e aperte Enter; depois o passo 2 e Enter.',
+      'Ou tudo numa linha só, separando com ";".',
+    ],
+    deboches: [
+      'O Recicla tem um parafuso só e entendeu. Você tem quantos?',
+      'O Recicla tá parado olhando pra você. Ele tá com pena. Robô com pena.',
+      'Respira. Lê de novo. Devagar. Como se fosse pra uma criança.',
+      'Com esse código nem escada rolante funcionaria.',
+      'Você chamou a função como quem chama o cachorro do vizinho: errado.',
+      'O Recicla já empilhou mais sucata do que você acertou linhas.',
+      'Escada de 4 degraus e você travou no primeiro. Simbólico.',
+      'Tá tudo no enunciado. Tudinho. Mastigado.',
+      'Nesse ritmo é mais rápido o Recicla aprender a voar.',
+      'Até um drone quebrado montaria essa escada. De cabeça pra baixo.',
     ],
     acerto: 'degraus = 4. construir(4): o Recicla está empilhando os blocos!',
     respostas: [
@@ -50,10 +81,24 @@ export const EXERCICIOS: readonly Exercicio[] = [
     enunciado: [
       'EXERCÍCIO 3 // CORREDOR ELETRIFICADO',
       'O corredor à frente está eletrificado: encostar é fatal.',
-      'O disjuntor só corta a energia se ela for maior que 50.',
-      'Escreva um if que chama desligar() quando energia > 50.',
-      'Exemplo: if vida < 3: curar()',
-      'A energia volta em 7 segundos. Corra!',
+      'O disjuntor só pode ser desligado se a energia for maior que 50.',
+      'TAREFA: escreva um if que testa se energia > 50 e, se for,',
+      'chama a função desligar().',
+      'Exemplo parecido: if vida < 3: curar()',
+      'Pode digitar em uma linha ou em duas (o if, Enter, depois desligar()).',
+      'ATENÇÃO: a energia volta em 7 segundos. Depois de acertar, corra!',
+    ],
+    deboches: [
+      'Você vai morrer eletrocutado por pura preguiça de ler.',
+      'O corredor tá rindo de você. Com faíscas. Literalmente.',
+      'Lógica não é "talvez", não é "acho que". Ou é, ou não é.',
+      'O if não perdoa. E eu muito menos.',
+      'Com essa lógica, a energia vai te desligar primeiro.',
+      'Um if. UM. Tem gente que escreve mil por dia sem chorar.',
+      'Se encostar no corredor com esse código, pelo menos vira luminária.',
+      'Seu código é tão triste que o disjuntor ficou com dó.',
+      'O disjuntor tá esperando há tanto tempo que já criou ferrugem.',
+      'Até o chefão do lixão escreveria isso certo. E ele é feito de lixo.',
     ],
     acerto: 'energia > 50: verdadeiro. desligar(). CORRA!',
     respostas: [
@@ -66,7 +111,7 @@ export const EXERCICIOS: readonly Exercicio[] = [
 /** Quanto do lixão cada exercício resolvido limpa, no medidor da HUD. */
 export const LIMPEZA_POR_EXERCICIO = 25;
 
-/** Deboches do terminal ao errar (sorteados sem repetir o anterior). Errar não pune. */
+/** Deboches gerais do terminal ao errar, somados aos de cada exercício (sorteados sem repetir o anterior). Errar não pune. */
 export const DEBOCHES: readonly string[] = [
   'Isso não é Python. Isso é um grito de socorro com parênteses.',
   'A sucata aqui tem mais lógica que esse código, e a sucata está desligada.',
@@ -76,6 +121,12 @@ export const DEBOCHES: readonly string[] = [
   'Esse código faria o compilador pedir férias. Lê o enunciado de novo.',
   'Perto. Tipo Plutão é perto da Terra. Mais uma vez.',
   'Nem o drone mais burro do lixão aceitaria isso. E eles são bem burros.',
+  'Seu código é o lixo eletrônico mais tóxico desse lugar inteiro.',
+  'Já pensou em largar a programação e virar peso de papel?',
+  'Errado de novo. Você é consistente, isso eu admito.',
+  'O terminal está considerando se autodesligar pra não ler mais isso.',
+  'Que tal ler o enunciado? É de graça, não morde.',
+  'Já vi torradeira com mais raciocínio lógico.',
 ];
 
 /** Estado de uma sessão de terminal: qual exercício e a linha já aceita, se houver. */

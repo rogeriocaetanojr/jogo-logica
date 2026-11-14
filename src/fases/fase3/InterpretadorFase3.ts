@@ -10,12 +10,13 @@ export const ACAO_LINHA_PARCIAL = 'LINHA_PARCIAL';
 let ultimoDeboche = -1;
 
 /** Sorteia um deboche diferente do anterior. */
-function sortearDeboche(): string {
+function sortearDeboche(especificos: readonly string[]): string {
+  const lista = [...especificos, ...DEBOCHES];
   let i: number;
-  do i = Math.floor(Math.random() * DEBOCHES.length);
-  while (i === ultimoDeboche && DEBOCHES.length > 1);
+  do i = Math.floor(Math.random() * lista.length);
+  while (i === ultimoDeboche && lista.length > 1);
   ultimoDeboche = i;
-  return DEBOCHES[i];
+  return lista[i];
 }
 
 /**
@@ -63,5 +64,5 @@ export function interpretarComandoFase3(entrada: string, contexto?: ContextoInte
       valor: avaliacao.linhaPendente,
     };
   }
-  return { sucesso: false, mensagem: sortearDeboche() };
+  return { sucesso: false, mensagem: sortearDeboche(exercicio.deboches) };
 }
