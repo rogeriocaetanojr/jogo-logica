@@ -72,36 +72,10 @@ const CONFIG_PORTAS: PortaHubConfig[] = [
     altura: 196,
   },
   {
-    numero: 4,
-    idFase: 'fase4',
-    chaveCena: 'CenaFase4',
-    rotuloSetor: 'SETOR 4: FUNÇÕES',
-    nomeMissao: 'Módulos e Pilha de Execução',
-    corTema: 0xa855f7,
-    corHex: '#a855f7',
-    xPorta: 726,
-    yPorta: 488,
-    largura: 116,
-    altura: 196,
-  },
-  {
-    numero: 5,
-    idFase: 'fase5',
-    chaveCena: 'CenaFase5',
-    rotuloSetor: 'SETOR 5: DADOS',
-    nomeMissao: 'Estruturas de Dados e Roteamento',
-    corTema: 0xec4899,
-    corHex: '#ec4899',
-    xPorta: 882,
-    yPorta: 488,
-    largura: 116,
-    altura: 196,
-  },
-  {
     numero: 6,
     idFase: 'fase_final',
     chaveCena: 'CenaFaseFinal',
-    rotuloSetor: 'SETOR 6: NÚCLEO DO MEGA BRAIN',
+    rotuloSetor: 'MEGA BRAIN WORLD',
     nomeMissao: 'Confronto Definitivo // Boss Final',
     corTema: 0xef4444,
     corHex: '#ef4444',
@@ -118,7 +92,6 @@ const CONFIG_PORTAS: PortaHubConfig[] = [
  * janela de transmissão narrativa inicial e bloqueio estrito do Boss Final.
  */
 export class CenaHub extends Phaser.Scene {
-  private gerenciadorEstado: GerenciadorEstado;
   private isTransicaoAtiva: boolean = false;
   private personagemAtivo: TipoPersonagem = 'alvares';
   private jogador!: Phaser.Physics.Arcade.Sprite;
@@ -149,7 +122,6 @@ export class CenaHub extends Phaser.Scene {
 
   constructor() {
     super('CenaHub');
-    this.gerenciadorEstado = GerenciadorEstado.obterInstancia();
   }
 
   preload(): void {
@@ -507,12 +479,9 @@ export class CenaHub extends Phaser.Scene {
 
     const isBoss = cfg.isBoss === true;
     const isTutorial = cfg.numero === 0;
-    const bossLiberado = !isBoss || this.gerenciadorEstado.todasFasesAnterioresConcluidas();
 
     let strTexto = '';
-    if (isBoss && !bossLiberado) {
-      strTexto = '[ ACESSO RESTRITO // PORTAL BLOQUEADO ]';
-    } else if (isTutorial || isBoss) {
+    if (isTutorial || isBoss) {
       strTexto = `[ ENTER / ESPAÇO ] ENTRAR: ${cfg.rotuloSetor}`;
     } else {
       strTexto = '[ ENTER / ESPAÇO ] ENTRAR';
@@ -525,7 +494,7 @@ export class CenaHub extends Phaser.Scene {
     const largura = Math.max(280, texto.width + padH * 2);
     const altura = 34;
 
-    const corBorda = !bossLiberado ? 0xef4444 : 0xffffff;
+    const corBorda = 0xffffff;
 
     fundo.clear();
     // Fundo escuro de alto contraste
@@ -654,9 +623,9 @@ export class CenaHub extends Phaser.Scene {
     // Corpo da mensagem narrativa
     const corpoTexto =
       'Bem-vindo ao Hub Central de Depuração.\n' +
-      'A partir deste setor, não há uma ordem linear rígida: você é livre para explorar os setores de 1 a 5 no ritmo que preferir.\n\n' +
+      'A partir deste setor, não há uma ordem linear rígida: você é livre para explorar os setores de 1 a 3 no ritmo que preferir.\n\n' +
       '• PORTAL 0: Protocolo de Boot (Tutorial e calibragem dos sistemas).\n' +
-      '• PORTAL 6: Núcleo do Mega Brain (Setor Final) — ACESSO BLOQUEADO.';
+      '• MEGA BRAIN WORLD: Núcleo do Mega Brain World — acesso liberado.';
 
     const textoMensagem = this.add.text(0, -altura / 2 + 118, corpoTexto, {
       fontFamily: 'Consolas, "Courier New", monospace',
@@ -769,100 +738,11 @@ export class CenaHub extends Phaser.Scene {
       this.containerDialogoHub = undefined;
     }
 
-    // Validação estrita do Portal 6 (Boss Final)
-    if (cfg.numero === 6) {
-      const bossLiberado = this.gerenciadorEstado.todasFasesAnterioresConcluidas();
-      if (!bossLiberado) {
-        this.exibirAvisoBloqueioBoss();
-        return;
-      }
-    }
-
     if (imediato) {
       this.limparRecursosETransicionar(cfg.chaveCena);
     } else {
       this.moverPersonagemAtePortaEEntrar(cfg);
     }
-  }
-
-  /**
-   * Efeito de trava e alerta de acesso negado pelo Mega Brain.
-   */
-  private exibirAvisoBloqueioBoss(): void {
-    // Efeito de tremor e flash vermelho
-    this.cameras.main.shake(250, 0.012);
-    this.cameras.main.flash(200, 255, 30, 40, true);
-
-    if (this.containerAvisoBloqueio) {
-      this.containerAvisoBloqueio.destroy();
-    }
-
-    const { width } = this.scale;
-    const container = this.add.container(width / 2, 70);
-    container.setDepth(90);
-    this.containerAvisoBloqueio = container;
-
-    const largura = 740;
-    const altura = 64;
-
-    const fundo = this.add.graphics();
-    fundo.fillStyle(0x1a060a, 0.96);
-    fundo.fillRoundedRect(-largura / 2, -altura / 2, largura, altura, 8);
-    fundo.lineStyle(2, 0xef4444, 1);
-    fundo.strokeRoundedRect(-largura / 2, -altura / 2, largura, altura, 8);
-
-    const textoAlerta = this.add.text(
-      0,
-      0,
-      "[ACESSO NEGADO] Protocolo de contenção ativo.\nComplete todos os setores do barramento antes de desafiar o Núcleo.",
-      {
-        fontFamily: 'Consolas, "Courier New", monospace',
-        fontSize: '13px',
-        color: '#ff4444',
-        fontStyle: 'bold',
-        align: 'center',
-        lineSpacing: 4,
-        shadow: {
-          offsetX: 0,
-          offsetY: 0,
-          color: '#ff2222',
-          blur: 10,
-          fill: true,
-        },
-      }
-    );
-    textoAlerta.setOrigin(0.5);
-
-    container.add([fundo, textoAlerta]);
-
-    // Animação de entrada e saída automática após 3.5 segundos
-    container.setScale(0.92);
-    container.setAlpha(0);
-    this.tweens.add({
-      targets: container,
-      scale: 1,
-      alpha: 1,
-      duration: 180,
-      ease: 'Back.easeOut',
-    });
-
-    this.time.delayedCall(3500, () => {
-      if (this.containerAvisoBloqueio === container) {
-        this.tweens.add({
-          targets: container,
-          alpha: 0,
-          scale: 0.95,
-          duration: 300,
-          ease: 'Sine.easeIn',
-          onComplete: () => {
-            container.destroy();
-            if (this.containerAvisoBloqueio === container) {
-              this.containerAvisoBloqueio = undefined;
-            }
-          },
-        });
-      }
-    });
   }
 
   /**
@@ -1129,17 +1009,13 @@ export class CenaHub extends Phaser.Scene {
       NUMPAD_TWO: 2,
       THREE: 3,
       NUMPAD_THREE: 3,
-      FOUR: 4,
-      NUMPAD_FOUR: 4,
-      FIVE: 5,
-      NUMPAD_FIVE: 5,
       SIX: 6,
       NUMPAD_SIX: 6,
     };
 
     for (const [tecla, indice] of Object.entries(mapaIndices)) {
       this.input.keyboard.on(`keydown-${tecla}`, () => {
-        const cfg = CONFIG_PORTAS[indice];
+        const cfg = CONFIG_PORTAS.find((c) => c.numero === indice);
         if (cfg) {
           this.tentarAcessarPortal(cfg, true);
         }

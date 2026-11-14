@@ -160,8 +160,6 @@ export class GerenciadorEstado {
       'fase1',
       'fase2',
       'fase3',
-      'fase4',
-      'fase5',
     ];
     return fasesNecessarias.every((id) => this.fasesConcluidas.has(id));
   }
