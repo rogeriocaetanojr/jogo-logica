@@ -42,6 +42,8 @@ export type Elemento =
   | { tipo: 'fragil'; x: number; alt: number; w: number }
   /** Plataforma pendurada num guindaste, indo e voltando entre x e `ate` (borda esquerda). */
   | { tipo: 'guindaste'; x: number; ate: number; alt: number; w: number; v: number }
+  /** Garra de ferro-velho: pega o jogador parado embaixo dela em `x` e o solta em `ate` (centros). */
+  | { tipo: 'garra'; x: number; ate: number }
   /**
    * Cabo desencapado sobre uma poça no chão: choque intermitente. Com `grupo`, fica ligado o
    * tempo todo, é fatal e só desliga por um tempo quando o exercício do trecho manda.
@@ -310,7 +312,7 @@ const LARGURA_TRECHO = 7040;
 
 /** Torre de 10 degraus de 150 px (4 para a direita, 3 de volta, 3 para a direita) com esteiras e uma prensa. */
 const solExercicio = topoExercicio(
-  torre(1800, [[1, 4], [-1, 3], [1, 3]], 150, { 1: { esteira: -50 }, 3: 'prensa', 6: { esteira: 50 } }),
+  torre(1800, [[1, 4], [-1, 3], [1, 3]], 150, { 1: { esteira: 150 }, 3: 'prensa', 6: { esteira: 50 } }),
   'vao',
   5
 );
@@ -320,9 +322,10 @@ const SOL: LayoutTrecho = {
   buracos: [solExercicio.fosso, [6400, 448]],
   exercicio: solExercicio.exercicio,
   elementos: [
-    // Esteiras no chão: a primeira ajuda, a segunda empurra contra o avanço
-    { tipo: 'esteira', x: 400, alt: 24, w: 256, v: 90 },
-    { tipo: 'esteira', x: 780, alt: 24, w: 256, v: -70 },
+    // Primeira contra o avanço: forte, mas abaixo da velocidade do jogador (240) para dar para vencer
+    { tipo: 'esteira', x: 400, alt: 24, w: 256, v: -160 },
+    // Segunda a favor, muito forte: atira o jogador para frente, rumo às prensas
+    { tipo: 'esteira', x: 780, alt: 24, w: 256, v: 300 },
     // Prensas em onda: passar no intervalo de cada uma
     { tipo: 'prensa', x: 1080, w: 96, alt: 0, atraso: 0 },
     { tipo: 'prensa', x: 1220, w: 96, alt: 0, atraso: 870 },
@@ -400,8 +403,8 @@ const NEVOA: LayoutTrecho = {
     // Segundo portão, aberto por um botão-alvo pendurado no alto
     { tipo: 'portao', id: 'portao-alvo-nevoa', x: 6450 },
     { tipo: 'botao', x: 6482, alt: 420, alvo: 'portao-alvo-nevoa' },
-    // Saída: guindaste sobre um fosso
-    { tipo: 'guindaste', x: 6630, ate: 6810, alt: 40, w: 128, v: 90 },
+    // Saída: garra que pega o jogador antes do fosso e o solta do outro lado
+    { tipo: 'garra', x: 6560, ate: 7010 },
   ],
   drones: [
     [2100, 300],
@@ -420,7 +423,7 @@ const NEVOA: LayoutTrecho = {
   puzzles: [
     { nome: 'névoa: escada do Recicla e passarela de frágeis', de: 2400, ate: nevoaExercicio.fim },
     { nome: 'névoa: ilha da alavanca pelo guindaste', de: 4700, ate: 6264 },
-    { nome: 'névoa: portão do botão-alvo e guindaste', de: 6450, ate: 6940 },
+    { nome: 'névoa: portão do botão-alvo e garra', de: 6450, ate: 7060 },
   ],
 };
 
@@ -433,14 +436,15 @@ const chuvaExercicio = exercicioCorredor(2000);
 
 const CHUVA: LayoutTrecho = {
   largura: LARGURA_TRECHO,
-  buracos: [[1000, 160], [6800, 200]],
+  // Fossos largos demais para pular (o pulo alcança ~416 px): só passa pendurado no ímã
+  buracos: [[860, 460], [6500, 480]],
   exercicio: chuvaExercicio.exercicio,
   elementos: [
     // Cabos desencapados em poças: aviso piscando antes do choque
     { tipo: 'choque', x: 400, w: 160, atraso: 0 },
-    { tipo: 'choque', x: 680, w: 160, atraso: 900 },
-    // Ímã sobre o buraco: puxa para dentro enquanto ligado
-    { tipo: 'ima', x: 1080, alt: 300, atraso: 0 },
+    { tipo: 'choque', x: 620, w: 160, atraso: 900 },
+    // Ímã sobre o fosso: ligado, ergue o jogador e o segura para atravessar
+    { tipo: 'ima', x: 1090, alt: 300, atraso: 0 },
     // Ímã puxando para cima de uma poça com choque
     { tipo: 'choque', x: 1380, w: 128, atraso: 400 },
     { tipo: 'ima', x: 1520, alt: 240, atraso: 1200 },
@@ -459,9 +463,9 @@ const CHUVA: LayoutTrecho = {
     { tipo: 'viga', x: 5840, alt: 256, w: 112 },
     { tipo: 'viga', x: 6040, alt: 384, w: 128 },
     { tipo: 'alavanca', x: 6104, alt: 384, alvo: 'portao-chuva-2' },
-    { tipo: 'portao', id: 'portao-chuva-2', x: 6700 },
-    // Saída: fosso curto com um ímã puxando para dentro
-    { tipo: 'ima', x: 6900, alt: 300, atraso: 2400 },
+    { tipo: 'portao', id: 'portao-chuva-2', x: 6400 },
+    // Saída: fosso largo atravessado pendurado no ímã
+    { tipo: 'ima', x: 6740, alt: 300, atraso: 2400 },
   ],
   drones: [
     [600, 180],
@@ -482,8 +486,8 @@ const CHUVA: LayoutTrecho = {
   patrulhaRecicla: [4400, 4640],
   puzzles: [
     { nome: 'chuva: corredor eletrificado', de: 2000, ate: chuvaExercicio.fim },
-    { nome: 'chuva: duas alavancas sobre choques', de: 4880, ate: 6764 },
-    { nome: 'chuva: fosso com ímã', de: 6800, ate: 7000 },
+    { nome: 'chuva: duas alavancas sobre choques', de: 4880, ate: 6464 },
+    { nome: 'chuva: fosso com ímã', de: 6500, ate: 7000 },
   ],
 };
 

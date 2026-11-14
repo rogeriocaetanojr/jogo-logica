@@ -15,6 +15,7 @@ import {
   desenharFosso,
   desenharBarreira,
   desenharViga,
+  desenharPilhaEletronicos,
   grade,
   hexNum,
   texturaPixel,
@@ -24,6 +25,8 @@ import { ALTURA_TELA, CHAO_Y, TRECHOS } from '../lixao/TiposLixao';
 import { ALTURA_BARREIRA, ALTURA_ESPINHOS, CORREDOR, ESCADA, LAYOUTS } from './LayoutLixao';
 import type { ExercicioLayout, LayoutTrecho, ObstaculoExercicio } from './LayoutLixao';
 import type { InfoTrecho, TipoReciclavel } from '../lixao/TiposLixao';
+import { TelaoAviso } from '../lixao/TelaoAviso';
+import type { Aviso } from '../lixao/TelaoAviso';
 
 /** Profundidades de desenho comuns ao mapa. */
 export const PROF = {
@@ -134,6 +137,8 @@ export abstract class TrechoLixao {
   public readonly reciclaveis: ReadonlyArray<readonly [number, TipoReciclavel]> = [];
   public marcador?: Phaser.GameObjects.Sprite;
   public readonly info: InfoTrecho;
+  /** Telão no céu, no começo do trecho, explicando os perigos (opcional). */
+  public readonly aviso?: Aviso;
   /** Cores, astro e tinta do clima do trecho. */
   public abstract readonly tema: TemaTrecho;
   /** Semente do cenário (cada trecho tem chão diferente, sempre igual entre visitas). */
@@ -210,8 +215,8 @@ export abstract class TrechoLixao {
       // O que fica no alto não atrapalha: sobra vão livre para o jogador em pé sobre a colina
       if ('alt' in e && e.alt >= COLINA.ALTO_IGNORADO) continue;
       const w = 'w' in e ? e.w : 0;
-      const fim = e.tipo === 'guindaste' ? e.ate + w : e.tipo === 'baixa' ? e.x + 128 : e.x + w;
-      faixas.push([e.x, fim]);
+      const fim = e.tipo === 'guindaste' ? e.ate + w : e.tipo === 'garra' ? e.ate + 40 : e.tipo === 'baixa' ? e.x + 128 : e.x + w;
+      faixas.push([e.tipo === 'garra' ? e.x - 40 : e.x, fim]);
     }
     for (const [x, alt] of layout.quedas) if (alt === 0) faixas.push([x, x]);
     faixas.push([layout.patrulhaRecicla[0], layout.patrulhaRecicla[1]]);
@@ -260,6 +265,7 @@ export abstract class TrechoLixao {
     this.criarChao();
     this.colinas.forEach((c, i) => this.criarColina(c, i));
     this.criarMarcador();
+    if (this.aviso) new TelaoAviso(this.cena, this.offset + 640, this.aviso);
     this.criarObstaculo();
     this.decorar();
     this.entulhar();
@@ -640,7 +646,7 @@ export abstract class TrechoLixao {
         duration: 350,
         onComplete: () => {
           robo.setTexture('lx-recicla-pega');
-          const bloco = this.solido(`escada-${k}`, x, CHAO_Y - altura, ESCADA.LARGURA, altura, (p, w, h) => desenharBlocoSucata(p, w, h, this.rnd));
+          const bloco = this.solido(`escada-${k}`, x, CHAO_Y - altura, ESCADA.LARGURA, altura, (p, w, h) => desenharPilhaEletronicos(p, w, h, this.rnd));
           const yFinal = bloco.img.y;
           bloco.img.setY(yFinal + altura).setAlpha(0.6);
           this.cena.som.bipesCheckpoint();

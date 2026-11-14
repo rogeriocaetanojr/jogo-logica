@@ -31,6 +31,8 @@ export class JogadorLixao {
   public readonly tipoPersonagem: TipoPersonagem;
   public readonly parametros: ParametrosMovimento = { ...MOVIMENTO_LIXAO };
   public vida = VIDA_MAXIMA;
+  /** Velocidade da esteira sob os pés (px/s), somada ao alvo do movimento; a cena zera fora dela. */
+  public empurraoX = 0;
 
   private readonly cena: Phaser.Scene;
   private teclas: Phaser.Input.Keyboard.Key[][] = [];
@@ -142,8 +144,9 @@ export class JogadorLixao {
     // Movimento horizontal em rampa: acelera até o alvo e freia até parar ao soltar
     const direcao = esquerda === direita ? 0 : esquerda ? -1 : 1;
     if (direcao !== 0) this.sprite.setFlipX(direcao < 0);
-    const alvo = direcao * (this.abaixado ? p.VELOCIDADE_ABAIXADO : p.VELOCIDADE);
-    const taxa = direcao !== 0 ? (noChao ? p.ACELERACAO_CHAO : p.ACELERACAO_AR) : noChao ? p.FRENAGEM_CHAO : p.FRENAGEM_AR;
+    // Na esteira o "parado" é andar junto com ela: o alvo soma a velocidade da esteira
+    const alvo = direcao * (this.abaixado ? p.VELOCIDADE_ABAIXADO : p.VELOCIDADE) + this.empurraoX;
+    const taxa = direcao !== 0 || this.empurraoX !== 0 ? (noChao ? p.ACELERACAO_CHAO : p.ACELERACAO_AR) : noChao ? p.FRENAGEM_CHAO : p.FRENAGEM_AR;
     const passo = taxa * dt;
     const vx = corpo.velocity.x;
     if (controleLivre) this.sprite.setVelocityX(vx + Phaser.Math.Clamp(alvo - vx, -passo, passo));

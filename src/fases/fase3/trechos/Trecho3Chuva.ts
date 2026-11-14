@@ -12,6 +12,10 @@ import type { TemaTrecho } from './TrechoLixao';
  */
 export class Trecho3Chuva extends TrechoLixao {
   /** Mesmo visual do trecho 1 (a fase não tem mais estações). */
+  public readonly aviso = {
+    titulo: 'PILHAS ENCHARCADAS',
+    linhas: ['POÇAS DÃO CHOQUE', 'O TERMINAL DESLIGA O CORREDOR', 'POR POUCO TEMPO: CORRA!'],
+  };
   public readonly tema: TemaTrecho = {
     ceu: CEU.sol,
     astro: 'sol',

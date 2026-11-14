@@ -19,7 +19,7 @@ import { SomLixao } from './lixao/SomLixao';
 import { JogadorLixao } from './lixao/JogadorLixao';
 import { QuedasLixao } from './lixao/QuedasLixao';
 import { RoboLixao } from './lixao/RoboLixao';
-import { ALTURA_TELA, CHAO_Y, DEBUG, FADE_MORTE_MS, TOPO_MUNDO, TRECHOS } from './lixao/TiposLixao';
+import { ALTURA_TELA, CHAO_Y, DEBUG, FADE_MORTE_MS, TOPO_MUNDO, TRECHOS, VIDA_MAXIMA } from './lixao/TiposLixao';
 
 /** Distância horizontal para interagir com o ponto de exercício. */
 const ALCANCE_INTERACAO = 80;
@@ -336,7 +336,10 @@ export class CenaFase3 extends CenaBase {
   salvarCheckpoint(ponto: PontoCheckpoint): boolean {
     if (ponto.ordem <= this.checkpoint.ordem) return false;
     this.checkpoint = ponto;
-    this.hud.mostrarAviso('Checkpoint salvo', AVISO_CHECKPOINT_MS);
+    // Cada checkpoint novo recarrega a bateria
+    this.jogador.vida = VIDA_MAXIMA;
+    this.hud.atualizarVida(this.jogador.vida);
+    this.hud.mostrarAviso('Checkpoint salvo: bateria recarregada', AVISO_CHECKPOINT_MS);
     this.som.bipesCheckpoint();
     return true;
   }

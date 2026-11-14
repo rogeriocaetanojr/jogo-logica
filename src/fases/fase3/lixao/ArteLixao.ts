@@ -603,6 +603,78 @@ export function desenharFardo(p: Pincel, w: number, h: number, rnd: () => number
   p.px(0, h - 1, w, 1, COR.contorno);
 }
 
+/**
+ * Piso de sacos de lixo amarrados, lado a lado e meio esmagados (pisos rentes ao chão).
+ * Cada saco tem contorno arredondado, brilho de plástico e o nó em cima.
+ */
+export function desenharSacosLixo(p: Pincel, w: number, h: number, rnd: () => number): void {
+  const cores = ['#2A2E2A', '#3A4A3A', '#2B3550', '#3A3030', '#4A4A40'];
+  p.px(0, 1, w, h - 1, COR.contorno);
+  for (let x = 0; x < w; ) {
+    const largura = Math.min(6 + Math.floor(rnd() * 4), w - x);
+    const cor = cores[Math.floor(rnd() * cores.length)];
+    // Corpo arredondado: cantos de cima cortados
+    p.px(x + 1, 1, largura - 2, h - 2, cor);
+    p.px(x, 2, largura, h - 3, cor);
+    p.px(x, 2, 1, h - 3, COR.contorno);
+    // Brilho do plástico e dobra
+    p.px(x + 1, 2, Math.max(1, Math.floor(largura / 3)), 1, COR.sucataClara);
+    if (largura > 5) p.ponto(x + largura - 2, h - 2, COR.contorno);
+    // Nó amarrado em cima
+    const nx = x + Math.floor(largura / 2);
+    p.ponto(nx, 0, COR.contorno);
+    p.ponto(nx, 1, cor === '#4A4A40' ? COR.bateriaAmarela : COR.sucataClara);
+    x += largura;
+  }
+  p.px(0, h - 1, w, 1, COR.contorno);
+}
+
+/**
+ * Degrau de lixo eletrônico empilhado: monitores de tubo, gabinetes, teclados e placas,
+ * camada por camada, com o topo plano para pisar.
+ */
+export function desenharPilhaEletronicos(p: Pincel, w: number, h: number, rnd: () => number): void {
+  p.px(0, 0, w, h, COR.contorno);
+  let y = 1;
+  while (y < h - 1) {
+    const tipo = Math.floor(rnd() * 4);
+    const alt = Math.min(h - 1 - y, tipo === 2 ? 3 : tipo === 3 ? 2 : 5 + Math.floor(rnd() * 3));
+    let x = 1;
+    while (x < w - 1) {
+      const larg = Math.min(w - 1 - x, tipo === 2 ? 7 + Math.floor(rnd() * 5) : 5 + Math.floor(rnd() * 5));
+      if (larg < 2 || alt < 2) break;
+      if (tipo === 0) {
+        // Monitor de tubo: carcaça bege e tela escura com brilho
+        p.px(x, y, larg - 1, alt, COR.sucataClara);
+        if (larg > 3 && alt > 3) {
+          p.px(x + 1, y + 1, larg - 3, alt - 2, COR.verdePlacaEscuro);
+          p.ponto(x + 1, y + 1, COR.neonCianoEscuro);
+        }
+      } else if (tipo === 1) {
+        // Gabinete: chapa cinza com baias e led
+        p.px(x, y, larg - 1, alt, COR.sucata);
+        p.px(x + 1, y + 1, larg - 3, 1, COR.sombraSucata);
+        if (alt > 3) p.px(x + 1, y + 3, larg - 3, 1, COR.sombraSucata);
+        p.ponto(x + larg - 3, y + alt - 2, rnd() < 0.5 ? COR.bateriaVerde : COR.perigo);
+      } else if (tipo === 2) {
+        // Teclado: base escura com teclas
+        p.px(x, y, larg - 1, alt, COR.sombraSucata);
+        for (let k = x + 1; k < x + larg - 2; k += 2) p.ponto(k, y + 1, COR.sucataClara);
+      } else {
+        // Placa de circuito verde com trilhas de cobre
+        p.px(x, y, larg - 1, alt, COR.verdePlaca);
+        p.px(x + 1, y, Math.max(1, larg - 4), 1, COR.cobre);
+        p.ponto(x + 1, y + alt - 1, COR.contorno);
+      }
+      x += larg;
+    }
+    y += alt;
+  }
+  // Topo de pisar: tampa de gabinete amassada
+  p.px(0, 0, w, 2, COR.contorno);
+  p.px(1, 0, w - 2, 1, COR.sucataClara);
+}
+
 /** Viga de metal fina usada como plataforma suspensa. */
 export function desenharViga(p: Pincel, w: number, h: number): void {
   p.caixa(0, 0, w, h, COR.musgoClaro);

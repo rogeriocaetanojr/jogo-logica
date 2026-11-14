@@ -12,6 +12,10 @@ import type { TemaTrecho } from './TrechoLixao';
  */
 export class Trecho2Nevoa extends TrechoLixao {
   /** Mesmo visual do trecho 1 (a fase não tem mais estações). */
+  public readonly aviso = {
+    titulo: 'TEMPESTADE DE PÓ',
+    linhas: ['PLATAFORMAS FRÁGEIS CAEM: NÃO PARE', 'USE O GUINDASTE PARA CRUZAR'],
+  };
   public readonly tema: TemaTrecho = {
     ceu: CEU.sol,
     astro: 'sol',

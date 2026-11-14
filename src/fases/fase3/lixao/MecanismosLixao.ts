@@ -3,7 +3,7 @@ import type { CenaFase3 } from '../CenaFase3';
 import { PROF } from '../trechos/TrechoLixao';
 import { ALTURA_BARREIRA, ALTURA_ESPINHOS, CORREDOR } from '../trechos/LayoutLixao';
 import type { Elemento } from '../trechos/LayoutLixao';
-import { COR, ESCALA, aleatorio, desenharBarreira, folhaPixel, grade, hexNum, texturaPixel } from './ArteLixao';
+import { COR, ESCALA, aleatorio, desenharBarreira, desenharSacosLixo, folhaPixel, grade, hexNum, texturaPixel } from './ArteLixao';
 import type { Pincel } from './ArteLixao';
 import { CHAO_Y } from './TiposLixao';
 
@@ -25,12 +25,17 @@ export const MECANISMO = {
   CHOQUE_AVISO: 1800,
   CHOQUE_LIGA: 2500,
   /** Ímã: desligado, aviso e ligado; alcance e força do puxão (px/s). */
-  IMA_CICLO: 4800,
-  IMA_AVISO: 2200,
-  IMA_LIGA: 2800,
-  IMA_ALCANCE_X: 300,
-  IMA_ALCANCE_Y: 280,
-  IMA_FORCA: 150,
+  /** Ímã: liga por 3 s a cada 6 s, com aviso antes. */
+  IMA_CICLO: 6000,
+  IMA_AVISO: 2400,
+  IMA_LIGA: 3000,
+  /** Alcance horizontal (do centro) e vertical (abaixo dele) em que ergue o jogador. */
+  IMA_ALCANCE_X: 280,
+  IMA_ALCANCE_Y: 380,
+  /** Folga entre o ímã e a cabeça do jogador pendurado, e rapidez com que ele sobe. */
+  IMA_FOLGA: 36,
+  IMA_SUBIDA: 6,
+  IMA_SUBIDA_MAX: 420,
   /** Distância para usar a alavanca e para ativar um checkpoint. */
   ALCANCE_ALAVANCA: 60,
   ALCANCE_CHECKPOINT: 50,
@@ -78,13 +83,36 @@ interface Fragil {
 interface Guindaste {
   corpo: Phaser.GameObjects.Rectangle;
   img: Phaser.GameObjects.Image;
-  cabo: Phaser.GameObjects.Rectangle;
+  /** Carrinho, cabo, gancho e correntes: uma peça só que corre pela viga junto da plataforma. */
+  suspensao: Phaser.GameObjects.Image;
   min: number;
   max: number;
   w: number;
   topo: number;
   v: number;
   x: number;
+}
+
+type EstadoGarra = 'esperando' | 'descendo' | 'fechando' | 'subindo' | 'levando' | 'baixando' | 'abrindo' | 'voltando';
+
+interface Garra {
+  xPega: number;
+  xSolta: number;
+  /** Centro x da garra e topo dela (y de mundo). */
+  x: number;
+  y: number;
+  /** Topo da garra ao esperar e ao viajar. */
+  yEspera: number;
+  yAlto: number;
+  /** y de onde sai o cabo (embaixo do carrinho). */
+  yCabo: number;
+  estado: EstadoGarra;
+  tempo: number;
+  /** Só pega de novo depois que o jogador sair de baixo dela. */
+  liberada: boolean;
+  img: Phaser.GameObjects.Image;
+  carrinho: Phaser.GameObjects.Image;
+  cabo: Phaser.GameObjects.Rectangle;
 }
 
 interface Choque {
@@ -131,11 +159,20 @@ interface Botao {
   ativo: boolean;
 }
 
+/** Altura da cabine do elevador acima do piso, em pixels de arte. */
+const CABINE_ALTURA = 34;
+
 interface Elevador {
   /** Corpo dinâmico imóvel e sem gravidade, movido por velocidade (leva quem está em cima). */
   corpo: Phaser.GameObjects.Rectangle;
   img: Phaser.GameObjects.Image;
   luz: Phaser.GameObjects.Rectangle;
+  /** Cabo da polia até a cabine e contrapeso (com o próprio cabo), que desce quando ela sobe. */
+  cabo: Phaser.GameObjects.Rectangle;
+  contrapeso: Phaser.GameObjects.Image;
+  caboContrapeso: Phaser.GameObjects.Rectangle;
+  /** y de mundo da polia (topo dos cabos). */
+  yPolia: number;
   x: number;
   w: number;
   /** Topo da plataforma (y de mundo) em cima e embaixo. */
@@ -176,6 +213,7 @@ export class MecanismosLixao {
   private readonly prensas: Prensa[] = [];
   private readonly frageis: Fragil[] = [];
   private readonly guindastes: Guindaste[] = [];
+  private readonly garras: Garra[] = [];
   private readonly choques: Choque[] = [];
   /** Até quando (tempo da cena) cada grupo de choque fica desligado. */
   private readonly desligadoAte = new Map<string, number>();
@@ -220,6 +258,9 @@ export class MecanismosLixao {
       case 'ima':
         this.criarIma(offset + e.x, e.alt, e.atraso);
         break;
+      case 'garra':
+        this.criarGarra(offset + e.x, offset + e.ate);
+        break;
       case 'portao':
         this.criarPortao(e.id, offset + e.x);
         break;
@@ -249,6 +290,7 @@ export class MecanismosLixao {
   /** Ao morrer: plataformas frágeis voltam inteiras. Portões e pontes abertos ficam abertos. */
   reiniciar(): void {
     for (const f of this.frageis) this.restaurarFragil(f);
+    for (const g of this.garras) this.reiniciarGarra(g);
   }
 
   /** Reciclável em voo em (x, y) acerta um botão-alvo? */
@@ -285,6 +327,7 @@ export class MecanismosLixao {
     const dt = delta / 1000;
     this.atualizarEsteiras(dt);
     this.atualizarGuindastes(dt);
+    this.atualizarGarras(dt);
     this.atualizarElevadores(delta);
     this.atualizarFrageis(delta);
     this.atualizarPrensas();
@@ -307,6 +350,15 @@ export class MecanismosLixao {
     const c = this.jogador.corpo;
     const noChao = c.blocked.down || c.touching.down;
     return noChao && Math.abs(c.bottom - topo) <= 4 && c.right > x && c.left < x + w;
+  }
+
+  /**
+   * Pé do jogador no topo da superfície, sem depender de blocked/touching (que falham em
+   * alguns quadros em corpos estáticos e deixavam esteira e guindaste empurrando só às vezes).
+   */
+  private apoiado(x: number, w: number, topo: number): boolean {
+    const c = this.jogador.corpo;
+    return c.velocity.y >= 0 && Math.abs(c.bottom - topo) <= 6 && c.right > x && c.left < x + w;
   }
 
   /** Desloca o jogador na horizontal; a física separa de paredes no próximo passo. */
@@ -348,7 +400,19 @@ export class MecanismosLixao {
     const ha = Math.round(h / ESCALA);
     // Estrutura: caixa com rolos nas pontas e pés
     const chave = `lx-esteira-base-${n}`;
+    // Nós dos sacos rolando por cima, mostrando o sentido do empurrão
+    texturaPixel(this.cena, 'lx-esteira-sacos', 12, 2, (p) => {
+      p.px(2, 1, 3, 1, COR.contorno);
+      p.ponto(3, 0, COR.sucataClara);
+      p.px(8, 1, 2, 1, COR.contorno);
+      p.ponto(9, 0, COR.bateriaAmarela);
+    });
     texturaPixel(this.cena, chave, wa, ha + (noChao ? 0 : 3), (p) => {
+      if (noChao) {
+        // No chão: monte de sacos de lixo amarrados, sendo levados pela esteira
+        desenharSacosLixo(p, wa, ha, aleatorio(500 + n));
+        return;
+      }
       p.caixa(0, 1, wa, ha - 1, COR.musgoEscuro);
       for (let rx = 1; rx < wa - 1; rx += 4) p.ponto(rx + 1, ha - 2, COR.musgo);
       p.disco(1, Math.floor(ha / 2), Math.max(1, Math.floor(ha / 2) - 1), COR.musgoClaro);
@@ -361,7 +425,7 @@ export class MecanismosLixao {
     this.tingir(this.cena.add.image(grade(x), grade(topo), chave).setOrigin(0, 0).setScale(ESCALA).setDepth(PROF.objetos));
     // Faixa com setas, rolando no sentido do empurrão
     const faixa = this.cena.add
-      .tileSprite(grade(x), grade(topo) - ESCALA, wa, 2, 'lx-esteira-faixa')
+      .tileSprite(grade(x), grade(topo) - ESCALA, wa, 2, noChao ? 'lx-esteira-sacos' : 'lx-esteira-faixa')
       .setOrigin(0, 0)
       .setScale(ESCALA)
       .setDepth(PROF.objetos + 1)
@@ -371,10 +435,13 @@ export class MecanismosLixao {
   }
 
   private atualizarEsteiras(dt: number): void {
+    // A esteira entra na velocidade do jogador (ver JogadorLixao.empurraoX), com força total
+    let empurrao = 0;
     for (const e of this.esteiras) {
       e.faixa.tilePositionX -= (Math.abs(e.v) * dt) / ESCALA;
-      if (this.emCima(e.x, e.w, e.topo)) this.empurrar(e.v * dt);
+      if (this.apoiado(e.x, e.w, e.topo)) empurrao = e.v;
     }
+    this.cena.jogador.empurraoX = empurrao;
   }
 
   /* =========================================================================
@@ -388,20 +455,44 @@ export class MecanismosLixao {
     // Carcaça hidráulica no alto, com faixas e pistão
     const chaveCarcaca = `lx-prensa-carcaca-${wa}`;
     texturaPixel(this.cena, chaveCarcaca, wa + 8, 12, (p) => {
-      p.caixa(0, 0, wa + 8, 12, COR.musgo);
-      p.px(1, 1, wa + 6, 2, COR.musgoClaro);
-      for (let i = 2; i < wa + 6; i += 4) p.px(i, 5, 2, 3, COR.musgoEscuro);
-      p.px(Math.floor((wa + 8) / 2) - 2, 9, 4, 3, COR.cobreEscuro);
+      const L = wa + 8;
+      const rnd = aleatorio(300 + wa);
+      // Chapa enferrujada, remendada e amassada
+      p.caixa(0, 0, L, 12, COR.cobreEscuro);
+      p.px(1, 1, L - 2, 1, COR.cobre);
+      for (let i = 0; i < 6; i++) p.px(1 + Math.floor(rnd() * (L - 6)), 2 + Math.floor(rnd() * 7), 2 + Math.floor(rnd() * 3), 1, COR.sombraSucata);
+      // Remendo de chapa cinza com rebites
+      const rx = 2 + Math.floor(rnd() * (L - 10));
+      p.caixa(rx, 3, 7, 4, COR.sucata);
+      p.ponto(rx + 1, 4, COR.contorno);
+      p.ponto(rx + 5, 4, COR.contorno);
+      // Faixa de perigo desbotada e descascada
+      for (let x = 1; x < L - 1; x++) if (rnd() < 0.8) p.ponto(x, 8, Math.floor(x / 2) % 2 === 0 ? '#9A7A30' : COR.contorno);
+      // Escorridos de ferrugem e óleo
+      for (let x = 3; x < L - 3; x += 4 + Math.floor(rnd() * 4)) {
+        const comp = 1 + Math.floor(rnd() * 3);
+        p.px(x, 12 - comp, 1, comp, rnd() < 0.5 ? COR.cobre : COR.contorno);
+      }
+      p.px(Math.floor(L / 2) - 2, 9, 4, 3, COR.sombraSucata);
     });
     this.tingir(this.cena.add.image(grade(x - 16), grade(topoCarcaca), chaveCarcaca).setOrigin(0, 0).setScale(ESCALA).setDepth(PROF.objetos));
     const haste = this.cena.add
-      .rectangle(grade(x + w / 2) - 8, topoCarcaca + 48, 16, 10, hexNum(COR.musgoClaro))
+      .rectangle(grade(x + w / 2) - 8, topoCarcaca + 48, 16, 10, hexNum(COR.sucata))
+      .setStrokeStyle(ESCALA / 2, hexNum(COR.contorno))
       .setOrigin(0, 0)
       .setDepth(PROF.objetos);
     const chaveCabeca = `lx-prensa-cabeca-${wa}`;
     texturaPixel(this.cena, chaveCabeca, wa, 7, (p) => {
-      p.caixa(0, 0, wa, 7, COR.musgoClaro);
-      p.px(1, 5, wa - 2, 1, COR.musgoEscuro);
+      const rnd = aleatorio(400 + wa);
+      // Bloco de esmagar: aço velho, crostas de ferrugem, sujeira e dentes gastos embaixo
+      p.caixa(0, 0, wa, 7, COR.sucata);
+      p.px(1, 1, wa - 2, 1, COR.sucataClara);
+      for (let i = 0; i < wa / 2; i++) {
+        p.ponto(1 + Math.floor(rnd() * (wa - 2)), 1 + Math.floor(rnd() * 4), rnd() < 0.6 ? COR.cobreEscuro : COR.cobre);
+      }
+      for (let i = 3; i < wa - 3; i += 6) p.ponto(i, 2, COR.contorno);
+      p.px(1, 4, wa - 2, 1, COR.sombraSucata);
+      for (let i = 1; i < wa - 1; i += 2) p.ponto(i, 5, rnd() < 0.3 ? COR.chorumeEscuro : COR.sombraSucata);
       for (let i = 1; i < wa - 1; i += 2) p.ponto(i, 6, COR.contorno);
     });
     const cabeca = this.cena.add.image(grade(x), 0, chaveCabeca).setOrigin(0, 1).setScale(ESCALA).setDepth(PROF.objetos + 1);
@@ -442,7 +533,11 @@ export class MecanismosLixao {
       p.ultimaFase = f;
       // Esmagar: a cabeça descendo ou embaixo encostando no jogador
       const perigosa = f >= M.PRENSA_DESCE && f < M.PRENSA_SOBE;
-      if (perigosa && c.right > p.x + 4 && c.left < p.x + p.w - 4 && c.top < base && c.bottom > base - 28) this.aoAtingir(p.x + p.w / 2);
+      const naColuna = c.right > p.x + 4 && c.left < p.x + p.w - 4;
+      const naCabeca = perigosa && c.top < base && c.bottom > base - 28;
+      // Por cima da cabeça é a haste e a carcaça: pular por cima da prensa também machuca
+      const porCima = c.bottom < base - 8;
+      if (naColuna && (naCabeca || porCima)) this.aoAtingir(p.x + p.w / 2);
     }
   }
 
@@ -509,26 +604,69 @@ export class MecanismosLixao {
    * PLATAFORMA DE GUINDASTE
    * ========================================================================= */
 
+  /**
+   * Ponte rolante: viga treliçada no alto apoiada em duas torres, carrinho que corre pela
+   * viga e, pendurada no cabo, a plataforma presa por gancho e correntes.
+   */
   private criarGuindaste(min: number, max: number, alt: number, w: number, v: number, n: number): void {
     const topo = CHAO_Y - alt;
     const corpo = this.solido(min, topo, w, 20);
     const wa = Math.round(w / ESCALA);
+
+    // Viga e torres (fixas). A viga cobre o curso inteiro com folga nas pontas.
+    const yViga = grade(Math.max(72, topo - 220));
+    this.criarViga(grade(min - 48), max + w + 48, yViga);
+
+    // Suspensão (move junto): carrinho na viga, cabo, gancho e duas correntes até as pontas
+    const ySusp = yViga + 7 * ESCALA;
+    const sa = Math.round((grade(topo) - 2 * ESCALA - ySusp) / ESCALA) + 2;
+    const meio = Math.floor(wa / 2);
+    const yGancho = Math.max(6, sa - 12);
+    const chaveSusp = `lx-guindaste-susp-${wa}-${sa}`;
+    texturaPixel(this.cena, chaveSusp, wa, sa, (p) => {
+      // Carrinho com rodas sobre o banzo de baixo
+      p.caixa(meio - 6, 0, 12, 5, COR.bateriaAmarela);
+      p.px(meio - 5, 1, 10, 1, COR.janela);
+      p.disco(meio - 3, 0, 1, COR.contorno);
+      p.disco(meio + 3, 0, 1, COR.contorno);
+      // Cabo duplo descendo até o gancho
+      p.px(meio - 1, 5, 1, yGancho - 5, COR.contorno);
+      p.px(meio + 1, 5, 1, yGancho - 5, COR.contorno);
+      // Moitão e gancho
+      p.caixa(meio - 3, yGancho, 7, 4, COR.sucataClara);
+      p.px(meio, yGancho + 4, 1, 3, COR.contorno);
+      p.px(meio - 1, yGancho + 6, 3, 1, COR.contorno);
+      // Correntes em V do gancho às pontas da plataforma (elos alternados)
+      for (const xFim of [1, wa - 2]) {
+        const passos = Math.max(Math.abs(xFim - meio), sa - 1 - (yGancho + 7));
+        for (let k = 0; k <= passos; k++) {
+          const t = k / passos;
+          const cx = Math.round(meio + (xFim - meio) * t);
+          const cy = Math.round(yGancho + 7 + (sa - 1 - (yGancho + 7)) * t);
+          p.ponto(cx, cy, k % 2 === 0 ? COR.contorno : COR.sucata);
+        }
+      }
+    });
+    const suspensao = this.tingir(this.cena.add.image(grade(min), ySusp, chaveSusp).setOrigin(0, 0).setScale(ESCALA).setDepth(PROF.objetos - 1));
+
+    // Plataforma: palete de aço com faixa de perigo e olhais nas pontas
     const chave = `lx-guindaste-${wa}-${n}`;
     texturaPixel(this.cena, chave, wa, 7, (p) => {
-      p.caixa(0, 2, wa, 5, COR.musgoEscuro);
-      p.px(1, 3, wa - 2, 1, COR.musgoClaro);
-      // Ganchos presos ao cabo
-      p.px(Math.floor(wa / 2) - 3, 0, 1, 2, COR.contorno);
-      p.px(Math.floor(wa / 2) + 2, 0, 1, 2, COR.contorno);
+      p.caixa(0, 2, wa, 5, COR.sucata);
+      p.px(1, 3, wa - 2, 1, COR.sucataClara);
+      for (let x = 1; x < wa - 1; x++) p.ponto(x, 5, Math.floor(x / 2) % 2 === 0 ? COR.bateriaAmarela : COR.contorno);
+      p.px(0, 0, 3, 2, COR.contorno);
+      p.px(wa - 3, 0, 3, 2, COR.contorno);
     });
     const img = this.tingir(this.cena.add.image(grade(min), grade(topo) - 2 * ESCALA, chave).setOrigin(0, 0).setScale(ESCALA).setDepth(PROF.objetos));
-    const cabo = this.cena.add.rectangle(grade(min + w / 2), topo - 8, ESCALA, 900, hexNum(COR.contorno)).setOrigin(0.5, 1).setDepth(PROF.objetos - 1);
-    this.guindastes.push({ corpo, img, cabo, min, max, w, topo, v, x: min });
+    this.guindastes.push({ corpo, img, suspensao, min, max, w, topo, v, x: min });
   }
 
   private atualizarGuindastes(dt: number): void {
     for (const g of this.guindastes) {
-      const estavaEmCima = this.emCima(g.x, g.w, g.topo);
+      // Sem exigir blocked/touching: a plataforma estática se move e esses flags falham em
+      // alguns quadros, o que deixava o jogador parado escorregar para fora até cair
+      const estavaEmCima = this.apoiado(g.x, g.w, g.topo);
       let nx = g.x + g.v * dt;
       if (nx > g.max || nx < g.min) {
         g.v = -g.v;
@@ -539,8 +677,216 @@ export class MecanismosLixao {
       g.corpo.setPosition(g.x + g.w / 2, g.topo + 10);
       (g.corpo.body as Phaser.Physics.Arcade.StaticBody).updateFromGameObject();
       g.img.setX(grade(g.x));
-      g.cabo.setX(grade(g.x + g.w / 2));
+      g.suspensao.setX(grade(g.x));
       if (estavaEmCima) this.empurrar(dx);
+    }
+  }
+
+  /** Viga treliçada de ponte rolante entre xViga e xFim, com uma torre em cada ponta até o chão. */
+  private criarViga(xViga: number, xFim: number, yViga: number): void {
+    const va = Math.round((xFim - xViga) / ESCALA);
+    const chaveViga = `lx-guindaste-viga-${va}`;
+    texturaPixel(this.cena, chaveViga, va, 10, (p) => {
+      p.caixa(0, 0, va, 3, COR.cobre);
+      p.px(1, 1, va - 2, 1, COR.cobreClaro);
+      p.caixa(0, 7, va, 3, COR.cobreEscuro);
+      // Treliça em zigue-zague entre os banzos
+      for (let x = 0; x < va - 4; x += 8) {
+        p.linha(x, 3, x + 4, 6, COR.cobreEscuro);
+        p.linha(x + 4, 6, x + 8, 3, COR.cobreEscuro);
+      }
+      // Faixa de perigo nas pontas
+      for (const x0 of [0, va - 6]) for (let k = 0; k < 6; k++) p.ponto(x0 + k, 1, k % 2 === 0 ? COR.bateriaAmarela : COR.contorno);
+    });
+    this.tingir(this.cena.add.image(xViga, yViga, chaveViga).setOrigin(0, 0).setScale(ESCALA).setDepth(PROF.objetos - 2));
+    const torreA = Math.round((CHAO_Y - yViga - 10 * ESCALA) / ESCALA);
+    const chaveTorre = `lx-guindaste-torre-${torreA}`;
+    texturaPixel(this.cena, chaveTorre, 6, torreA, (p) => {
+      p.px(0, 0, 1, torreA, COR.contorno);
+      p.px(5, 0, 1, torreA, COR.contorno);
+      p.px(1, 0, 1, torreA, COR.sucata);
+      p.px(4, 0, 1, torreA, COR.sucata);
+      for (let y = 0; y < torreA - 6; y += 6) {
+        p.linha(1, y, 4, y + 3, COR.sombraSucata);
+        p.linha(4, y + 3, 1, y + 6, COR.sombraSucata);
+      }
+    });
+    for (const tx of [xViga + 2 * ESCALA, xViga + va * ESCALA - 8 * ESCALA]) {
+      this.tingir(this.cena.add.image(grade(tx), yViga + 10 * ESCALA, chaveTorre).setOrigin(0, 0).setScale(ESCALA).setDepth(PROF.objetos - 3));
+    }
+  }
+
+  /* =========================================================================
+   * GARRA DE FERRO-VELHO
+   * ========================================================================= */
+
+  /**
+   * Garra numa ponte rolante: espera aberta antes do fosso; com o jogador parado embaixo,
+   * desce, fecha, ergue, leva-o por cima do fosso e o solta do outro lado. Depois volta vazia.
+   */
+  private criarGarra(xPega: number, xSolta: number): void {
+    const yViga = grade(CHAO_Y - 420);
+    this.criarViga(grade(xPega - 120), grade(xSolta + 120), yViga);
+    texturaPixel(this.cena, 'lx-garra-carrinho', 14, 6, (p) => {
+      p.caixa(0, 0, 14, 6, COR.bateriaAmarela);
+      p.px(1, 1, 12, 1, COR.janela);
+      p.disco(3, 0, 1, COR.contorno);
+      p.disco(10, 0, 1, COR.contorno);
+      p.px(5, 3, 4, 2, COR.sombraSucata);
+    });
+    const yCabo = yViga + 13 * ESCALA;
+    const carrinho = this.tingir(this.cena.add.image(grade(xPega), yViga + 7 * ESCALA, 'lx-garra-carrinho').setOrigin(0.5, 0).setScale(ESCALA).setDepth(PROF.objetos - 1));
+    // Garra: cabeçote com motor e três dedos de ferro (aberta e fechada)
+    const desenhar = (p: Pincel, aberta: boolean): void => {
+      p.caixa(3, 0, 12, 5, COR.sucata);
+      p.px(4, 1, 10, 1, COR.sucataClara);
+      p.ponto(5, 3, COR.perigo);
+      p.ponto(12, 3, COR.cobreEscuro);
+      p.ponto(13, 2, COR.cobre);
+      p.px(8, 5, 2, 2, COR.contorno);
+      const abre = aberta ? 1 : 0;
+      // Dedos laterais: descem e curvam para dentro (abertos, afastados)
+      for (const lado of [-1, 1]) {
+        const base = lado < 0 ? 4 : 13;
+        for (let k = 0; k < 6; k++) {
+          const xx = base + lado * (abre * Math.min(k, 3)) - lado * (k >= 4 ? k - 3 : 0);
+          p.px(xx, 5 + k, 2, 1, COR.contorno);
+          if (k < 4) p.ponto(xx + (lado < 0 ? 1 : 0), 5 + k, COR.sucataClara);
+        }
+      }
+      // Dedo do meio
+      p.px(8, 7, 2, aberta ? 3 : 4, COR.contorno);
+    };
+    texturaPixel(this.cena, 'lx-garra-aberta', 18, 12, (p) => desenhar(p, true));
+    texturaPixel(this.cena, 'lx-garra-fechada', 18, 12, (p) => desenhar(p, false));
+    const yEspera = CHAO_Y - 150 - 12 * ESCALA;
+    const img = this.tingir(this.cena.add.image(grade(xPega), yEspera, 'lx-garra-aberta').setOrigin(0.5, 0).setScale(ESCALA).setDepth(PROF.jogador + 1));
+    const cabo = this.cena.add.rectangle(grade(xPega), yCabo, ESCALA, 1, hexNum(COR.contorno)).setOrigin(0.5, 0).setDepth(PROF.objetos - 1);
+    const g: Garra = {
+      xPega,
+      xSolta,
+      x: xPega,
+      y: yEspera,
+      yEspera,
+      yAlto: CHAO_Y - 330,
+      yCabo,
+      estado: 'esperando',
+      tempo: 0,
+      liberada: true,
+      img,
+      carrinho,
+      cabo,
+    };
+    this.garras.push(g);
+    this.posicionarGarra(g);
+  }
+
+  private reiniciarGarra(g: Garra): void {
+    g.estado = 'esperando';
+    g.x = g.xPega;
+    g.y = g.yEspera;
+    g.tempo = 0;
+    g.liberada = false;
+    g.img.setTexture('lx-garra-aberta');
+    this.posicionarGarra(g);
+  }
+
+  private posicionarGarra(g: Garra): void {
+    g.img.setPosition(grade(g.x), grade(g.y));
+    g.carrinho.setX(grade(g.x));
+    g.cabo.setX(grade(g.x)).setScale(1, Math.max(1, grade(g.y) - g.yCabo));
+  }
+
+  /** Prende o jogador pendurado na garra (cabeça entre os dedos). */
+  private prenderNaGarra(g: Garra): void {
+    const c = this.jogador.corpo;
+    const sprite = this.jogador.sprite;
+    const topoDesejado = g.y + 8 * ESCALA;
+    c.reset(sprite.x + (g.x - c.center.x), sprite.y + (topoDesejado - c.top));
+  }
+
+  /** Move v em direção a alvo com a velocidade dada; devolve true ao chegar. */
+  private aproximar(atual: number, alvo: number, vel: number, dt: number): [number, boolean] {
+    const passo = vel * dt;
+    if (Math.abs(alvo - atual) <= passo) return [alvo, true];
+    return [atual + Math.sign(alvo - atual) * passo, false];
+  }
+
+  private atualizarGarras(dt: number): void {
+    const c = this.jogador.corpo;
+    for (const g of this.garras) {
+      g.tempo += dt * 1000;
+      const embaixo = Math.abs(c.center.x - g.xPega) < 28 && c.bottom > CHAO_Y - 8;
+      const noChao = c.blocked.down || c.touching.down;
+      let chegou = false;
+      switch (g.estado) {
+        case 'esperando':
+          // Volta devagar à altura de espera (depois de trazer a garra vazia)
+          [g.y] = this.aproximar(g.y, g.yEspera, 200, dt);
+          if (!embaixo) g.liberada = true;
+          if (g.liberada && embaixo && noChao) {
+            g.estado = 'descendo';
+            if (this.visivel(g.x, g.y)) this.cena.som.aviso();
+          }
+          break;
+        case 'descendo': {
+          // Desce até a cabeça do jogador; se ele sair de baixo, volta a esperar
+          if (!embaixo) {
+            [g.y, chegou] = this.aproximar(g.y, g.yEspera, 260, dt);
+            if (chegou) g.estado = 'esperando';
+            break;
+          }
+          [g.y, chegou] = this.aproximar(g.y, c.top - 8 * ESCALA, 260, dt);
+          if (chegou) {
+            g.estado = 'fechando';
+            g.tempo = 0;
+            g.img.setTexture('lx-garra-fechada');
+            this.cena.cameras.main.shake(80, 0.002);
+          }
+          break;
+        }
+        case 'fechando':
+          this.prenderNaGarra(g);
+          if (g.tempo >= 250) g.estado = 'subindo';
+          break;
+        case 'subindo':
+          [g.y, chegou] = this.aproximar(g.y, g.yAlto, 220, dt);
+          this.prenderNaGarra(g);
+          if (chegou) g.estado = 'levando';
+          break;
+        case 'levando':
+          [g.x, chegou] = this.aproximar(g.x, g.xSolta, 200, dt);
+          this.prenderNaGarra(g);
+          if (chegou) g.estado = 'baixando';
+          break;
+        case 'baixando': {
+          // Baixa até o pé do jogador quase tocar o chão do outro lado
+          const alvo = g.yAlto + (CHAO_Y - 4 - (g.yAlto + 8 * ESCALA + c.height));
+          [g.y, chegou] = this.aproximar(g.y, alvo, 220, dt);
+          this.prenderNaGarra(g);
+          if (chegou) {
+            g.estado = 'abrindo';
+            g.tempo = 0;
+            g.img.setTexture('lx-garra-aberta');
+          }
+          break;
+        }
+        case 'abrindo':
+          // Solta: o jogador cai os últimos pixels e segue
+          if (g.tempo >= 300) g.estado = 'voltando';
+          break;
+        case 'voltando': {
+          let subiu: boolean;
+          [g.y, subiu] = this.aproximar(g.y, g.yAlto, 260, dt);
+          if (subiu) [g.x, chegou] = this.aproximar(g.x, g.xPega, 260, dt);
+          if (chegou) {
+            g.estado = 'esperando';
+            g.liberada = false;
+          }
+          break;
+        }
+      }
+      this.posicionarGarra(g);
     }
   }
 
@@ -642,18 +988,16 @@ export class MecanismosLixao {
     this.cena.add.rectangle(grade(x), y - 30, ESCALA, 900, hexNum(COR.contorno)).setOrigin(0.5, 1).setDepth(PROF.objetos - 1);
     const img = this.cena.add.image(grade(x), grade(y), 'lx-ima', 0).setScale(ESCALA).setDepth(PROF.objetos + 1);
     this.tingir(img);
-    // Linhas do campo: pulsam dos dois lados enquanto ligado
+    // Ondas do campo abaixo do ímã: sobem pulsando enquanto ligado
     const campo: Phaser.GameObjects.Rectangle[] = [];
-    for (const lado of [-1, 1]) {
-      for (let k = 1; k <= 3; k++) {
-        campo.push(
-          this.cena.add
-            .rectangle(grade(x + lado * k * 56), grade(y), ESCALA, ESCALA * 6, hexNum(COR.janela))
-            .setDepth(PROF.escuro + 1)
-            .setAlpha(0.6)
-            .setVisible(false)
-        );
-      }
+    for (let k = 1; k <= 3; k++) {
+      campo.push(
+        this.cena.add
+          .rectangle(grade(x), grade(y + 40 + k * 56), 48 + k * 40, ESCALA, hexNum(COR.janela))
+          .setDepth(PROF.escuro + 1)
+          .setAlpha(0.6)
+          .setVisible(false)
+      );
     }
     this.imas.push({ x, y, atraso, img, campo, ultimaFase: -1 });
   }
@@ -668,14 +1012,17 @@ export class MecanismosLixao {
       im.img.setFrame(ligado || (avisando && Math.floor(f / 100) % 2 === 0) ? 1 : 0);
       im.img.setX(grade(im.x) + (avisando && Math.floor(f / 60) % 2 === 0 ? ESCALA : 0));
       const onda = (this.tempo / 120) % 3;
-      im.campo.forEach((r, i) => r.setVisible(ligado && Math.floor(onda) === 2 - (i % 3)));
+      im.campo.forEach((r, i) => r.setVisible(ligado && Math.floor(onda) === 2 - i));
       if (avisando && im.ultimaFase < M.IMA_AVISO && this.visivel(im.x, im.y)) this.cena.som.aviso();
       im.ultimaFase = f;
       if (!ligado) continue;
-      const j = this.jogador;
-      const dx = im.x - j.x;
-      if (Math.abs(dx) > 8 && Math.abs(dx) < M.IMA_ALCANCE_X && Math.abs(j.y - 48 - im.y) < M.IMA_ALCANCE_Y) {
-        this.empurrar(Math.sign(dx) * M.IMA_FORCA * dt);
+      // Ligado: ergue quem está embaixo e o segura pendurado; os lados ficam livres para
+      // atravessar. Saiu do alcance ou o ímã desligou: cai.
+      const c = this.jogador.corpo;
+      const abaixo = c.top - im.y;
+      if (Math.abs(c.center.x - im.x) < M.IMA_ALCANCE_X && abaixo > 0 && abaixo < M.IMA_ALCANCE_Y) {
+        const alvoTopo = im.y + M.IMA_FOLGA;
+        c.velocity.y = Phaser.Math.Clamp((alvoTopo - c.top) * M.IMA_SUBIDA, -M.IMA_SUBIDA_MAX, M.IMA_SUBIDA_MAX) - 600 * dt;
       }
     }
   }
@@ -714,11 +1061,8 @@ export class MecanismosLixao {
       aberto: false,
       abrir: () => {
         this.solido(x, topo, w, 20);
-        texturaPixel(this.cena, `lx-ponte-alvo-${wa}`, wa, 5, (p) => {
-          p.caixa(0, 0, wa, 5, COR.musgoClaro);
-          p.px(1, 3, wa - 2, 1, COR.musgo);
-          for (let i = 3; i < wa - 2; i += 6) p.ponto(i, 2, COR.contorno);
-        });
+        // Ponte de sacos de lixo amarrados que sobe para tapar o vão
+        texturaPixel(this.cena, `lx-ponte-alvo-${wa}`, wa, 5, (p) => desenharSacosLixo(p, wa, 5, aleatorio(800 + wa)));
         const img = this.tingir(
           this.cena.add.image(grade(x), grade(topo) + 40, `lx-ponte-alvo-${wa}`).setOrigin(0, 0).setScale(ESCALA).setDepth(PROF.objetos).setAlpha(0)
         );
@@ -773,14 +1117,32 @@ export class MecanismosLixao {
   private criarElevador(x: number, alt: number, w: number, ate: number, ciclo: boolean): void {
     const yAlto = CHAO_Y - alt;
     const yBaixo = CHAO_Y - Math.max(20, ate);
-    // Trilhos vazados do andaime, do pé ao alto
+    // Poço: duas guias de aço com travessas em X, do pé até a casa de máquinas com a polia
     const pe = ate > 0 ? yBaixo + 20 : CHAO_Y;
-    for (const tx of [x + 4, x + w - 8]) {
-      this.cena.add.rectangle(grade(tx), pe, ESCALA, pe - yAlto + 40, hexNum(COR.sombraSucata)).setOrigin(0, 1).setDepth(PROF.objetos - 1);
-    }
-    for (let y = pe - 20; y > yAlto - 40; y -= 96) {
-      this.cena.add.rectangle(grade(x + 4), grade(y), w - 8, ESCALA, hexNum(COR.sombraSucata)).setOrigin(0, 0).setDepth(PROF.objetos - 1);
-    }
+    const wa = Math.round(w / ESCALA);
+    const yPoco = grade(yAlto - CABINE_ALTURA * ESCALA - 8 * ESCALA);
+    const pa = Math.round((pe - yPoco) / ESCALA);
+    const meio = Math.floor(wa / 2);
+    const chavePoco = `lx-elevador-poco-${wa}-${pa}`;
+    texturaPixel(this.cena, chavePoco, wa, pa, (p) => {
+      for (const gx of [0, wa - 3]) {
+        p.px(gx, 6, 3, pa - 6, COR.contorno);
+        p.px(gx + 1, 6, 1, pa - 6, COR.sucata);
+        for (let y = 10; y < pa; y += 8) p.ponto(gx + 1, y, COR.sucataClara);
+      }
+      for (let y = 8; y + 16 <= pa; y += 16) {
+        p.linha(3, y, wa - 4, y + 16, COR.sombraSucata);
+        p.linha(wa - 4, y, 3, y + 16, COR.sombraSucata);
+      }
+      // Casa de máquinas com a polia
+      p.caixa(0, 0, wa, 7, COR.cobreEscuro);
+      p.px(1, 1, wa - 2, 1, COR.cobre);
+      p.disco(meio, 5, 3, COR.contorno);
+      p.disco(meio, 5, 2, COR.sucataClara);
+      p.ponto(meio, 5, COR.contorno);
+    });
+    this.tingir(this.cena.add.image(grade(x), yPoco, chavePoco).setOrigin(0, 0).setScale(ESCALA).setDepth(PROF.objetos - 2));
+    const yPolia = yPoco + 8 * ESCALA;
     const yInicio = ciclo ? yAlto : yBaixo;
     const corpo = this.cena.add.rectangle(x + w / 2, yInicio + 10, w, 20, 0, 0);
     this.cena.physics.add.existing(corpo);
@@ -791,17 +1153,51 @@ export class MecanismosLixao {
     b.checkCollision.left = false;
     b.checkCollision.right = false;
     this.corposMoveis.push(corpo);
-    const wa = Math.round(w / ESCALA);
-    texturaPixel(this.cena, `lx-elevador-${wa}`, wa, 6, (p) => {
-      p.caixa(0, 1, wa, 5, COR.musgo);
-      p.px(1, 2, wa - 2, 1, COR.musgoClaro);
-      for (let i = 2; i < wa - 2; i += 3) p.ponto(i, 4, COR.musgoEscuro);
-      p.px(0, 0, wa, 1, COR.contorno);
+    // Cabine aberta: teto com a alça do cabo, colunas, grade pantográfica no fundo e piso
+    const H = CABINE_ALTURA;
+    texturaPixel(this.cena, `lx-elevador-${wa}`, wa, H + 6, (p) => {
+      p.caixa(0, 0, wa, 3, COR.musgoEscuro);
+      p.px(1, 1, wa - 2, 1, COR.musgoClaro);
+      p.px(meio - 1, 0, 3, 1, COR.contorno);
+      for (const cx of [0, wa - 2]) {
+        p.px(cx, 3, 2, H - 3, COR.contorno);
+        p.ponto(cx === 0 ? 1 : cx, 4, COR.sucataClara);
+      }
+      for (let k = 3; k < wa - 4; k += 4) {
+        p.linha(k, 4, k + 2, H - 2, COR.sombraSucata);
+        p.linha(k + 2, 4, k, H - 2, COR.sombraSucata);
+      }
+      p.px(2, Math.floor(H / 2), wa - 4, 1, COR.sucata);
+      // Piso: o topo dele (linha H) fica rente ao corpo
+      p.px(0, H, wa, 1, COR.contorno);
+      p.caixa(0, H + 1, wa, 5, COR.musgo);
+      p.px(1, H + 2, wa - 2, 1, COR.musgoClaro);
+      for (let k = 2; k < wa - 2; k += 3) p.ponto(k, H + 4, COR.musgoEscuro);
     });
-    const img = this.tingir(this.cena.add.image(grade(x), grade(yInicio) - ESCALA, `lx-elevador-${wa}`).setOrigin(0, 0).setScale(ESCALA).setDepth(PROF.objetos));
-    // Lâmpada amarela: acende enquanto anda (não é interativo, então nada de ciano)
-    const luz = this.cena.add.rectangle(grade(x + w / 2), grade(yInicio) - ESCALA * 2, ESCALA * 2, ESCALA, hexNum(COR.bateriaAmarela)).setDepth(PROF.escuro + 1).setAlpha(0.4);
-    this.elevadores.push({ corpo, img, luz, x, w, yAlto, yBaixo, sentido: 0, espera: 0, liberado: true, ciclo });
+    const img = this.tingir(
+      this.cena.add.image(grade(x), grade(yInicio) - ESCALA - H * ESCALA, `lx-elevador-${wa}`).setOrigin(0, 0).setScale(ESCALA).setDepth(PROF.objetos)
+    );
+    // Lâmpada amarela no teto: acende enquanto anda (não é interativo, então nada de ciano)
+    const luz = this.cena.add
+      .rectangle(grade(x + w / 2), grade(yInicio) - (H - 4) * ESCALA, ESCALA * 2, ESCALA, hexNum(COR.bateriaAmarela))
+      .setDepth(PROF.escuro + 1)
+      .setAlpha(0.4);
+    // Cabo da polia ao teto da cabine e contrapeso do outro lado da polia
+    const xCabo = grade(x) + meio * ESCALA + ESCALA / 2;
+    const cabo = this.cena.add.rectangle(xCabo, yPolia, ESCALA, 1, hexNum(COR.contorno)).setOrigin(0.5, 0).setDepth(PROF.objetos - 1);
+    texturaPixel(this.cena, 'lx-elevador-contrapeso', 5, 12, (p) => {
+      p.caixa(0, 0, 5, 12, COR.sombraSucata);
+      for (let y = 3; y < 12; y += 3) p.px(1, y, 3, 1, COR.contorno);
+    });
+    const xPeso = grade(x) + (meio + 3) * ESCALA;
+    const contrapeso = this.tingir(this.cena.add.image(xPeso, yPolia, 'lx-elevador-contrapeso').setOrigin(0, 0).setScale(ESCALA).setDepth(PROF.objetos - 1));
+    const caboContrapeso = this.cena.add
+      .rectangle(xPeso + 2 * ESCALA + ESCALA / 2, yPolia, ESCALA, 1, hexNum(COR.contorno))
+      .setOrigin(0.5, 0)
+      .setDepth(PROF.objetos - 1);
+    const el: Elevador = { corpo, img, luz, cabo, contrapeso, caboContrapeso, yPolia, x, w, yAlto, yBaixo, sentido: 0, espera: 0, liberado: true, ciclo };
+    this.elevadores.push(el);
+    this.posicionarCabos(el, yInicio);
   }
 
   /** Topo atual da plataforma (y de mundo). */
@@ -883,9 +1279,21 @@ export class MecanismosLixao {
       const sobre = c.right > el.x + 2 && c.left < el.x + el.w - 2;
       const rente = Math.abs(c.bottom - topo) <= 6;
       if (sobre && rente && c.velocity.y >= vy - 60) c.velocity.y = vy;
-      el.img.setY(grade(topo) - ESCALA);
-      el.luz.setY(grade(topo) - ESCALA * 2).setAlpha(el.sentido !== 0 ? 1 : 0.4);
+      el.img.setY(grade(topo) - ESCALA - CABINE_ALTURA * ESCALA);
+      el.luz.setY(grade(topo) - (CABINE_ALTURA - 4) * ESCALA).setAlpha(el.sentido !== 0 ? 1 : 0.4);
+      this.posicionarCabos(el, topo);
     }
+  }
+
+  /** Estica o cabo até o teto da cabine; o contrapeso desce quando ela sobe, e vice-versa. */
+  private posicionarCabos(el: Elevador, topo: number): void {
+    const tetoCabine = grade(topo) - ESCALA - CABINE_ALTURA * ESCALA;
+    el.cabo.setScale(1, Math.max(1, tetoCabine - el.yPolia));
+    const curso = Math.max(1, el.yBaixo - el.yAlto);
+    const subiu = Phaser.Math.Clamp((el.yBaixo - topo) / curso, 0, 1);
+    const yPeso = grade(el.yPolia + 8 + subiu * Math.max(0, curso - 16));
+    el.contrapeso.setY(yPeso);
+    el.caboContrapeso.setScale(1, Math.max(1, yPeso - el.yPolia));
   }
 
   /* =========================================================================

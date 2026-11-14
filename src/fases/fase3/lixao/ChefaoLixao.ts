@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import type { CenaFase3 } from '../CenaFase3';
 import { PROF } from '../trechos/TrechoLixao';
+import { COR_LINHA, COR_LINHA_APAGADA, TelaoAviso } from './TelaoAviso';
 import { COR, ESCALA, grade, hexNum, texturaPixel } from './ArteLixao';
 import type { Pincel } from './ArteLixao';
 import { ALTURA_TELA, CHAO_Y, LARGURA_TELA, TIPOS_RECICLAVEIS } from './TiposLixao';
@@ -28,14 +29,18 @@ const ARENA = {
 } as const;
 
 export const CHEFAO = {
-  VIDA: 10,
+  VIDA: 12,
   /** Velocidade de andar atrás do jogador (px/s), multiplicada pelo fator de lentidão. */
   VELOCIDADE: 70,
   /** Cada acerto multiplica o fator de lentidão por isto, até o mínimo. */
   LENTIDAO_POR_ACERTO: 0.92,
   LENTIDAO_MINIMA: 0.45,
   /** Intervalo entre ataques com o fator 1 (cresce conforme ele fica lento). */
-  INTERVALO_ATAQUE_MS: 2200,
+  INTERVALO_ATAQUE_MS: 2600,
+  /** Depois de cada ataque ele fica tonto: só leva dano nessa janela. */
+  TONTO_MS: 2600,
+  /** Folga extra (px) em volta da hitbox para o acerto valer enquanto tonto. */
+  MARGEM_ACERTO: 56,
   /** Boca aberta antes de cada ataque. */
   PREPARO_MS: 450,
   /** Sucata em arco: tempo de voo até o jogador e gravidade. */
@@ -47,13 +52,13 @@ export const CHEFAO = {
   FAISCA_MS: 2400,
   /** Choque no chão: meia largura, aviso piscando e tempo ativo. */
   CHOQUE_MEIA_LARGURA: 176,
-  CHOQUE_AVISO_MS: 900,
+  CHOQUE_AVISO_MS: 1200,
   CHOQUE_ATIVO_MS: 350,
   /** Empurrar o monstro derrotado (px/s). */
   VELOCIDADE_EMPURRAO: 90,
   /** Recicláveis na arena: a cada intervalo, repõe até haver este mínimo no chão. */
-  MUNICAO_INTERVALO_MS: 2500,
-  MUNICAO_MINIMA: 3,
+  MUNICAO_INTERVALO_MS: 1800,
+  MUNICAO_MINIMA: 4,
   /** Compactação no contêiner e espera até a vitória. */
   COMPACTAR_MS: 900,
 } as const;
@@ -65,11 +70,15 @@ const HITBOX = { LARGURA: 160, ALTURA: 140 } as const;
 const CONTEINER_W = 26;
 const CONTEINER_H = 20;
 
+/** Telão no céu da arena com o passo a passo para derrotar o monstro. */
+const PASSOS = ['PEGUE UM RECICLÁVEL [F]', 'ESPERE ELE FICAR TONTO  * * *', 'ARREMESSE NELE!'] as const;
+
 /** Barra de vida no topo da tela. */
 const BARRA = { LARGURA: 520, ALTURA: 22, Y: 20 } as const;
 
 type Ataque = 'sucata' | 'faiscas' | 'choque';
-const ORDEM_ATAQUES: readonly Ataque[] = ['sucata', 'faiscas', 'choque'];
+/** Só a sucata em arco: faíscas e choque no chão foram tirados para a luta ficar mais justa. */
+const ORDEM_ATAQUES: readonly Ataque[] = ['sucata'];
 
 type Estado = 'dormindo' | 'lutando' | 'derrotado' | 'compactado';
 
@@ -97,7 +106,8 @@ interface Choque {
  *
  * Ao entrar na arena, a câmera trava numa tela e paredes invisíveis fecham as bordas. O
  * monstro anda atrás do jogador e alterna três ataques: sucata em arco, faíscas no chão e
- * choque no chão com aviso piscando. Cada reciclável que acerta tira 1 de vida e o deixa mais
+ * choque no chão com aviso piscando. Depois de cada ataque fica tonto por um tempo, e só aí
+ * cada reciclável que acerta (com folga extra na mira) tira 1 de vida e o deixa mais
  * lento. Com a vida zerada ele para; o jogador o empurra andando contra ele até o contêiner,
  * que o compacta. Aí o céu clareia, o Recicla comemora e a fase termina (ver CenaFase3).
  *
@@ -119,6 +129,13 @@ export class ChefaoLixao {
   private preparo = 0;
   private proximoAtaque = 0;
   private esperaMunicao = 0;
+  /** Tempo até ficar tonto (o ataque ainda está acontecendo) e tempo restante tonto. */
+  private atrasoTonto = 0;
+  private tonto = 0;
+  private estrelas!: Phaser.GameObjects.Text;
+  private passos: Phaser.GameObjects.Text[] = [];
+  /** Setas pulando sobre os recicláveis da arena. */
+  private readonly setas: Phaser.GameObjects.Text[] = [];
   private arenaTravada = false;
 
   private corpo!: Phaser.GameObjects.Image;
@@ -163,6 +180,13 @@ export class ChefaoLixao {
       this.cena.cenario.clima.registrarLuz(luz, 'led');
     }
 
+    this.estrelas = this.cena.add
+      .text(0, CHAO_Y - HITBOX.ALTURA - 24, '* * *', { fontFamily: 'monospace', fontSize: '22px', color: '#ffe14d' })
+      .setOrigin(0.5)
+      .setDepth(PROF.escuro + 2)
+      .setVisible(false);
+
+    this.criarMonitor();
     this.criarBarra();
     this.reiniciar();
   }
@@ -191,6 +215,8 @@ export class ChefaoLixao {
     this.preparo = 0;
     this.proximoAtaque = 0;
     this.esperaMunicao = 0;
+    this.atrasoTonto = 0;
+    this.tonto = 0;
     this.estado = this.arenaTravada ? 'lutando' : 'dormindo';
     for (const s of this.sucatas) s.img.destroy();
     for (const f of this.faiscas) f.img.destroy();
@@ -206,9 +232,15 @@ export class ChefaoLixao {
   /** Reciclável em voo em (x, y) acerta o monstro? Tira vida e o deixa mais lento. */
   atingir(x: number, y: number): boolean {
     if (this.estado === 'compactado') return false;
-    const meio = HITBOX.LARGURA / 2;
-    if (Math.abs(x - this.x) > meio || y < CHAO_Y - HITBOX.ALTURA || y > CHAO_Y) return false;
+    const margem = this.tonto > 0 ? CHEFAO.MARGEM_ACERTO : 0;
+    const meio = HITBOX.LARGURA / 2 + margem;
+    if (Math.abs(x - this.x) > meio || y < CHAO_Y - HITBOX.ALTURA - margem || y > CHAO_Y) return false;
     if (this.estado !== 'lutando') return true;
+    if (this.tonto <= 0) {
+      // Fora da janela de tontura o lixo só quica na carcaça
+      this.estilhacos(x, y, [COR.sucataClara], 3);
+      return true;
+    }
     this.vida -= 1;
     this.lentidao = Math.max(CHEFAO.LENTIDAO_MINIMA, this.lentidao * CHEFAO.LENTIDAO_POR_ACERTO);
     // Pisca ao levar o golpe
@@ -236,6 +268,61 @@ export class ChefaoLixao {
       this.empurrar(delta);
     }
     this.posicionar();
+    this.atualizarMonitor();
+    this.atualizarSetas();
+  }
+
+  /* =========================================================================
+   * TELÃO E SETAS
+   * ========================================================================= */
+
+  /** Telão no céu da arena mostrando como vencer (o passo atual pisca). */
+  private criarMonitor(): void {
+    const cx = this.offset + ARENA.INICIO + LARGURA_TELA / 2;
+    this.passos = new TelaoAviso(this.cena, cx, {
+      titulo: 'COMO DERROTAR O MONSTRO',
+      linhas: PASSOS.map((p, i) => ` ${i + 1}. ${p}`),
+    }).linhas;
+  }
+
+  /** Destaca no telão o passo que o jogador precisa fazer agora. */
+  private atualizarMonitor(): void {
+    let atual = 0;
+    if (this.derrotado) atual = -1;
+    else if (this.cena.arremesso?.itemNaMao) atual = this.tonto > 0 ? 2 : 1;
+    const pisca = Math.floor(this.cena.time.now / 300) % 2 === 0;
+    this.passos.forEach((t, i) => {
+      const ativo = i === atual;
+      t.setText(`${ativo ? '>' : ' '}${i + 1}. ${PASSOS[i]}`);
+      t.setColor(ativo ? (pisca ? '#ffffff' : COR_LINHA) : COR_LINHA_APAGADA).setAlpha(ativo ? 1 : 0.7);
+    });
+    if (atual === -1) {
+      this.passos[0].setText(' VENCEU! EMPURRE ELE ATÉ').setColor('#ffffff').setAlpha(1);
+      this.passos[1].setText(' O CONTÊINER DE RECICLAGEM').setColor('#ffffff').setAlpha(1);
+      this.passos[2].setText('').setAlpha(0);
+    }
+  }
+
+  /** Setas amarelas pulando em cima de cada reciclável da arena (enquanto de mãos vazias). */
+  private atualizarSetas(): void {
+    const mostrar = this.arenaTravada && this.estado === 'lutando' && !this.cena.arremesso?.itemNaMao;
+    const min = this.offset + ARENA.INICIO;
+    const max = this.offset + ARENA.FIM;
+    const alvos = mostrar ? this.cena.quedas.disponiveis.filter((r) => r.x >= min && r.x <= max) : [];
+    while (this.setas.length < alvos.length) {
+      this.setas.push(
+        this.cena.add
+          .text(0, 0, '▼', { fontFamily: 'monospace', fontSize: '26px', color: '#ffe14d', stroke: '#1A1210', strokeThickness: 5 })
+          .setOrigin(0.5, 1)
+          .setDepth(PROF.escuro + 2)
+      );
+    }
+    const pulo = Math.abs(Math.sin(this.cena.time.now / 180)) * 10;
+    this.setas.forEach((seta, i) => {
+      const r = alvos[i];
+      seta.setVisible(!!r);
+      if (r) seta.setPosition(grade(r.x), grade(r.y - 44 - pulo));
+    });
   }
 
   /* =========================================================================
@@ -285,6 +372,15 @@ export class ChefaoLixao {
 
   private lutar(delta: number): void {
     const jogador = this.cena.jogador;
+    if (this.atrasoTonto > 0) {
+      this.atrasoTonto -= delta;
+      if (this.atrasoTonto <= 0) this.tonto = CHEFAO.TONTO_MS;
+    }
+    if (this.tonto > 0) {
+      // Tonto: parado, sem atacar, esperando apanhar
+      this.tonto -= delta;
+      return;
+    }
     if (this.preparo > 0) {
       this.preparo -= delta;
       if (this.preparo <= 0) this.atacar(ORDEM_ATAQUES[this.proximoAtaque]);
@@ -307,10 +403,14 @@ export class ChefaoLixao {
     if (ataque === 'sucata') this.jogarSucata();
     else if (ataque === 'faiscas') this.soltarFaiscas();
     else this.prepararChoque();
+    // Fica tonto quando o ataque termina
+    this.atrasoTonto =
+      ataque === 'sucata' ? CHEFAO.SUCATA_VOO_MS : ataque === 'faiscas' ? 500 : CHEFAO.CHOQUE_AVISO_MS + CHEFAO.CHOQUE_ATIVO_MS;
   }
 
   /** Encostar no monstro vivo tira 1 bateria. */
   private tocarJogador(): void {
+    if (this.tonto > 0) return;
     const c = this.cena.jogador.corpo;
     const meio = HITBOX.LARGURA / 2 + 6;
     if (c.right > this.x - meio && c.left < this.x + meio && c.bottom > CHAO_Y - HITBOX.ALTURA - 6) this.aoAtingir(this.x);
@@ -506,6 +606,17 @@ export class ChefaoLixao {
     this.solido.setPosition(x, CHAO_Y - HITBOX.ALTURA / 2);
     (this.solido.body as Phaser.Physics.Arcade.StaticBody).updateFromGameObject();
     this.luzes.forEach((l) => (l.x = x + l.dx));
+    // Tonto: balança, fica amarelado e mostra estrelas girando
+    const tonto = this.estado === 'lutando' && this.tonto > 0;
+    this.estrelas.setVisible(tonto);
+    if (tonto) {
+      const t = this.cena.time.now;
+      this.corpo.setAngle(Math.sin(t / 120) * 5).setTint(Math.floor(t / 200) % 2 === 0 ? 0xffffff : 0xfff2a0);
+      this.estrelas.setPosition(x + Math.sin(t / 150) * 14, CHAO_Y - HITBOX.ALTURA - 24 + Math.cos(t / 150) * 4);
+    } else if (this.estado === 'lutando') {
+      this.corpo.clearTint();
+      if (this.preparo <= 0 && this.corpo.angle !== 0 && !this.cena.tweens.isTweening(this.corpo)) this.corpo.setAngle(0);
+    }
   }
 
   private criarBarra(): void {

@@ -12,6 +12,10 @@ import type { TemaTrecho } from './TrechoLixao';
  * em LayoutLixao.
  */
 export class Trecho1Sol extends TrechoLixao {
+  public readonly aviso = {
+    titulo: 'PORTÃO DO LIXÃO',
+    linhas: ['ESTEIRAS EMPURRAM VOCÊ', 'PRENSAS ESMAGAM: ESPERE ABRIR', 'RESOLVA O TERMINAL PARA A PONTE'],
+  };
   public readonly tema: TemaTrecho = {
     ceu: CEU.sol,
     astro: 'sol',
