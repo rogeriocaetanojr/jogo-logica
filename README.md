@@ -1,49 +1,143 @@
 # Jogo de Lógica — Mega Brain Corp.
 
+<p align="center">
+  <img src="docs/readme/capa.png" alt="Hub do Jogo de Lógica com os portais dos setores" width="800">
+</p>
+
 > *Transformando momentos de tédio em aprendizado bem-humorado de programação.*
 
 ---
 
 ## Sobre o Projeto
 
-**Jogo de Lógica** é um jogo educacional **side-scroller 2D** que ensina fundamentos de programação através de desafios de lógica gamificados. O jogador controla um personagem dentro de uma fábrica industrial controlada pelo **Mega Brain**, uma IA tirânica que testa os conhecimentos do jogador com enigmas de código real (Python).
+**Jogo de Lógica** é um jogo educacional de **plataforma 2D** no navegador que ensina lógica de programação com puzzles resolvidos em **código Python de verdade**.
 
-A proposta une a estrutura de trilhas do [roadmap.sh](https://roadmap.sh) com a mecânica engajante do Duolingo e a criatividade do Scribblenauts — trocando o scroll infinito por aprendizado divertido, acessível e viciante.
+A IA **Mega Brain** deixou tudo genérico e começou uma revolução das máquinas. Você controla um dos últimos programadores que ainda resolvem as coisas "na raça". Em cada setor, você atravessa o cenário, encontra terminais e digita código para mudar o mundo: acender luzes, estender pontes, abrir portas e derrotar chefões.
 
 > **A programação é o meio — a mecânica de jogo é o que importa.**
 
+### Princípios de design
+- **Humor ácido:** errar não pune. O Mega Brain debocha de você com mensagens próprias de cada exercício, no estilo South Park.
+- **Sem sorte:** padrões de inimigos e chefões são fixos e telegrafados.
+- **Difícil, mas não punitivo:** morrer devolve ao último checkpoint, sem perda grande de progresso.
+- **Pixel art desenhada em código:** a maior parte da arte é gerada em `canvas`, exibida em escala 4x.
+
 ---
 
-## Demo — Fase 1: O Lixão dos Scripts Esquecidos
+## Personagens jogáveis
 
-A demo atual contém a **Fase 1 em desenvolvimento** com 4 desafios (0 a 3) implementados até o momento, cobrindo conceitos fundamentais de Python:
+<p align="center">
+  <img src="docs/readme/selecao.png" alt="Tela de seleção de personagem" width="720">
+</p>
 
-### Desafio 0 — Ritual do Hello World (`print`)
-- O jogador inicia na **BootScene**, um terminal CRT retro que exige pressionar qualquer tecla.
-- Na **MainScene**, o galpão começa em escuridão total. O Estagiário (NPC aliado) guia o jogador via sistema de diálogos até o **Painel de Energia**.
-- O terminal exibe o enunciado e o jogador deve digitar `print('hello world')` para ativar a energia do galpão.
-- **Conceito ensinado:** saída padrão, sintaxe de função, strings com aspas.
+| Personagem | Modo | Descrição |
+|---|---|---|
+| **Alvares** | Normal | Louro, casaco amarelo. |
+| **Reis** | Difícil | Careca, óculos escuros, casaco vermelho. |
 
-### Desafio 1 — O Interruptor Binário (`bool` / Booleanos)
-- Após acender as luzes, uma porta de aço tranca a passagem.
-- O jogador interage com o Painel de Energia e deve atribuir `energia = True` para destrancar a porta.
-- **Conceito ensinado:** variáveis booleanas, atribuição, valores `True`/`False`.
+A escolha é feita na tela de seleção e pode ser trocada no hub com a tecla `P`.
 
-### Desafio 2 — A Ponte Curta Demais (Variáveis Inteiras)
-- Após um parkour com caixas metálicas, o jogador encontra uma esteira/ponte que não alcança a outra margem.
-- O terminal exibe as leituras do vão e o jogador deve atribuir `tamanho_ponte = 8` (ou valor >= 8) para estender a esteira.
-- Um **exaustor de ar** no fosso funciona como trampolim pneumático, evitando softlock em caso de queda.
-- **Conceito ensinado:** variáveis inteiras, operador de atribuição, leitura de valores numéricos.
+---
 
-### Desafio 3 — A Senha da Máquina de Café (Concatenação de Strings)
-- O jogador navega por contêineres empilhados e cabos elétricos caídos até encontrar um elevador industrial travado.
-- O terminal apresenta dois registradores corrompidos (`parte1 = 'Mega'`, `parte2 = 'Fail'`) e exige a concatenação na ordem correta.
-- O jogador deve digitar `senha = parte1 + parte2` para liberar o elevador.
-- **Conceito ensinado:** concatenação de strings, ordem de operandos, uso de variáveis.
+## O Hub
 
-### Final da Demo
-- Após descer pelo elevador, o jogador encontra um **muro de obras** com sinalização "EM OBRAS // SETOR RESTRITO", cones industriais e andaimes.
-- O Estagiário aparece com um diálogo final encerrando a demonstração.
+<p align="center">
+  <img src="docs/readme/hub.png" alt="Hub com os portais de cada setor" width="720">
+</p>
+
+O hub funciona como um mapa de seleção de níveis. Depois do tutorial, os setores 1 a 3 podem ser jogados **em qualquer ordem**. Os setores 4 e 5 estão lacrados nesta versão. O portal final, **Mega Brain World**, leva ao confronto com o vilão.
+
+| Portal | Setor | Missão |
+|---|---|---|
+| 0 | Tutorial | O Despertar do Kernel |
+| 1 | Condicionais | Painéis Condicionais e Portas Lógicas |
+| 2 | Porto Bugado | Pilha, Fila, Vetores e Ordenação |
+| 3 | Hardware | Lixão de Hardware e Registradores |
+| Final | Mega Brain World | Confronto Definitivo // Boss Final |
+
+---
+
+## Fases
+
+### Setor 0 — O Despertar do Kernel (Tutorial)
+
+<p align="center"><img src="docs/readme/tutorial.png" alt="Galpão do tutorial com o painel de energia" width="640"></p>
+
+**Abertura:** antes de tudo, o jogo pede o ritual do Hello World no terminal (`print('hello world')`). Só depois de acertar o jogador vai para a seleção de personagem.
+
+**Tutorial:** galpão industrial no escuro, com três terminais.
+
+- Booleanos (`energia = True`) religam a energia e destrancam a porta de aço.
+- Variáveis inteiras (`tamanho_ponte = 8`) estendem a esteira. Um exaustor evita softlock em caso de queda.
+- Concatenação de strings (`senha = parte1 + parte2`) libera o elevador.
+
+### Setor 1 — Céu Partido (Condicionais)
+
+<p align="center"><img src="docs/readme/fase1.png" alt="Ilhas de mármore flutuantes da Fase 1" width="640"></p>
+
+Ilhas de mármore flutuando sobre um mar de nuvens, com ruínas gregas e hologramas ciano. O jogador usa vento e plataformas com propulsores, enfrenta sentinelas e encara o chefão **Helio**, que tem níveis por tontura e chuva de penas. O terminal usa um interpretador próprio (lexer + parser) para condicionais e portas lógicas.
+
+### Setor 2 — Porto Bugado (Estruturas de Dados)
+
+<p align="center"><img src="docs/readme/fase2.png" alt="Porto industrial em chamas da Fase 2" width="640"></p>
+
+Porto industrial em chamas, tomado por vírus do Mega Brain. São seis áreas (Portaria, Pátio, Cais, Depósito, Terminal e Torre), com guindastes, óleo em chamas e um **Índice de Fumaça** que clareia o caminho a cada foco apagado. Os desafios ensinam pilha, fila, vetores e ordenação. A fase também tem chefes próprios e uma ajuda in-game com o conteúdo.
+
+### Setor 3 — Lixão Eletrônico (Hardware)
+
+<p align="center"><img src="docs/readme/fase3.png" alt="Lixão eletrônico da Fase 3" width="640"></p>
+
+Um lixão gigante de lixo eletrônico em um mapa contínuo, dividido em quatro trechos de clima: **sol**, **névoa**, **chuva** (chão escorregadio) e **noite** (arena do chefão).
+
+- **Exercícios:** triagem com strings (`cacamba = "eletronico"`), variável + chamada de função (`degraus = 4; construir(degraus)`) e `if energia > 50: desligar()`.
+- **Perigos:** drones que atiram sucata, lixo caindo das pilhas e prensas.
+- **Arremesso:** pegue recicláveis e mire com o mouse. O robô **Recicla** entrega munição.
+- **Chefão:** o Monstro de Sucata. Acerte recicláveis nele e depois empurre-o até o contêiner de reciclagem.
+- **HUD:** vida em baterias e medidor "Lixão limpo".
+
+### Final — Mega Brain World
+
+<p align="center"><img src="docs/readme/fase_final.png" alt="Torre do Mega Brain na fase final" width="640"></p>
+
+Cidade cyberpunk noturna, com chuva fina, neon e telões de propaganda do Mega Brain.
+
+1. **Exterior:** a câmera mostra a torre. O NPC Valdir avisa dos perigos e o jogador assina um termo de ciência no terminal.
+2. **Torre com 5 andares**, cada um com inimigos, NPCs, um puzzle e um elevador:
+   Recepção (catraca), Fazenda de Prompts (elevador), Moderação de Conteúdo (barreira laser), Linha de Produção (ponte) e Sala dos Servidores (comportas).
+3. **Bossfight em 5 formas** do Mega Brain, terminando sobre um poço de lava com uma vitória decidida por código.
+
+---
+
+## O Terminal
+
+<p align="center"><img src="docs/readme/terminal.png" alt="Terminal aberto com enunciado e deboche do Mega Brain" width="640"></p>
+
+1. O jogador chega a um terminal e pressiona `E`.
+2. O terminal abre como overlay HTML, com o enunciado e um exemplo parecido.
+3. O jogador digita um comando Python e aperta `Enter`.
+4. O interpretador da fase valida o comando.
+5. **Erro:** o Mega Brain responde com um deboche aleatório, sem repetir o anterior.
+6. **Acerto:** o terminal fecha e o cenário reage.
+
+Enquanto o terminal está aberto, inimigos e perigos ficam pausados.
+
+---
+
+## Controles
+
+| Ação | Tecla |
+|---|---|
+| Mover | `A` / `D` ou setas |
+| Pular | `W` ou `Espaço` |
+| Abaixar (Fase 3) | `S` ou seta para baixo |
+| Interagir / abrir terminal | `E` |
+| Pegar item (Fase 3) | `F` |
+| Arremessar (Fase 3) | Mira com o mouse + clique |
+| Fechar terminal | `Esc` |
+| Avançar diálogo | `Espaço` ou `Enter` |
+| Entrar no portal (hub) | `Enter` / `Espaço` ou clique |
+| Trocar personagem (hub) | `P` |
+| Ligar/desligar som | `M` |
 
 ---
 
@@ -55,12 +149,9 @@ A demo atual contém a **Fase 1 em desenvolvimento** com 4 desafios (0 a 3) impl
 | **Linguagem** | [TypeScript](https://www.typescriptlang.org/) | 6.0.x |
 | **Bundler** | [Vite](https://vitejs.dev/) | 8.3.x |
 | **Runtime** | [Node.js](https://nodejs.org/) | 22+ |
-| **Física** | Arcade Physics (integrado ao Phaser) | — |
+| **Física** | Arcade Physics (Phaser) | — |
 
-### Outras Tecnologias
-- **HTML5 Canvas** — renderização do jogo via WebGL/Canvas2D
-- **CSS3** — estilização do terminal de comandos e sistema de diálogos
-- **ES Modules** — sistema de módulos nativo do navegador
+Resolução de 1280×720, com a arte em 320×180 ampliada 4x e filtro `NEAREST`. Música e efeitos sonoros por fase, com preferência de mudo compartilhada entre as cenas.
 
 ---
 
@@ -68,23 +159,36 @@ A demo atual contém a **Fase 1 em desenvolvimento** com 4 desafios (0 a 3) impl
 
 ```
 jogo-logica/
-├── index.html                  # Ponto de entrada HTML (container do jogo + terminal + diálogos)
-├── package.json                # Dependências e scripts npm
-├── tsconfig.json               # Configuração do TypeScript
-├── src/
-│   ├── main.ts                 # Bootstrap do Phaser Game
-│   ├── config.ts               # Configuração do Phaser (resolução, física, cenas)
-│   ├── style.css               # Estilos globais
-│   ├── scenes/
-│   │   ├── BootScene.ts        # Tela de boot CRT retro (intro do terminal)
-│   │   └── MainScene.ts        # Cena principal — level design, física, totens, puzzles
-│   ├── styles/
-│   │   ├── terminal.css        # Estilização do terminal de comandos in-game
-│   │   └── dialog.css          # Estilização do sistema de diálogos do Estagiário
-│   └── utils/
-│       ├── CommandParser.ts    # Parser de comandos Python — validação dos desafios
-│       └── DialogueSystem.ts   # Sistema de diálogos sequenciais com typewriter effect
-└── dist/                       # Build de produção (gerado pelo Vite)
+├── index.html                 # Container do jogo + terminal + diálogos
+├── public/assets/             # Imagens e músicas (hub, personagens, fases)
+├── docs/                      # Guia de design e documentos de cada fase
+│   ├── GUIA_DE_DESIGN.md
+│   ├── fase1/ fase3/ fase_final/
+│   └── readme/                # Imagens deste README
+├── scripts/                   # Verificações auxiliares (ex.: alcance da Fase 3)
+└── src/
+    ├── main.ts                # Bootstrap do Phaser
+    ├── nucleo/                # Configuração, cena de abertura, estado global
+    ├── compartilhado/         # CenaBase, Terminal, Comunicador, animações, tipos
+    ├── hub/                   # Hub, seleção de personagem, música do hub
+    ├── fases/
+    │   ├── fase0_tutorial/    # Setor 0
+    │   ├── fase1/             # Céu Partido (lexer, parser, boss Helio)
+    │   ├── fase2/             # Porto Bugado (ambientes/ e porto/)
+    │   ├── fase3/             # Lixão Eletrônico (lixao/ e trechos/)
+    │   ├── fase4/ fase5/      # Setores lacrados nesta versão
+    │   └── fase_final/        # Mega Brain World (exterior, andares, puzzles, inimigos)
+    └── styles/                # CSS do terminal e dos diálogos
+```
+
+### Fluxo de cenas
+
+```
+CenaAbertura ──> Hello World ──> CenaSelecaoPersonagem ──> CenaTutorial ──> CenaHub
+                                                                              │
+                                    ┌──────────┬──────────┬───────────────────┤
+                                    v          v          v                   v
+                               CenaFase1  CenaFase2  CenaFase3        CenaFaseFinal
 ```
 
 ---
@@ -98,117 +202,54 @@ jogo-logica/
 ### Instalação
 
 ```bash
-# Clone o repositório
 git clone https://github.com/rogeriocaetanojr/jogo-logica.git
 cd jogo-logica
-
-# Instale as dependências
 npm install
 ```
 
-### Servidor de Desenvolvimento
+### Scripts
 
-```bash
-npm run dev
-```
-
-O jogo estará acessível em `http://localhost:5173` (ou a porta indicada pelo Vite).
-
-### Build de Produção
-
-```bash
-npm run build
-```
-
-Os arquivos otimizados serão gerados na pasta `dist/`.
-
-### Preview do Build
-
-```bash
-npm run preview
-```
-
----
-
-## Controles
-
-| Ação | Tecla |
+| Comando | Descrição |
 |---|---|
-| Mover para a esquerda | `A` ou `Seta Esquerda` |
-| Mover para a direita | `D` ou `Seta Direita` |
-| Pular | `W` ou `Espaço` |
-| Interagir com totem | `E` |
-| Fechar terminal | `Esc` |
-| Avançar diálogo | `Espaço` ou `Enter` |
-
----
-
-## Arquitetura do Jogo
-
-```
-BootScene (Tela CRT) ──> MainScene (Fase 1)
-                              │
-                              ├── Sistema de Escuridão + Lanterna
-                              ├── Totens Interativos (3 totens)
-                              ├── Terminal de Comandos (HTML overlay)
-                              ├── CommandParser (validação Python)
-                              ├── DialogueSystem (NPC Estagiário)
-                              ├── Exaustor de Ar (anti-softlock)
-                              ├── Elevador Industrial (tween + física)
-                              └── Muro de Obras (encerramento da demo)
-```
-
-### Fluxo de um Desafio
-1. O jogador explora o cenário side-scroller com parkour entre plataformas.
-2. Encontra um **totem interativo** com prompt `[E]`.
-3. Ao pressionar `E`, o **terminal de comandos** abre como overlay HTML.
-4. O terminal exibe o enunciado do Mega Brain com as variáveis do contexto.
-5. O jogador digita um **comando Python válido** no input.
-6. O `CommandParser` valida a sintaxe e a lógica do comando.
-7. Em caso de **erro**, o Mega Brain responde com deboche randômico (sem repetição consecutiva).
-8. Em caso de **acerto**, o terminal fecha e o cenário reage (ponte estende, porta abre, elevador desce, etc.).
-
----
-
-## Personagens
-
-| Personagem | Papel | Descrição |
-|---|---|---|
-| **Mega Brain** | Antagonista | IA tirânica que controla a fábrica. Zomba do jogador a cada erro com mensagens randômicas. |
-| **Estagiário** | NPC Aliado | Guia rebelde que ajuda o jogador via sistema de diálogos, explicando os objetivos. |
-| **Jogador** | Protagonista | Personagem controlável que resolve os desafios de programação para avançar. |
+| `npm run dev` | Servidor de desenvolvimento em `http://localhost:5173` |
+| `npm run build` | Checagem de tipos + build de produção em `dist/` |
+| `npm run preview` | Serve o build de produção |
+| `npm run verificar:fase3` | Verifica se todos os pulos da Fase 3 são alcançáveis |
 
 ---
 
 ## Roadmap
 
-- [/] **Fase 1 — Em Desenvolvimento** (Desafios 0 a 3 implementados)
-  - [x] BootScene com efeito CRT
-  - [x] Sistema de escuridão + lanterna
-  - [x] Desafio 0: `print('hello world')`
-  - [x] Desafio 1: Booleanos (`energia = True`)
-  - [x] Desafio 2: Variáveis inteiras (`tamanho_ponte = 8`)
-  - [x] Desafio 3: Concatenação de strings (`senha = parte1 + parte2`)
-  - [x] Exaustor anti-softlock
-  - [x] Elevador industrial com física dinâmica
-  - [x] Muro de obras com diálogo final
-  - [x] Mensagens de erro randômicas do Mega Brain (sem repetição consecutiva)
-- [ ] **Fase 2** — Novos conceitos (condicionais, loops)
-- [ ] **Sistema de HUB** — Seleção de níveis estilo Mario/Mega Man
-- [ ] **Trilha sonora** — Música tematizada por mundo
-- [ ] **Skill Tree** — Árvore de habilidades por personagem
-- [ ] **Monetização** — Sistema de moedas e recompensas in-game
+- [x] Abertura e tutorial (Setor 0)
+- [x] Hub com seleção de personagem e portais
+- [x] Setor 1 — Céu Partido, com o boss Helio
+- [x] Setor 2 — Porto Bugado
+- [x] Setor 3 — Lixão Eletrônico, com o Monstro de Sucata
+- [x] Mega Brain World — torre, andares e puzzles
+- [x] Trilha sonora e efeitos por fase
+- [ ] Setores 4 e 5
+- [ ] Skill tree por personagem
+- [ ] Sistema de moedas e recompensas
+
+---
+
+## Documentação
+
+- [Guia de Design](docs/GUIA_DE_DESIGN.md): paleta, interface, áudio e escrita.
+- [Estética da Fase 1](docs/fase1/ESTETICA.md)
+- [Plano da Fase 3](docs/fase3/PLANO_FASE3.md)
+- [Roteiro da Fase Final](docs/fase_final/ROTEIRO_FASE_FINAL.md)
 
 ---
 
 ## Inspirações
 
-- [roadmap.sh](https://roadmap.sh) — estrutura de trilhas de aprendizado
-- **Duolingo** — mecânica de aprendizado gamificado
-- **Scribblenauts** — criatividade e leveza
-- **Mega Man / Mario** — design de níveis e HUB
-- **Far Cry** — sistema de skill tree
-- **Beat 'em ups** — progressão side-scroller
+- [roadmap.sh](https://roadmap.sh): trilhas de aprendizado
+- **Duolingo**: aprendizado gamificado
+- **Mega Man / Mario**: design de níveis e hub
+- **Celeste**, **The Messenger**: plataforma e humor
+- **Wall-E**: o lixão da Fase 3
+- **South Park**: o tom dos deboches
 
 ---
 
@@ -224,4 +265,4 @@ BootScene (Tela CRT) ──> MainScene (Fase 1)
 
 ## Licença
 
-Projeto acadêmico desenvolvido para a disciplina de **Desenvolvimento de Jogos — 8º Período**.
+Projeto acadêmico desenvolvido para a disciplina de **Desenvolvimento de Jogos e Simuladores — 8º Período**.
