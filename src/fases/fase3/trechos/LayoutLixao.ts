@@ -332,6 +332,8 @@ const SOL: LayoutTrecho = {
     { tipo: 'prensa', x: 1360, w: 96, alt: 0, atraso: 1740 },
     // Torre do exercício: terminal no alto, ponte sobre o vão e elevador para descer
     ...solExercicio.elementos,
+    // Checkpoint antes da alavanca na esteira suspensa
+    { tipo: 'checkpoint', x: 4340, alt: 0, ordem: 70 },
     // Alavanca na esteira suspensa: dois degraus baixos, esteira contra o avanço com duas
     // prensas em cima e a alavanca no fim. Para voltar: os degraus ou uma queda de 384 px
     { tipo: 'viga', x: 4400, alt: 128, w: 112 },
@@ -345,6 +347,8 @@ const SOL: LayoutTrecho = {
     { tipo: 'baixa', x: 6100 },
     // Monitor provocando antes da passagem baixa: dica de que o alvo lá em cima abre a ponte
     { tipo: 'aviso', x: 6036, alt: 0, estilo: 'desafio', texto: 'APOSTO QUE VOCÊ NÃO ACERTA UM LIXO\nNAQUELE ALVO LÁ EM CIMA' },
+    // Checkpoint depois da passagem baixa, antes do fosso do botão-alvo
+    { tipo: 'checkpoint', x: 6260, alt: 0, ordem: 80 },
     // Botão-alvo pendurado sobre o fosso: acertar um reciclável estende a ponte
     { tipo: 'ponte', id: 'ponte-sol', x: 6400, alt: 0, w: 448 },
     { tipo: 'botao', x: 6624, alt: 420, alvo: 'ponte-sol' },
@@ -381,6 +385,8 @@ const NEVOA: LayoutTrecho = {
   buracos: [[380, 520], [1050, 450], nevoaExercicio.fosso, [6620, 320]],
   exercicio: nevoaExercicio.exercicio,
   elementos: [
+    // Checkpoint na entrada do trecho
+    { tipo: 'checkpoint', x: 200, alt: 0, ordem: 10 },
     // Frágeis sobre o primeiro fosso: tremem e caem 0,5 s depois de pisar
     { tipo: 'fragil', x: 430, alt: 40, w: 96 },
     { tipo: 'fragil', x: 600, alt: 72, w: 96 },
@@ -390,6 +396,8 @@ const NEVOA: LayoutTrecho = {
     { tipo: 'baixa', x: 1560 },
     // Exercício no chão: o acerto faz o Recicla montar a escada até a passarela
     ...nevoaExercicio.elementos,
+    // Checkpoint antes da ilha da alavanca
+    { tipo: 'checkpoint', x: 4640, alt: 0, ordem: 70 },
     // Ilha da alavanca: duas frágeis em escada e um guindaste até a ilha. Para voltar: o
     // guindaste e as frágeis (que voltam em 3 s) ou uma queda de 352 px
     { tipo: 'fragil', x: 4700, alt: 128, w: 96 },
@@ -400,6 +408,8 @@ const NEVOA: LayoutTrecho = {
     { tipo: 'portao', id: 'portao-nevoa', x: 6200 },
     // Monitor provocando entre os dois portões: o alvo lá em cima abre o segundo
     { tipo: 'aviso', x: 6300, alt: 0, estilo: 'desafio', texto: 'APOSTO QUE VOCÊ NÃO ACERTA UM LIXO\nNAQUELE ALVO LÁ EM CIMA' },
+    // Checkpoint entre os dois portões
+    { tipo: 'checkpoint', x: 6400, alt: 0, ordem: 80 },
     // Segundo portão, aberto por um botão-alvo pendurado no alto
     { tipo: 'portao', id: 'portao-alvo-nevoa', x: 6450 },
     { tipo: 'botao', x: 6482, alt: 420, alvo: 'portao-alvo-nevoa' },
@@ -440,6 +450,8 @@ const CHUVA: LayoutTrecho = {
   buracos: [[860, 460], [6500, 480]],
   exercicio: chuvaExercicio.exercicio,
   elementos: [
+    // Checkpoint na entrada do trecho
+    { tipo: 'checkpoint', x: 200, alt: 0, ordem: 10 },
     // Cabos desencapados em poças: aviso piscando antes do choque
     { tipo: 'choque', x: 400, w: 160, atraso: 0 },
     { tipo: 'choque', x: 620, w: 160, atraso: 900 },
@@ -450,6 +462,8 @@ const CHUVA: LayoutTrecho = {
     { tipo: 'ima', x: 1520, alt: 240, atraso: 1200 },
     // Exercício no chão: corredor eletrificado; o acerto corta a energia e é preciso correr
     ...chuvaExercicio.elementos,
+    // Checkpoint antes das duas alavancas
+    { tipo: 'checkpoint', x: 4780, alt: 0, ordem: 70 },
     { tipo: 'baixa', x: 4680 },
     // Duas alavancas em sequência. A primeira fica numa viga baixa sobre uma poça com choque
     { tipo: 'choque', x: 4880, w: 160, atraso: 0 },
@@ -464,6 +478,8 @@ const CHUVA: LayoutTrecho = {
     { tipo: 'viga', x: 6040, alt: 384, w: 128 },
     { tipo: 'alavanca', x: 6104, alt: 384, alvo: 'portao-chuva-2' },
     { tipo: 'portao', id: 'portao-chuva-2', x: 6400 },
+    // Checkpoint entre o segundo portão e o fosso do ímã
+    { tipo: 'checkpoint', x: 6300, alt: 0, ordem: 80 },
     // Saída: fosso largo atravessado pendurado no ímã
     { tipo: 'ima', x: 6740, alt: 300, atraso: 2400 },
   ],
