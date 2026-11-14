@@ -16,6 +16,7 @@ import type { ContextoExercicio } from './lixao/ExerciciosLixao';
 import { HudLixao } from './lixao/HudLixao';
 import { MecanismosLixao } from './lixao/MecanismosLixao';
 import { SomLixao } from './lixao/SomLixao';
+import { MusicaLixao } from './lixao/MusicaLixao';
 import { JogadorLixao } from './lixao/JogadorLixao';
 import { QuedasLixao } from './lixao/QuedasLixao';
 import { RoboLixao } from './lixao/RoboLixao';
@@ -128,6 +129,9 @@ export class CenaFase3 extends CenaBase {
     this.cenario = new CenarioLixao(this, this.trechos);
     this.cenario.construir();
     this.som = new SomLixao(this);
+    const musica = new MusicaLixao(this);
+    musica.iniciar();
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => musica.parar());
     this.mecanismos = new MecanismosLixao(this, (x) => this.aoTocarPerigo(x));
     this.trechos.forEach((t) => t.construir());
     this.cenario.clima.criarPocas(this.trechos);

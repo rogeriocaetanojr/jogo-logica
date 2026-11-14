@@ -40,9 +40,30 @@ export class SomLixao {
     this.bipe(330, 0.06, 0.1);
   }
 
-  /** Prensa batendo: tom grave e curto. */
+  /** Prensa batendo: "clang" agudo de lata, com parciais desafinados (som metálico) caindo rápido. */
   batida(): void {
-    this.bipe(110, 0.12, 0);
+    const ctx = this.contexto;
+    const saida = this.saida;
+    if (!ctx || !saida) return;
+    if (ctx.state !== 'running') ctx.resume().catch(() => {});
+    const t = ctx.currentTime;
+    for (const [f, vol, dur] of [
+      [1240, 0.5, 0.18],
+      [1870, 0.35, 0.12],
+      [2690, 0.25, 0.08],
+    ] as const) {
+      const osc = ctx.createOscillator();
+      const ganho = ctx.createGain();
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(f, t);
+      osc.frequency.exponentialRampToValueAtTime(f * 0.85, t + dur);
+      ganho.gain.setValueAtTime(0.0001, t);
+      ganho.gain.exponentialRampToValueAtTime(vol, t + 0.002);
+      ganho.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      osc.connect(ganho).connect(saida);
+      osc.start(t);
+      osc.stop(t + dur + 0.02);
+    }
   }
 
   /** Choque ligando: rajada de bipes agudos. */
