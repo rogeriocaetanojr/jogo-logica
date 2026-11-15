@@ -48,9 +48,9 @@ export class CombateFaseFinal {
     this.jogador.aplicarEmpurrao(lado * c.EMPURRAO_X, c.EMPURRAO_Y, c.TRAVA_CONTROLE_MS);
   }
 
-  /** Pisou num inimigo: quique e um instante de imunidade (não leva dano do mesmo contato). */
-  public pisou(): void {
-    this.jogador.quicar(COMBATE_FASE_FINAL.QUIQUE_PISAO);
+  /** Pisou num inimigo (ou no boss): quique e um instante de imunidade (não leva dano do mesmo contato). */
+  public pisou(quique: number = COMBATE_FASE_FINAL.QUIQUE_PISAO): void {
+    this.jogador.quicar(quique);
     this.invulneravelAte = Math.max(this.invulneravelAte, this.cena.time.now + 150);
     this.cena.cameras.main.shake(80, 0.003);
   }

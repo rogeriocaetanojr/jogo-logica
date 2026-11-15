@@ -1,5 +1,5 @@
 import { COR } from '../ArteFaseFinal';
-import type { ConfigAndar, TemaAndar } from './tiposAndar';
+import type { ConfigAndar, IdTemaAndar, TemaAndar } from './tiposAndar';
 
 /**
  * Os 5 andares da Mega Brain Tower como dados. O construtor genérico (AndarFaseFinal) lê isto;
@@ -9,7 +9,7 @@ import type { ConfigAndar, TemaAndar } from './tiposAndar';
  * horizontal. Chão em y = 620. Vãos de até ~300 px são puláveis do chão.
  */
 
-const TEMAS: Record<TemaAndar['id'], TemaAndar> = {
+const TEMAS: Record<IdTemaAndar, TemaAndar> = {
   recepcao: {
     id: 'recepcao',
     parede: '#1b2246',

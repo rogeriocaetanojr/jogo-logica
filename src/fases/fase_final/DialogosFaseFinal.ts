@@ -57,7 +57,6 @@ export const TEXTOS_ANDAR = {
   MORTE: 'VOCÊ FOI OTIMIZADO // De volta à entrada do andar',
   CHECKPOINT: (numero: number) => `CHECKPOINT // ANDAR ${numero}`,
   PUZZLE_RESOLVIDO: 'CÓDIGO CORRIGIDO // Elevador liberado',
-  TERRACO_EM_OBRAS: 'TERRAÇO // EM OBRAS\nO Mega Brain chega na etapa 5.',
   SUBINDO: 'SUBINDO...',
   // Uma piada por viagem (pela ordem dos andares, sem sorteio)
   VIAGEM: [
@@ -272,9 +271,94 @@ export const TEXTOS_TERMO = {
   PYTHON:
     '[TERMO] True? Hmmmm bilinguezão, aqui o desafio é em português, beleza? Mas tudo bem. Pela frente tem bastante "coding" pra você pagar de espertão.',
   ACEITO: '[TERMO] Obrigado por aceitar termos que você não leu. Bem-vindo à Mega Brain Tower.',
+  FECHAR: '[ESC] fecha o terminal. A porta já está aberta.',
   JA_ASSINADO: '[TERMO] Termo já assinado. Não tem volta. Igual a todo termo.',
 } as const;
 
 export const NOTIFICACOES_FASE_FINAL = {
   PORTA_ABERTA: 'PORTA LIBERADA // BEM-VINDO À MEGA BRAIN TOWER',
+} as const;
+
+/* =========================================================================
+ * BOSS: MEGA BRAIN (etapa 5)
+ * ========================================================================= */
+
+export interface TextosForma {
+  /** Nome no HUD e no falante. */
+  nome: string;
+  arena: string;
+  entrada: string;
+  /** Dica de como vencer (linha de objetivo). */
+  objetivo: string;
+  /** Balões quando leva um pisão (um por pisão). */
+  atingido: readonly string[];
+  /** Balão quando o jogador pisa fora da janela. */
+  semJanela: readonly string[];
+  /** Balão curto ao recomeçar a forma depois de uma morte. */
+  revanche: readonly string[];
+}
+
+export const FALAS_BOSS: Record<1 | 2 | 3 | 4, TextosForma> = {
+  1: {
+    nome: 'COPYCAT',
+    arena: 'TERRAÇO',
+    entrada: 'Eu sou você. Só que sem as dúvidas. E sem o café.',
+    objetivo: 'OBJETIVO // Ele copia o seu caminho com atraso. Faça a cópia passar no vapor e pise nela.',
+    atingido: ['Ctrl+C... Ctrl+V... AI!', 'Isso não estava no meu dataset!'],
+    semJanela: ['Copiei até o seu pisão.', 'Plágio não dói em mim.', 'Original demais pra mim.'],
+    revanche: ['De novo? Eu também. Literalmente.', 'Eu aprendo com os seus erros. Você não.'],
+  },
+  2: {
+    nome: 'TITÃ',
+    arena: 'COBERTURA EXECUTIVA',
+    entrada: 'Versão Enterprise. Agora com 40% mais músculo e 0% mais ideias.',
+    objetivo: 'OBJETIVO // Depois do pisão no chão ele fica travado. Pule a onda e suba na cabeça dele.',
+    atingido: ['Isso vai pro meu relatório trimestral!', 'Meu SLA não cobre pisão!'],
+    semJanela: ['Licença Enterprise. Pisão só no plano premium.', 'Abra um chamado.', 'Armadura com garantia estendida.'],
+    revanche: ['Renovação automática da assinatura!', 'O contrato tem multa por desistência.'],
+  },
+  3: {
+    nome: 'ÁGUIA',
+    arena: 'SALA DE SERVIDORES PRINCIPAL',
+    entrada: 'Modo turbo ativado. Latência zero. Empatia também.',
+    objetivo: 'OBJETIVO // Saia da mira do mergulho. Com as garras presas no chão, ela fica vulnerável.',
+    atingido: ['SKRAAA! Erro 503!', 'Minhas penas! Elas custaram uma fortuna em GPU!'],
+    semJanela: ['Voo alto demais pra você.', 'Tente de novo. Ou não.', 'Ping alto, hein?'],
+    revanche: ['Latência zero. Paciência também.', 'De volta ao ninho? Que ninho? É um datacenter.'],
+  },
+  4: {
+    nome: 'CAVEIRA',
+    arena: 'CASA DE MÁQUINAS',
+    entrada: 'Morri e voltei. É o que acontece quando ninguém desliga o servidor.',
+    objetivo: 'OBJETIVO // Desvie dos quatro braços (o da vez acende). Quando a caveira descer, pise nela.',
+    atingido: ['Eu reinicio! Eu sempre reinicio!', 'Ossos de titânio, ego de vidro!'],
+    semJanela: ['Crânio blindado. Com firmware.', 'Bate no braço, não. No braço, não!', 'Eu não tenho pele. Nem paciência.'],
+    revanche: ['Bem-vindo de volta ao loop.', 'Eu também morri uma vez. Recomendo.'],
+  },
+};
+
+export const TEXTOS_BOSS = {
+  FALANTE: (forma: number, nome: string) => `> MEGA BRAIN // FORMA ${forma}: ${nome}`,
+  HUD: (forma: number, nome: string) => `MEGA BRAIN // FORMA ${forma}: ${nome}`,
+  SETOR: (arena: string) => `FASE FINAL // ${arena}`,
+  /** Onomatopeias da briga na transição entre formas (ordem fixa, só som de porrada). */
+  BRIGA: ['POW!', 'BOOM!', 'BAM!', 'WHAM!', 'KAPOW!', 'CRASH!'],
+  RACHOU: 'CRACK!',
+  CHEGADA_TERRACO: 'TERRAÇO // Ar livre, chuva e um alto-falante gigante.',
+  MORTE: 'VOCÊ FOI OTIMIZADO // De volta ao começo da forma',
+  NUCLEO_EM_OBRAS: 'NÚCLEO // EM MANUTENÇÃO\nA forma final chega na etapa 6.',
+} as const;
+
+/** Balões curtos que telegrafam os ataques (o texto aparece junto com o aviso visual). */
+export const FALAS_EXTRAS_BOSS = {
+  COPYCAT_VAPOR: 'Ssss! Quem deixou isso ligado?!',
+  AGUIA_GRITO: 'SKRAAA!',
+  AGUIA_PRESA: 'Garras... presas... no piso flutuante!',
+  CAVEIRA_DESCE: 'Reiniciando... não pise em mim durante a atualização.',
+  CAVEIRA_BRACOS: {
+    serra: 'Braço 1: SERRA!',
+    laser: 'Braço 2: LASER!',
+    canhao: 'Braço 3: CANHÃO!',
+    garra: 'Braço 4: GARRA!',
+  },
 } as const;

@@ -214,3 +214,115 @@ export const CHECKPOINTS_FASE_FINAL = {
 export const INTERACAO_FASE_FINAL = {
   OFFSET_PROMPT_Y: -86,
 } as const;
+
+/**
+ * Bossfight (etapa 5): parâmetros de cada forma do Mega Brain. Tudo em ms e px/s.
+ * Arena fixa de 1280x720 com câmera estática; chão em y = 620 (igual aos andares).
+ */
+export const BOSS_FASE_FINAL = {
+  PISOES_POR_FORMA: 2,
+  CHAO_Y: 620,
+  LARGURA: 1280,
+  /** Topo do mundo acima da tela, para o jogador poder cair do teto na transição. */
+  TOPO_MUNDO_Y: -400,
+  SPAWN_JOGADOR: { x: 220, y: 532 },
+  /** Chegando caindo: o jogador e a forma anterior passam pelo buraco do teto. */
+  QUEDA_JOGADOR: { x: 580, y: -140 },
+  QUEDA_BOSS_X: 700,
+  /** Pisão na cabeça fora da janela: quica sem dano. */
+  QUIQUE_SEM_JANELA: -420,
+  QUIQUE_GOLPE: -540,
+  HITSTOP_MS: 90,
+  ATINGIDO_MS: 1200,
+  /** Pausa entre a fala de entrada e o primeiro ataque. */
+  PREPARO_MS: 700,
+  GLITCH_MS: 1000,
+  TRANSICAO: { APROXIMA_MS: 450, BRIGA_MS: 1700, RACHA_MS: 750, QUEDA_MS: 900 },
+
+  COPYCAT: {
+    ATRASO_MS: 900,
+    /** Não encosta em quem está parado: fica encarando a essa distância. */
+    DISTANCIA_MIN: 76,
+    VELOCIDADE_MAX_X: 165,
+    VELOCIDADE_MAX_Y: 900,
+    ATORDOADO_MS: 4000,
+    X_INICIAL: 1080,
+    HITBOX: { LARGURA: 40, ALTURA: 92 },
+  },
+  /** Saídas de vapor do terraço: ciclo fixo aviso → jato → desligado. */
+  VAPOR: {
+    PERIODO_MS: 2800,
+    AVISO_MS: 1100,
+    JATO_MS: 700,
+    LARGURA: 56,
+    ALTURA_JATO: 230,
+    SAIDAS: [
+      { x: 500, defasagemMs: 0 },
+      { x: 860, defasagemMs: 1400 },
+    ],
+  },
+
+  TITA: {
+    X_INICIAL: 1060,
+    HITBOX: { LARGURA: 104, ALTURA: 136 },
+    HITBOX_TRAVADO_ALTURA: 116,
+    MARGEM_PAREDE: 110,
+    AVISO_INVESTIDA_MS: 850,
+    VELOCIDADE_INVESTIDA: 560,
+    RECUPERA_MS: 500,
+    TIROS: 3,
+    MIRA_MS: 750,
+    MIRA_TRAVADA_MS: 220,
+    ENTRE_TIROS_MS: 350,
+    VELOCIDADE_TIRO: 430,
+    RAIO_TIRO: 13,
+    SALTO_ALTURA: 230,
+    SALTO_SOBE_MS: 450,
+    SALTO_PAIRA_MS: 250,
+    SALTO_DESCE_MS: 260,
+    VELOCIDADE_ONDA: 430,
+    ALTURA_ONDA: 30,
+    TRAVADO_MS: 3300,
+    LEVANTA_MS: 450,
+  },
+
+  AGUIA: {
+    CANTOS: [
+      { x: 170, y: 230 },
+      { x: 1110, y: 230 },
+    ],
+    HITBOX: { LARGURA: 150, ALTURA: 64 },
+    PAIRA_MS: 700,
+    PENAS: 3,
+    /** x do chão para onde cada pena do leque vai, a partir do canto esquerdo (espelhado no direito). */
+    ALVOS_PENAS: [380, 640, 900],
+    VELOCIDADE_PENA: 420,
+    ENTRE_PENAS_MS: 260,
+    AVISO_RASANTE_MS: 900,
+    ALTURA_RASANTE: 572,
+    RASANTE_DESCE_MS: 450,
+    VELOCIDADE_RASANTE: 620,
+    RASANTE_SOBE_MS: 520,
+    AVISO_MERGULHO_MS: 1000,
+    MIRA_TRAVADA_MS: 260,
+    ALTURA_MIRA: 200,
+    VELOCIDADE_MERGULHO: 950,
+    PRESA_MS: 3300,
+    SOLTA_MS: 600,
+  },
+
+  CAVEIRA: {
+    X: 640,
+    Y_FLUTUA: 190,
+    HITBOX: { LARGURA: 96, ALTURA: 100 },
+    AVISO_BRACO_MS: 850,
+    ENTRE_BRACOS_MS: 450,
+    SERRA: { RAIO: 24, VELOCIDADE: 470, DESCE_MS: 450 },
+    LASER: { COLUNAS_A: [250, 640, 1030], COLUNAS_B: [445, 835], LARGURA: 56, AVISO_MS: 900, DISPARO_MS: 650 },
+    CANHAO: { ALVOS_A: [330, 640, 950], ALVOS_B: [485, 795], VOO_MS: 1000, ENTRE_BOMBAS_MS: 180, RAIO_EXPLOSAO: 56, EXPLOSAO_MS: 320 },
+    GARRA: { MIRA_MS: 950, TRAVA_MS: 260, VELOCIDADE: 1100, NO_CHAO_MS: 450, LARGURA: 70 },
+    GIRA_DESCE_MS: 700,
+    NO_CHAO_MS: 3300,
+    SOBE_MS: 600,
+  },
+} as const;

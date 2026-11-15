@@ -6,8 +6,12 @@ import type { AparenciaNpc } from '../npcs/TexturasNpc';
  */
 
 /** Paleta de um andar (cores em '#RRGGBB'). */
+export type IdTemaAndar = 'recepcao' | 'fazenda' | 'moderacao' | 'producao' | 'servidores';
+/** Arenas do boss (etapa 5) reaproveitam parede, teto e piso dos andares com paleta própria. */
+export type IdTemaArena = 'terraco' | 'cobertura' | 'servidorPrincipal' | 'casaMaquinas' | 'nucleo';
+
 export interface TemaAndar {
-  id: 'recepcao' | 'fazenda' | 'moderacao' | 'producao' | 'servidores';
+  id: IdTemaAndar | IdTemaArena;
   parede: string;
   paredeEscura: string;
   piso: string;

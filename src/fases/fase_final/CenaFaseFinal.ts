@@ -7,9 +7,11 @@ import { avatarHtml, retratoMegaBrain } from './ArteFaseFinal';
 import { ClimaFaseFinal } from './ClimaFaseFinal';
 import {
   ANDAR_FASE_FINAL,
+  BOSS_FASE_FINAL,
   CAMERA_FASE_FINAL,
   CENA_FASE_FINAL,
   CHECKPOINTS_FASE_FINAL,
+  ESCALA_ARTE,
   EXTERIOR_FASE_FINAL,
   INTERACAO_FASE_FINAL,
   TRANSICAO_ELEVADOR,
@@ -22,6 +24,8 @@ import {
   TEXTOS_ANDAR,
   DRONE_TCHAU,
   FALA_RECEPCIONISTA_ERRO,
+  FALAS_BOSS,
+  TEXTOS_BOSS,
   PIADAS_MORTE_ANDAR,
   textoDestinoElevador,
   textoPassageirosElevador,
@@ -45,6 +49,16 @@ import type { DadosErroPuzzle } from './puzzles/tiposPuzzle';
 import { LegendaMegaBrain, balaoFala } from './BalaoFala';
 import { CombateFaseFinal } from './CombateFaseFinal';
 import { InimigosFaseFinal } from './inimigos/InimigosFaseFinal';
+import { ArenaBoss } from './boss/ArenaBoss';
+import { ARENAS } from './boss/configArenas';
+import type { FormaBoss } from './boss/FormaBoss';
+import { FormaAguia } from './boss/FormaAguia';
+import { FormaCaveira } from './boss/FormaCaveira';
+import { FormaCopycat } from './boss/FormaCopycat';
+import { FormaTita } from './boss/FormaTita';
+import { HudBoss } from './boss/HudBoss';
+import { QUADROS_BOSS, TEX_BOSS, caminhoCopycat } from './boss/TexturasBoss';
+import { type AparenciaForma, brigaEQueda, cerebroViraCopycat, quedaEMorfose } from './boss/TransicaoBoss';
 
 /** Contexto do terminal do andar antes de saber qual andar é. */
 function contextoAndarVazio(): ContextoPuzzleAndar {
@@ -60,9 +74,31 @@ function contextoAndarVazio(): ContextoPuzzleAndar {
 
 /** Dados passados ao reiniciar a cena para trocar de trecho. */
 export interface DadosCenaFaseFinal {
-  trecho?: 'exterior' | 'andar';
+  trecho?: Trecho;
   andar?: number;
+  /** Forma do boss (trecho 'boss'): 1 terraço ... 5 núcleo. */
+  forma?: number;
+  /** Como se chega na arena: saindo do elevador (forma 1), caindo do andar de cima ou depois de morrer. */
+  chegada?: ChegadaBoss;
   mortes?: number;
+}
+
+type Trecho = 'exterior' | 'andar' | 'boss';
+type ChegadaBoss = 'elevador' | 'queda' | 'revanche';
+type IdForma = 1 | 2 | 3 | 4;
+
+/** Como cada forma aparece ao cair junto na arena seguinte (antes de se transformar). */
+function aparenciaDaForma(forma: number, personagem: string): AparenciaForma {
+  switch (forma) {
+    case 1:
+      return { textura: TEX_BOSS.copycat(personagem), quadro: 3, escala: 1, origemY: 121 / 128 };
+    case 2:
+      return { textura: TEX_BOSS.TITA, quadro: QUADROS_BOSS.TITA.TRAVADO, escala: ESCALA_ARTE, origemY: 1 };
+    case 3:
+      return { textura: TEX_BOSS.AGUIA, quadro: QUADROS_BOSS.AGUIA.PRESA, escala: ESCALA_ARTE, origemY: 1 };
+    default:
+      return { textura: TEX_BOSS.CAVEIRA, quadro: QUADROS_BOSS.CAVEIRA.TONTA, escala: ESCALA_ARTE, origemY: 1 };
+  }
 }
 
 type EstadoCena = 'pan' | 'chegada' | 'livre' | 'transicao';
@@ -74,6 +110,7 @@ interface Checkpoint {
 
 const E = EXTERIOR_FASE_FINAL;
 const A = ANDAR_FASE_FINAL;
+const B = BOSS_FASE_FINAL;
 const FONTE = 'Consolas, Courier New, monospace';
 
 /**
@@ -83,8 +120,10 @@ const FONTE = 'Consolas, Courier New, monospace';
  * a partir de configAndares.ts. O boss e o final entram nas próximas etapas.
  */
 export class CenaFaseFinal extends CenaBase {
-  private trecho: 'exterior' | 'andar' = 'exterior';
+  private trecho: Trecho = 'exterior';
   private numeroAndar: number = 1;
+  private numeroForma: number = 1;
+  private chegadaBoss: ChegadaBoss = 'elevador';
   private mortes: number = 0;
   private estado: EstadoCena = 'pan';
   private congelado: boolean = false;
@@ -114,6 +153,11 @@ export class CenaFaseFinal extends CenaBase {
   private promptElevador?: Phaser.GameObjects.Text;
   private tentativasElevadorTravado: number = 0;
 
+  // Boss
+  private arena?: ArenaBoss;
+  private boss?: FormaBoss;
+  private hudBoss?: HudBoss;
+
   constructor() {
     super('CenaFaseFinal', 'fase_final');
   }
@@ -121,6 +165,8 @@ export class CenaFaseFinal extends CenaBase {
   init(dados?: DadosCenaFaseFinal): void {
     this.trecho = dados?.trecho ?? 'exterior';
     this.numeroAndar = dados?.andar ?? 1;
+    this.numeroForma = dados?.forma ?? 1;
+    this.chegadaBoss = dados?.chegada ?? 'elevador';
     this.mortes = dados?.mortes ?? 0;
     this.estado = this.trecho === 'exterior' ? 'pan' : 'chegada';
     this.congelado = false;
@@ -136,6 +182,19 @@ export class CenaFaseFinal extends CenaBase {
     this.contextoPuzzle = contextoAndarVazio();
     this.emConsequencia = false;
     this.tentativasElevadorTravado = 0;
+    this.arena = undefined;
+    this.boss = undefined;
+    this.hudBoss = undefined;
+  }
+
+  override preload(): void {
+    super.preload();
+    for (const personagem of ['alvares', 'reis']) {
+      const chave = TEX_BOSS.copycat(personagem);
+      if (!this.textures.exists(chave)) {
+        this.load.spritesheet(chave, caminhoCopycat(personagem), { frameWidth: 128, frameHeight: 128 });
+      }
+    }
   }
 
   create(): void {
@@ -145,6 +204,7 @@ export class CenaFaseFinal extends CenaBase {
     this.cameras.main.setBackgroundColor('#05050c');
 
     if (this.trecho === 'andar') this.montarAndar();
+    else if (this.trecho === 'boss') this.montarBoss();
     else this.montarExterior();
 
     this.criarEfeitoCRT(this.scale.width, this.scale.height, CENA_FASE_FINAL.OPACIDADE_CRT);
@@ -305,8 +365,9 @@ export class CenaFaseFinal extends CenaBase {
   private aceitarTermo(): void {
     if (this.contextoTermo.aceito) return;
     this.contextoTermo.aceito = true;
-    this.time.delayedCall(1400, () => {
-      this.terminal.fecharForcado();
+    // O terminal fica aberto para o jogador ler a resposta; ele fecha com ESC quando quiser
+    this.time.delayedCall(600, () => {
+      this.terminal.imprimirLinha(TEXTOS_TERMO.FECHAR, 'info');
       this.exterior?.abrirPorta();
       this.cameras.main.shake(220, 0.003);
       const cp = CHECKPOINTS_FASE_FINAL.TERMO;
@@ -547,28 +608,20 @@ export class CenaFaseFinal extends CenaBase {
     this.jogador.respawnar({ x: elevador.x, y: this.jogador.y });
     elevador.folhasNaFrente(true);
     elevador.fechar(t.PORTA_FECHA_MS, () => {
-      if (this.numeroAndar >= TOTAL_ANDARES) {
-        // O terraço (boss) entra na etapa 5
-        this.mostrarNotificacao(TEXTOS_ANDAR.TERRACO_EM_OBRAS, 2600);
-        this.time.delayedCall(900, () =>
-          elevador.abrir(A.ELEVADOR.PORTA_MS, () => {
-            elevador.folhasNaFrente(false);
-            this.estado = 'livre';
-          })
-        );
-        return;
-      }
-      this.mostrarViagem(this.numeroAndar, this.numeroAndar + 1, () => {
+      // Do último andar o elevador sobe para o terraço, onde começa o boss
+      const ultimo = this.numeroAndar >= TOTAL_ANDARES;
+      const destino: DadosCenaFaseFinal = ultimo
+        ? { trecho: 'boss', forma: 1, chegada: 'elevador' }
+        : { trecho: 'andar', andar: this.numeroAndar + 1 };
+      this.mostrarViagem(this.numeroAndar, ultimo ? 'T' : this.numeroAndar + 1, () => {
         this.cameras.main.fadeOut(t.FADE_MS, 0, 0, 0);
-        this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
-          this.irPara({ trecho: 'andar', andar: this.numeroAndar + 1 });
-        });
+        this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => this.irPara(destino));
       });
     });
   }
 
-  /** Painel do visor do elevador: número atual, seta subindo, próximo número. */
-  private mostrarViagem(de: number, para: number, aoTerminar: () => void): void {
+  /** Painel do visor do elevador: número atual, seta subindo, próximo número (ou T de terraço). */
+  private mostrarViagem(de: number, para: number | string, aoTerminar: () => void): void {
     const t = TRANSICAO_ELEVADOR;
     const { width, height } = this.scale;
     const prof = CENA_FASE_FINAL.PROFUNDIDADE_HUD + 10;
@@ -652,6 +705,161 @@ export class CenaFaseFinal extends CenaBase {
   }
 
   /* =========================================================================
+   * BOSS: MEGA BRAIN (formas 1 a 4; a 5 entra na etapa 6)
+   * ========================================================================= */
+
+  /** Uma arena por forma. Morrer recomeça a forma atual (checkpoint por forma). */
+  private montarBoss(): void {
+    const forma = this.numeroForma;
+    const cfg = ARENAS[Math.min(forma, 5)];
+    const chegouCaindo = this.chegadaBoss === 'queda';
+    this.physics.world.setBounds(0, B.TOPO_MUNDO_Y, B.LARGURA, A.ALTURA - B.TOPO_MUNDO_Y);
+    this.physics.world.checkCollision.down = false;
+    this.cameras.main.setBounds(0, 0, B.LARGURA, A.ALTURA);
+
+    this.arena = new ArenaBoss(this, cfg, chegouCaindo && cfg.tipo === 'interior');
+    const spawn = chegouCaindo
+      ? { ...B.QUEDA_JOGADOR }
+      : this.chegadaBoss === 'elevador'
+        ? { x: 110, y: B.SPAWN_JOGADOR.y }
+        : { ...B.SPAWN_JOGADOR };
+    this.jogador = new JogadorFaseFinal(this, spawn);
+    this.physics.add.collider(this.jogador.sprite, this.arena.solidos);
+    this.physics.add.collider(this.jogador.sprite, this.arena.umaVia, undefined, (j, p) => {
+      const corpoJ = (j as Phaser.Types.Physics.Arcade.GameObjectWithBody).body as Phaser.Physics.Arcade.Body;
+      const corpoP = (p as Phaser.Types.Physics.Arcade.GameObjectWithBody).body as Phaser.Physics.Arcade.StaticBody;
+      return corpoJ.velocity.y >= 0 && corpoJ.bottom <= corpoP.top + 12;
+    });
+    this.checkpoint = { id: `forma${forma}`, ponto: { ...B.SPAWN_JOGADOR } };
+    this.legenda = new LegendaMegaBrain(this);
+    if (cfg.tipo === 'terraco') this.clima = new ClimaFaseFinal(this, B.CHAO_Y);
+    this.cameras.main.fadeIn(TRANSICAO_ELEVADOR.FADE_MS, 0, 0, 0);
+    this.estado = 'chegada';
+
+    if (forma >= 5) {
+      // O núcleo (forma 5 + rebase) é a etapa 6
+      this.criarHud(TEXTOS_BOSS.SETOR('NÚCLEO'), '');
+      this.time.delayedCall(1200, () => {
+        this.estado = 'livre';
+        this.mostrarNotificacao(TEXTOS_BOSS.NUCLEO_EM_OBRAS, 60000);
+      });
+      return;
+    }
+
+    const textos = FALAS_BOSS[forma as IdForma];
+    this.combate = new CombateFaseFinal(this, this.jogador, () => this.morrerNoBoss());
+    this.boss = this.criarForma(forma as IdForma);
+    this.criarHud(TEXTOS_BOSS.SETOR(textos.arena), textos.objetivo);
+    this.hudBoss = new HudBoss(this, TEXTOS_BOSS.HUD(forma, textos.nome));
+    const boss = this.boss;
+
+    switch (this.chegadaBoss) {
+      case 'revanche':
+        // Depois de morrer: sem cutscene, só uma provocação e a luta recomeça
+        this.time.delayedCall(450, () => {
+          boss.falar(textos.revanche[(this.mortes - 1 + textos.revanche.length) % textos.revanche.length], 1600);
+          this.time.delayedCall(B.PREPARO_MS + 300, () => this.comecarLuta());
+        });
+        break;
+      case 'queda':
+        this.cameras.main.shake(300, 0.006);
+        quedaEMorfose(this, aparenciaDaForma(forma - 1, this.jogador.tipoPersonagem), boss.sprite, () =>
+          this.apresentarForma()
+        );
+        break;
+      case 'elevador':
+        this.mostrarNotificacao(TEXTOS_BOSS.CHEGADA_TERRACO, 2000);
+        boss.sprite.setAlpha(0);
+        this.time.delayedCall(1200, () => cerebroViraCopycat(this, boss.sprite, () => this.apresentarForma()));
+        break;
+    }
+  }
+
+  private criarForma(forma: IdForma): FormaBoss {
+    switch (forma) {
+      case 1:
+        return new FormaCopycat(this, this.jogador.tipoPersonagem);
+      case 2:
+        return new FormaTita(this);
+      case 3:
+        return new FormaAguia(this);
+      case 4:
+        return new FormaCaveira(this);
+    }
+  }
+
+  /** Fala de entrada da forma (diálogo), depois a luta começa. */
+  private apresentarForma(): void {
+    const forma = this.numeroForma as IdForma;
+    const textos = FALAS_BOSS[forma];
+    const avatar = this.avatarMegaBrain;
+    this.comunicador.iniciarDialogo(
+      [{ falante: TEXTOS_BOSS.FALANTE(forma, textos.nome), texto: textos.entrada, avatar }],
+      () => this.time.delayedCall(B.PREPARO_MS, () => this.comecarLuta())
+    );
+  }
+
+  private comecarLuta(): void {
+    if (!this.boss || this.estado !== 'chegada') return;
+    this.estado = 'livre';
+    this.tweens.add({ targets: this.textoObjetivo, alpha: 1, duration: 500 });
+    this.hudBoss?.mostrar();
+    this.boss.iniciar();
+  }
+
+  /** Um quadro de luta: pisões, quiques e dano; no último pisão começa a transição. */
+  private atualizarBoss(delta: number): void {
+    const boss = this.boss;
+    const combate = this.combate;
+    if (!boss || !combate) return;
+    const r = boss.update(delta, this.jogador, combate.podeLevarDano);
+    if (r.golpe) {
+      combate.pisou(B.QUIQUE_GOLPE);
+      this.hudBoss?.atualizar(boss.vida);
+      this.cameras.main.flash(120, 255, 255, 255);
+      this.cameras.main.shake(180, 0.008);
+      // Hitstop: o mundo para por um instante no impacto
+      this.physics.world.pause();
+      this.time.delayedCall(B.HITSTOP_MS, () => {
+        if (!this.congelado) this.physics.world.resume();
+      });
+    } else if (r.quique) {
+      combate.pisou(B.QUIQUE_SEM_JANELA);
+    } else if (r.danoDeX !== undefined) {
+      combate.ferir(r.danoDeX);
+    }
+    combate.update();
+    if (boss.estado === 'derrotado' && this.estado === 'livre') this.encerrarForma();
+  }
+
+  /** Forma vencida: briga na poeira, o chão quebra e os dois caem para a próxima arena. */
+  private encerrarForma(): void {
+    const boss = this.boss;
+    const arena = this.arena;
+    if (!boss || !arena) return;
+    this.estado = 'transicao';
+    this.textoObjetivo.setAlpha(0);
+    this.hudBoss?.esconder();
+    brigaEQueda(this, arena, boss.sprite, this.jogador, () =>
+      this.irPara({ trecho: 'boss', forma: this.numeroForma + 1, chegada: 'queda' })
+    );
+  }
+
+  /** Corações acabaram na luta: recomeça a forma atual. */
+  private morrerNoBoss(): void {
+    if (this.estado !== 'livre') return;
+    this.estado = 'transicao';
+    this.mortes++;
+    this.jogador.congelar();
+    this.jogador.sprite.setTint(0xff2a3d);
+    this.mostrarNotificacao(`${TEXTOS_BOSS.MORTE}\n${this.piadaDeMorte()}`, 2000);
+    this.cameras.main.fadeOut(700, 30, 0, 10);
+    this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
+      this.irPara({ trecho: 'boss', forma: this.numeroForma, chegada: 'revanche' });
+    });
+  }
+
+  /* =========================================================================
    * LAÇO
    * ========================================================================= */
 
@@ -680,6 +888,11 @@ export class CenaFaseFinal extends CenaBase {
     if (this.congelado) this.descongelar();
 
     this.jogador.update(tempo, delta);
+    if (this.trecho === 'boss') {
+      this.atualizarBoss(delta);
+      this.jogador.interagirApertado(); // consome o E (nada para interagir na arena)
+      return;
+    }
     if (this.inimigos && this.combate) {
       const r = this.inimigos.update(delta, this.jogador, this.combate.podeLevarDano);
       if (r.pisoes > 0) this.combate.pisou();
