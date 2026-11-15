@@ -48,6 +48,19 @@ export class CombateFaseFinal {
     this.jogador.aplicarEmpurrao(lado * c.EMPURRAO_X, c.EMPURRAO_Y, c.TRAVA_CONTROLE_MS);
   }
 
+  /** Caiu na lava: perde um coração mesmo invulnerável (sem empurrão; a cena reposiciona). */
+  public queimar(): void {
+    if (this.coracoes <= 0) return;
+    this.coracoes--;
+    this.desenhar();
+    this.cena.cameras.main.shake(160, 0.006);
+    if (this.coracoes <= 0) {
+      this.aoMorrer();
+      return;
+    }
+    this.invulneravelAte = this.cena.time.now + COMBATE_FASE_FINAL.INVULNERAVEL_MS;
+  }
+
   /** Pisou num inimigo (ou no boss): quique e um instante de imunidade (não leva dano do mesmo contato). */
   public pisou(quique: number = COMBATE_FASE_FINAL.QUIQUE_PISAO): void {
     this.jogador.quicar(quique);

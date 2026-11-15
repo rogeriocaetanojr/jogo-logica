@@ -248,11 +248,13 @@ export function quedaEMorfose(
   cena: Phaser.Scene,
   anterior: AparenciaForma,
   nova: Phaser.GameObjects.Sprite,
-  aoTerminar: () => void
+  aoTerminar: () => void,
+  pouso: { x: number; chaoY: number } = { x: B.QUEDA_BOSS_X, chaoY: B.CHAO_Y }
 ): void {
   const xFinal = nova.x;
   const yFinal = nova.y;
-  const xQueda = B.QUEDA_BOSS_X;
+  const xQueda = pouso.x;
+  const chao = pouso.chaoY;
   const particulas = new Particulas(cena, 21);
   nova.setVisible(false).setPosition(xQueda, yFinal);
   const velha = cena.add
@@ -262,16 +264,16 @@ export function quedaEMorfose(
     .setDepth(nova.depth);
   cena.tweens.add({
     targets: velha,
-    y: B.CHAO_Y,
+    y: chao,
     duration: 650,
     delay: 250,
     ease: 'Quad.easeIn',
     onComplete: () => {
       cena.cameras.main.shake(260, 0.01);
-      estouro(cena, xQueda, B.CHAO_Y - 12, 60, 0xffd36b);
-      particulas.detritos(xQueda, B.CHAO_Y - 4, 14, [0x3f4462, 0x2b2e44, 0xffd36b], B.CHAO_Y);
-      fumaca(cena, xQueda - 50, B.CHAO_Y - 10, 1.2, 0x6b6f8c, 700);
-      fumaca(cena, xQueda + 50, B.CHAO_Y - 10, 1.2, 0x6b6f8c, 700);
+      estouro(cena, xQueda, chao - 12, 60, 0xffd36b);
+      particulas.detritos(xQueda, chao - 4, 14, [0x3f4462, 0x2b2e44, 0xffd36b], chao);
+      fumaca(cena, xQueda - 50, chao - 10, 1.2, 0x6b6f8c, 700);
+      fumaca(cena, xQueda + 50, chao - 10, 1.2, 0x6b6f8c, 700);
       fantasmas(cena, velha, B.GLITCH_MS);
       let passo = 0;
       cena.time.addEvent({
@@ -283,7 +285,7 @@ export function quedaEMorfose(
           nova.setVisible(mostraNova);
           velha.setVisible(!mostraNova);
           velha.x = xQueda + TREMIDA[passo % TREMIDA.length];
-          particulas.emitir(xQueda, B.CHAO_Y - 80, {
+          particulas.emitir(xQueda, chao - 80, {
             quantidade: 3,
             velocidade: [100, 260],
             vidaMs: [150, 300],
@@ -319,7 +321,7 @@ export function quedaEMorfose(
           onComplete: () => {
             nova.setPosition(xFinal, yFinal);
             cena.cameras.main.shake(140, 0.005);
-            fumaca(cena, xFinal, B.CHAO_Y - 10, 1, 0x6b6f8c, 500);
+            fumaca(cena, xFinal, chao - 10, 1, 0x6b6f8c, 500);
             aoTerminar();
           },
         });

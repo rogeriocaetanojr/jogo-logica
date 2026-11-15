@@ -53,7 +53,8 @@ export function suave(t: number): number {
  */
 export abstract class FormaBoss {
   public estado: EstadoBoss = 'intro';
-  public vida: number = B.PISOES_POR_FORMA;
+  public vida: number;
+  public readonly vidaMaxima: number;
   /** Sprite principal (a transição usa a textura e a posição dele). */
   public abstract readonly sprite: Phaser.GameObjects.Sprite;
 
@@ -66,9 +67,11 @@ export abstract class FormaBoss {
   private relogioAtingidoMs: number = 0;
   private indiceSemJanela: number = 0;
 
-  constructor(cena: Phaser.Scene, textos: TextosForma) {
+  constructor(cena: Phaser.Scene, textos: TextosForma, pisoes: number = B.PISOES_POR_FORMA) {
     this.cena = cena;
     this.textos = textos;
+    this.vida = pisoes;
+    this.vidaMaxima = pisoes;
     this.efeitos = cena.add.graphics().setDepth(17);
   }
 
@@ -168,7 +171,7 @@ export abstract class FormaBoss {
     this.relogioAtingidoMs = B.ATINGIDO_MS;
     this.aoSerAtingido(jogador);
     const falas = this.textos.atingido;
-    this.falar(falas[Math.min(B.PISOES_POR_FORMA - this.vida - 1, falas.length - 1)], 1600);
+    this.falar(falas[Math.min(this.vidaMaxima - this.vida - 1, falas.length - 1)], 1600);
   }
 
   /** Pisca branco/ciano/magenta enquanto se recompõe do pisão. */

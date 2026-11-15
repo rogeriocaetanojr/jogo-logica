@@ -26,6 +26,7 @@ import {
   FALA_RECEPCIONISTA_ERRO,
   FALAS_BOSS,
   TEXTOS_BOSS,
+  TEXTOS_REBASE,
   PIADAS_MORTE_ANDAR,
   textoDestinoElevador,
   textoPassageirosElevador,
@@ -37,6 +38,7 @@ import { TEX_EXTERIOR, retratoValdir } from './exterior/TexturasExterior';
 import {
   ACOES_FASE_FINAL,
   type ContextoPuzzleAndar,
+  type ContextoRebase,
   type ContextoTermo,
   interpretarComandoFaseFinal,
 } from './InterpretadorFaseFinal';
@@ -44,6 +46,7 @@ import { JogadorFaseFinal, type Ponto } from './JogadorFaseFinal';
 import { NpcFaseFinal } from './NpcFaseFinal';
 import { TEX_DRONE_CAPTCHA, gerarTexturaDrone } from './npcs/TexturasNpc';
 import { ESTADO_INICIAL_PUZZLE } from './puzzles/avaliadoresPuzzle';
+import { texAndar } from './andares/TexturasAndar';
 import { ERROS_PARA_DICA, PUZZLES, TEXTOS_PUZZLE } from './puzzles/definicoesPuzzles';
 import type { DadosErroPuzzle } from './puzzles/tiposPuzzle';
 import { LegendaMegaBrain, balaoFala } from './BalaoFala';
@@ -54,6 +57,8 @@ import { ARENAS } from './boss/configArenas';
 import type { FormaBoss } from './boss/FormaBoss';
 import { FormaAguia } from './boss/FormaAguia';
 import { FormaCaveira } from './boss/FormaCaveira';
+import { FormaCerebro } from './boss/FormaCerebro';
+import { estadoInicialRebase, listarRebase } from './boss/RebaseFaseFinal';
 import { FormaCopycat } from './boss/FormaCopycat';
 import { FormaTita } from './boss/FormaTita';
 import { HudBoss } from './boss/HudBoss';
@@ -85,7 +90,14 @@ export interface DadosCenaFaseFinal {
 
 type Trecho = 'exterior' | 'andar' | 'boss';
 type ChegadaBoss = 'elevador' | 'queda' | 'revanche';
-type IdForma = 1 | 2 | 3 | 4;
+type IdForma = 1 | 2 | 3 | 4 | 5;
+
+/** Etapa da luta final no núcleo: luta → terminal do rebase → queda na lava. */
+type FaseNucleo = 'luta' | 'rebase' | 'queda';
+
+function contextoRebaseNovo(): ContextoRebase {
+  return { puzzle: 'rebase', estado: estadoInicialRebase(), resolvido: false, tentativas: 0 };
+}
 
 /** Como cada forma aparece ao cair junto na arena seguinte (antes de se transformar). */
 function aparenciaDaForma(forma: number, personagem: string): AparenciaForma {
@@ -157,6 +169,11 @@ export class CenaFaseFinal extends CenaBase {
   private arena?: ArenaBoss;
   private boss?: FormaBoss;
   private hudBoss?: HudBoss;
+  private faseNucleo: FaseNucleo = 'luta';
+  private contextoRebase: ContextoRebase = contextoRebaseNovo();
+  private terminalRebase?: Phaser.GameObjects.Sprite;
+  private promptRebase?: Phaser.GameObjects.Text;
+  private reacaoRebase?: Phaser.Time.TimerEvent;
 
   constructor() {
     super('CenaFaseFinal', 'fase_final');
@@ -185,6 +202,11 @@ export class CenaFaseFinal extends CenaBase {
     this.arena = undefined;
     this.boss = undefined;
     this.hudBoss = undefined;
+    this.faseNucleo = 'luta';
+    this.contextoRebase = contextoRebaseNovo();
+    this.terminalRebase = undefined;
+    this.promptRebase = undefined;
+    this.reacaoRebase = undefined;
   }
 
   override preload(): void {
@@ -705,7 +727,7 @@ export class CenaFaseFinal extends CenaBase {
   }
 
   /* =========================================================================
-   * BOSS: MEGA BRAIN (formas 1 a 4; a 5 entra na etapa 6)
+   * BOSS: MEGA BRAIN (formas 1 a 5 e o rebase final)
    * ========================================================================= */
 
   /** Uma arena por forma. Morrer recomeça a forma atual (checkpoint por forma). */
@@ -717,12 +739,14 @@ export class CenaFaseFinal extends CenaBase {
     this.physics.world.checkCollision.down = false;
     this.cameras.main.setBounds(0, 0, B.LARGURA, A.ALTURA);
 
-    this.arena = new ArenaBoss(this, cfg, chegouCaindo && cfg.tipo === 'interior');
+    const nucleo = cfg.tipo === 'nucleo';
+    this.arena = new ArenaBoss(this, cfg, chegouCaindo && cfg.tipo !== 'terraco');
+    const pontoInicial = nucleo ? B.NUCLEO.SPAWN : B.SPAWN_JOGADOR;
     const spawn = chegouCaindo
-      ? { ...B.QUEDA_JOGADOR }
+      ? { x: nucleo ? B.NUCLEO.QUEDA_JOGADOR_X : B.QUEDA_JOGADOR.x, y: B.QUEDA_JOGADOR.y }
       : this.chegadaBoss === 'elevador'
         ? { x: 110, y: B.SPAWN_JOGADOR.y }
-        : { ...B.SPAWN_JOGADOR };
+        : { ...pontoInicial };
     this.jogador = new JogadorFaseFinal(this, spawn);
     this.physics.add.collider(this.jogador.sprite, this.arena.solidos);
     this.physics.add.collider(this.jogador.sprite, this.arena.umaVia, undefined, (j, p) => {
@@ -730,27 +754,17 @@ export class CenaFaseFinal extends CenaBase {
       const corpoP = (p as Phaser.Types.Physics.Arcade.GameObjectWithBody).body as Phaser.Physics.Arcade.StaticBody;
       return corpoJ.velocity.y >= 0 && corpoJ.bottom <= corpoP.top + 12;
     });
-    this.checkpoint = { id: `forma${forma}`, ponto: { ...B.SPAWN_JOGADOR } };
+    this.checkpoint = { id: `forma${forma}`, ponto: { ...pontoInicial } };
     this.legenda = new LegendaMegaBrain(this);
     if (cfg.tipo === 'terraco') this.clima = new ClimaFaseFinal(this, B.CHAO_Y);
     this.cameras.main.fadeIn(TRANSICAO_ELEVADOR.FADE_MS, 0, 0, 0);
     this.estado = 'chegada';
 
-    if (forma >= 5) {
-      // O núcleo (forma 5 + rebase) é a etapa 6
-      this.criarHud(TEXTOS_BOSS.SETOR('NÚCLEO'), '');
-      this.time.delayedCall(1200, () => {
-        this.estado = 'livre';
-        this.mostrarNotificacao(TEXTOS_BOSS.NUCLEO_EM_OBRAS, 60000);
-      });
-      return;
-    }
-
     const textos = FALAS_BOSS[forma as IdForma];
     this.combate = new CombateFaseFinal(this, this.jogador, () => this.morrerNoBoss());
     this.boss = this.criarForma(forma as IdForma);
     this.criarHud(TEXTOS_BOSS.SETOR(textos.arena), textos.objetivo);
-    this.hudBoss = new HudBoss(this, TEXTOS_BOSS.HUD(forma, textos.nome));
+    this.hudBoss = new HudBoss(this, TEXTOS_BOSS.HUD(forma, textos.nome), this.boss.vidaMaxima);
     const boss = this.boss;
 
     switch (this.chegadaBoss) {
@@ -763,8 +777,12 @@ export class CenaFaseFinal extends CenaBase {
         break;
       case 'queda':
         this.cameras.main.shake(300, 0.006);
-        quedaEMorfose(this, aparenciaDaForma(forma - 1, this.jogador.tipoPersonagem), boss.sprite, () =>
-          this.apresentarForma()
+        quedaEMorfose(
+          this,
+          aparenciaDaForma(forma - 1, this.jogador.tipoPersonagem),
+          boss.sprite,
+          () => this.apresentarForma(),
+          nucleo ? { x: B.CEREBRO.X, chaoY: B.NUCLEO.PLATAFORMA_BOSS.topo } : undefined
         );
         break;
       case 'elevador':
@@ -785,6 +803,8 @@ export class CenaFaseFinal extends CenaBase {
         return new FormaAguia(this);
       case 4:
         return new FormaCaveira(this);
+      case 5:
+        return new FormaCerebro(this);
     }
   }
 
@@ -829,7 +849,124 @@ export class CenaFaseFinal extends CenaBase {
       combate.ferir(r.danoDeX);
     }
     combate.update();
-    if (boss.estado === 'derrotado' && this.estado === 'livre') this.encerrarForma();
+    if (boss.estado === 'derrotado' && this.estado === 'livre') {
+      if (this.numeroForma >= 5) {
+        if (this.faseNucleo === 'luta') this.iniciarRebase();
+      } else {
+        this.encerrarForma();
+      }
+    }
+    if (this.numeroForma >= 5 && this.estado === 'livre' && this.jogador.corpo.bottom >= B.NUCLEO.LAVA_Y - 4) this.tocarLava();
+  }
+
+  /* -------------------------------------------------------------------------
+   * NÚCLEO: LAVA, TERMINAL DO REBASE E QUEDA DO MEGA BRAIN
+   * ------------------------------------------------------------------------- */
+
+  /** Lava tira um coração (na luta) e devolve o jogador à plataforma. Durante o rebase só devolve. */
+  private tocarLava(): void {
+    this.cameras.main.flash(220, 255, 120, 30);
+    this.mostrarNotificacao(TEXTOS_BOSS.LAVA, 1600);
+    if (this.faseNucleo === 'luta' && this.combate) {
+      this.combate.queimar();
+      if (this.estado !== 'livre') return; // morreu: a cena recomeça a forma
+    }
+    this.jogador.respawnar(this.checkpoint.ponto);
+  }
+
+  /** Último olho fechado: o Mega Brain se recolhe e o terminal do rebase sobe na plataforma. */
+  private iniciarRebase(): void {
+    const boss = this.boss;
+    if (!(boss instanceof FormaCerebro)) return;
+    this.faseNucleo = 'rebase';
+    boss.recolher();
+    this.hudBoss?.esconder();
+    this.definirObjetivo(TEXTOS_BOSS.OBJETIVO_REBASE);
+    this.mostrarNotificacao(TEXTOS_BOSS.TERMINAL_SURGIU, 2400);
+    const tema = ARENAS[5].tema;
+    const x = 150;
+    const topo = B.NUCLEO.PLATAFORMA_JOGADOR.topo;
+    this.terminalRebase = this.add.sprite(x, topo + 120, texAndar.terminal(tema), 0).setOrigin(0.5, 1).setScale(ESCALA_ARTE).setDepth(7.8);
+    const anim = `${texAndar.terminal(tema)}-pisca`;
+    if (this.anims.exists(anim)) this.terminalRebase.play(anim);
+    this.tweens.add({ targets: this.terminalRebase, y: topo, duration: 900, ease: 'Back.easeOut' });
+    this.cameras.main.shake(500, 0.004);
+    this.promptRebase = this.criarPrompt(x, topo - 140, TEXTOS_BOSS.PROMPT_REBASE, '#ffd36b');
+  }
+
+  private interacoesRebase(apertouE: boolean): void {
+    if (this.faseNucleo !== 'rebase' || !this.terminalRebase) return;
+    const perto = Math.abs(this.jogador.x - this.terminalRebase.x) <= A.RAIO_TERMINAL && this.jogador.noChao;
+    this.promptRebase?.setVisible(perto);
+    if (perto && apertouE) this.abrirRebase();
+  }
+
+  private linhasDoRebase(): string[] {
+    return listarRebase(this.contextoRebase.estado).map((l) => l.texto);
+  }
+
+  private abrirRebase(): void {
+    this.promptRebase?.setVisible(false);
+    this.terminal.abrir({
+      titulo: TEXTOS_REBASE.TITULO,
+      linhasIniciais: [
+        ...TEXTOS_REBASE.ENUNCIADO,
+        '',
+        TEXTOS_REBASE.CABECALHO,
+        ...this.linhasDoRebase(),
+        ...TEXTOS_REBASE.COMO_RESPONDER,
+      ],
+      contexto: this.contextoRebase,
+      aoSubmeter: (resultado) => this.aoSubmeterRebase(resultado),
+      permitirFecharComEsc: true,
+    });
+  }
+
+  /** Depois de cada comando: reimprime o editor do rebase e o Mega Brain reage na tela. */
+  private aoSubmeterRebase(resultado: ResultadoComando): void {
+    const ultimo = this.contextoRebase.ultimo;
+    const boss = this.boss;
+    if (!ultimo || ultimo.status === 'formato' || ultimo.status === 'continuar') return;
+    this.terminal.imprimirLinha(TEXTOS_REBASE.CABECALHO, 'info');
+    for (const linha of listarRebase(this.contextoRebase.estado)) {
+      this.terminal.imprimirLinha(linha.texto, linha.acao === 'drop' ? 'erro' : 'info');
+    }
+    if (!(boss instanceof FormaCerebro)) return;
+    if (resultado.acao === ACOES_FASE_FINAL.REBASE_RESOLVIDO) {
+      this.derrubarMegaBrain(boss);
+      return;
+    }
+    if (ultimo.status === 'alterado' && ultimo.acao === 'drop') {
+      const reacoes: Record<string, number> = {
+        a1f3: QUADROS_BOSS.ROSTO.VERGONHA,
+        '7c2e': QUADROS_BOSS.ROSTO.RISADA,
+        d5e1: QUADROS_BOSS.ROSTO.TONTO,
+      };
+      boss.mostrarRosto(reacoes[ultimo.hash] ?? QUADROS_BOSS.ROSTO.NEUTRO);
+      this.reacaoRebase?.remove();
+      this.reacaoRebase = this.time.delayedCall(2500, () => boss.mostrarRosto(QUADROS_BOSS.ROSTO.PROCESSANDO));
+    }
+  }
+
+  /** drop 9b40: a plataforma some e o Mega Brain afunda na lava, devagar e dramático. */
+  private derrubarMegaBrain(boss: FormaCerebro): void {
+    this.faseNucleo = 'queda';
+    this.reacaoRebase?.remove();
+    this.time.delayedCall(1600, () => {
+      this.terminal.fecharForcado();
+      this.estado = 'transicao';
+      this.jogador.ficarParado();
+      this.promptRebase?.setVisible(false);
+      this.textoObjetivo.setAlpha(0);
+      this.arena?.derrubarPlataformaBoss();
+      this.time.delayedCall(1300, () => boss.cairNaLava(() => this.fimProvisorio()));
+    });
+  }
+
+  /** A cutscene final e os créditos entram na etapa 7. */
+  private fimProvisorio(): void {
+    this.estado = 'livre';
+    this.mostrarNotificacao(TEXTOS_BOSS.FIM_PROVISORIO, 60000);
   }
 
   /** Forma vencida: briga na poeira, o chão quebra e os dois caem para a próxima arena. */
@@ -870,6 +1007,9 @@ export class CenaFaseFinal extends CenaBase {
     this.exterior?.update(tempo, delta);
     this.clima?.update(tempo, delta);
     this.andar?.update(tempo, delta);
+    this.arena?.update(tempo, delta);
+    // A queda do Mega Brain na lava continua animando com o jogador parado
+    if (this.faseNucleo === 'queda' && this.boss) this.boss.update(delta, this.jogador, false);
 
     if (this.estado !== 'livre') {
       this.jogador.ficarParado();
@@ -883,6 +1023,7 @@ export class CenaFaseFinal extends CenaBase {
       this.promptTermo?.setVisible(false);
       this.promptTerminal?.setVisible(false);
       this.promptElevador?.setVisible(false);
+      this.promptRebase?.setVisible(false);
       return;
     }
     if (this.congelado) this.descongelar();
@@ -890,7 +1031,8 @@ export class CenaFaseFinal extends CenaBase {
     this.jogador.update(tempo, delta);
     if (this.trecho === 'boss') {
       this.atualizarBoss(delta);
-      this.jogador.interagirApertado(); // consome o E (nada para interagir na arena)
+      const apertouE = this.jogador.interagirApertado();
+      if (this.estado === 'livre') this.interacoesRebase(apertouE);
       return;
     }
     if (this.inimigos && this.combate) {

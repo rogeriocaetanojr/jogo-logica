@@ -7,6 +7,7 @@ import type { IdPuzzleAndar } from '../src/fases/fase_final/andares/tiposAndar';
 import { ESTADO_INICIAL_PUZZLE, avaliarPuzzle } from '../src/fases/fase_final/puzzles/avaliadoresPuzzle';
 import type { EstadoPuzzle } from '../src/fases/fase_final/puzzles/tiposPuzzle';
 import { interpretarComandoFaseFinal } from '../src/fases/fase_final/InterpretadorFaseFinal';
+import { avaliarRebase, estadoInicialRebase } from '../src/fases/fase_final/boss/RebaseFaseFinal';
 
 type Esperado = 'certo' | 'formato' | string; // string = código do erro
 
@@ -126,6 +127,42 @@ for (const [entrada, acao] of casosTermo) {
   console.log(`${passou ? 'OK    ' : 'FALHOU'} [termo] ${JSON.stringify(entrada)} → ${r.acao}`);
 }
 
-const total = casos.length + casosTermo.length;
+// Rebase final: só drop no 9b40 derruba; os outros drops são piadas
+const casosRebase: Array<[string, string]> = [
+  ['drop 9b40', 'resolvido'],
+  ['DROP 9B40', 'resolvido'],
+  ['  drop   9b40  ', 'resolvido'],
+  ['d 9b40', 'resolvido'],
+  ['drop 9b40 feat: plataforma de sustentação do Mega Brain', 'resolvido'],
+  ['git drop 9b40', 'resolvido'],
+  ['drop a1f3', 'alterado'],
+  ['drop 7c2e', 'alterado'],
+  ['drop d5e1', 'alterado'],
+  ['pick 9b40', 'sem_mudanca'],
+  ['pick a1f3', 'sem_mudanca'],
+  ['git rebase --continue', 'continuar'],
+  ['9b40', 'formato'],
+  ['drop', 'formato'],
+  ['drop ffff', 'formato'],
+  ['squash 9b40', 'formato'],
+  ['apagar a plataforma', 'formato'],
+];
+for (const [entrada, esperado] of casosRebase) {
+  const r = avaliarRebase(entrada, estadoInicialRebase());
+  const passou = r.status === esperado;
+  if (!passou) falhas++;
+  console.log(`${passou ? 'OK    ' : 'FALHOU'} [rebase] ${JSON.stringify(entrada)} → ${r.status}`);
+}
+// Pick depois de um drop desfaz o drop
+{
+  const depoisDoDrop = avaliarRebase('drop a1f3', estadoInicialRebase());
+  const estado = depoisDoDrop.status === 'alterado' ? depoisDoDrop.estado : estadoInicialRebase();
+  const r = avaliarRebase('pick a1f3', estado);
+  const passou = r.status === 'alterado' && r.acao === 'pick';
+  if (!passou) falhas++;
+  console.log(`${passou ? 'OK    ' : 'FALHOU'} [rebase] pick depois de drop → ${r.status}`);
+}
+
+const total = casos.length + casosTermo.length + casosRebase.length + 1;
 console.log(`\n${total - falhas}/${total} passaram`);
 process.exit(falhas ? 1 : 0);

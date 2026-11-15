@@ -243,7 +243,7 @@ export const BOSS_FASE_FINAL = {
     ATRASO_MS: 900,
     /** Não encosta em quem está parado: fica encarando a essa distância. */
     DISTANCIA_MIN: 76,
-    VELOCIDADE_MAX_X: 165,
+    VELOCIDADE_MAX_X: 205,
     VELOCIDADE_MAX_Y: 900,
     ATORDOADO_MS: 4000,
     X_INICIAL: 1080,
@@ -324,5 +324,61 @@ export const BOSS_FASE_FINAL = {
     GIRA_DESCE_MS: 700,
     NO_CHAO_MS: 3300,
     SOBE_MS: 600,
+  },
+
+  /** Forma 5 — Cérebro Seráfico, no núcleo sobre a lava (etapa 6). */
+  CEREBRO: {
+    /** Um pisão por olho grande. */
+    PISOES: 3,
+    X: 1010,
+    Y: 420,
+    /** Olhos grandes no alto do cérebro (relativos ao centro), abrem nesta ordem. */
+    OLHOS: [
+      { x: -80, y: -74 },
+      { x: 0, y: -88 },
+      { x: 80, y: -74 },
+    ],
+    PAUSA_MS: 700,
+    OLHO_ABRINDO_MS: 600,
+    OLHO_ABERTO_MS: 3800,
+    LEQUE: {
+      AVISO_MS: 700,
+      ONDAS: 3,
+      ENTRE_ONDAS_MS: 1100,
+      /** Ângulos fixos do leque (graus, 180 = para a esquerda); ondas ímpares deslocam meio passo. */
+      ANGULOS: [150, 170, 190, 210],
+      DESLOCAMENTO_IMPAR: 10,
+      VELOCIDADE: 210,
+      RAIO: 9,
+    },
+    CHUVA: {
+      AVISO_MS: 500,
+      ALVOS_A: [120, 400, 690],
+      ALVOS_B: [260, 540, 860],
+      ENTRE_MS: 240,
+      VOO_MS: 1150,
+      RAIO_EXPLOSAO: 48,
+      EXPLOSAO_MS: 320,
+    },
+  },
+  /** Arena do núcleo: plataforma do jogador à esquerda, plataforma do Mega Brain à direita, lava embaixo. */
+  NUCLEO: {
+    PLATAFORMA_JOGADOR: { x0: 0, x1: 560, topo: 620 },
+    PLATAFORMA_BOSS: { x0: 780, x1: 1240, topo: 600 },
+    /** Ressaltos de uma via para alcançar os olhos. */
+    RESSALTOS: [
+      { x: 690, topo: 470, largura: 140 },
+      { x: 840, topo: 440, largura: 100 },
+      { x: 1200, topo: 440, largura: 90 },
+    ],
+    LAVA_Y: 662,
+    /** Encostar na lava tira um coração e volta para a plataforma. */
+    SPAWN: { x: 200, y: 532 },
+    QUEDA_JOGADOR_X: 320,
+    BURACOS_TETO: [
+      [250, 400],
+      [930, 1090],
+    ] as ReadonlyArray<readonly [number, number]>,
+    QUEDA_CEREBRO_MS: 3400,
   },
 } as const;

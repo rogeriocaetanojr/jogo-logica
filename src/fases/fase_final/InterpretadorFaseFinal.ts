@@ -1,6 +1,7 @@
 import type { ContextoInterpretador, ResultadoComando } from '../../compartilhado/tipos';
 import type { IdPuzzleAndar } from './andares/tiposAndar';
-import { TEXTOS_TERMO } from './DialogosFaseFinal';
+import { TEXTOS_REBASE, TEXTOS_TERMO } from './DialogosFaseFinal';
+import { type EstadoRebase, type ResultadoRebase, avaliarRebase } from './boss/RebaseFaseFinal';
 import { avaliarPuzzle } from './puzzles/avaliadoresPuzzle';
 import { ERROS_PARA_DICA, PUZZLES, TEXTOS_PUZZLE } from './puzzles/definicoesPuzzles';
 import type { EstadoPuzzle, FatosAndar, ResultadoPuzzle } from './puzzles/tiposPuzzle';
@@ -30,6 +31,18 @@ export interface ContextoPuzzleAndar extends ContextoInterpretador {
   ultimo?: ResultadoPuzzle;
 }
 
+/** Terminal do golpe final (rebase). */
+export interface ContextoRebase extends ContextoInterpretador {
+  puzzle: 'rebase';
+  estado: EstadoRebase;
+  resolvido: boolean;
+  tentativas: number;
+  ultimo?: ResultadoRebase;
+}
+
+/** A partir de quantas tentativas sem acertar a dica aparece junto da resposta. */
+export const TENTATIVAS_PARA_DICA_REBASE = 3;
+
 export const ACOES_FASE_FINAL = {
   TERMO_ACEITO: 'TERMO_ACEITO',
   TERMO_RECUSADO: 'TERMO_RECUSADO',
@@ -39,6 +52,9 @@ export const ACOES_FASE_FINAL = {
   PUZZLE_FORMATO: 'PUZZLE_FORMATO',
   AJUDA: 'AJUDA',
   LIMPAR: 'LIMPAR_TERMINAL',
+  REBASE_RESOLVIDO: 'REBASE_RESOLVIDO',
+  REBASE_ALTERADO: 'REBASE_ALTERADO',
+  REBASE_INFO: 'REBASE_INFO',
 } as const;
 
 const COMANDOS_AJUDA = new Set(['help', 'ajuda', 'help()', 'ajuda()', '?']);
@@ -56,6 +72,8 @@ export function interpretarComandoFaseFinal(entrada: string, contexto?: Contexto
       return interpretarTermo(texto, contexto as ContextoTermo);
     case 'andar':
       return interpretarPuzzleAndar(entrada, texto, contexto as ContextoPuzzleAndar);
+    case 'rebase':
+      return interpretarRebase(entrada, texto, contexto as ContextoRebase);
     default:
       return { sucesso: false, mensagem: '[ERRO] Este terminal está desconectado da torre.' };
   }
@@ -89,6 +107,62 @@ function interpretarPuzzleAndar(entrada: string, texto: string, ctx: ContextoPuz
     mensagem: `${TEXTOS_PUZZLE.EXECUTANDO}\n${def.execucaoErro(resultado.erro, resultado.dados)}`,
     acao: ACOES_FASE_FINAL.PUZZLE_ERRADO,
   };
+}
+
+/* =========================================================================
+ * REBASE FINAL
+ * ========================================================================= */
+
+function interpretarRebase(entrada: string, texto: string, ctx: ContextoRebase): ResultadoComando {
+  ctx.ultimo = undefined;
+  if (ctx.resolvido) return { sucesso: true, mensagem: TEXTOS_REBASE.JA_RESOLVIDO };
+  if (COMANDOS_AJUDA.has(texto)) {
+    const linhas: string[] = [...TEXTOS_REBASE.AJUDA];
+    if (ctx.tentativas >= TENTATIVAS_PARA_DICA_REBASE) linhas.push(TEXTOS_REBASE.DICA);
+    return { sucesso: true, mensagem: linhas.join('\n'), acao: ACOES_FASE_FINAL.AJUDA };
+  }
+
+  const r = avaliarRebase(entrada, ctx.estado);
+  ctx.ultimo = r;
+  const comDica = (msg: string) =>
+    ctx.tentativas >= TENTATIVAS_PARA_DICA_REBASE ? `${msg}\n${TEXTOS_REBASE.DICA}` : msg;
+
+  switch (r.status) {
+    case 'resolvido':
+      ctx.estado = r.estado;
+      ctx.resolvido = true;
+      return { sucesso: true, mensagem: TEXTOS_REBASE.RESOLVIDO.join('\n'), acao: ACOES_FASE_FINAL.REBASE_RESOLVIDO };
+    case 'alterado': {
+      ctx.estado = r.estado;
+      if (r.acao === 'pick') {
+        return { sucesso: true, mensagem: TEXTOS_REBASE.PICK(r.hash), acao: ACOES_FASE_FINAL.REBASE_ALTERADO };
+      }
+      ctx.tentativas++;
+      return {
+        sucesso: false,
+        mensagem: comDica(TEXTOS_REBASE.PIADAS_DROP[r.hash] ?? TEXTOS_REBASE.FORMATO),
+        acao: ACOES_FASE_FINAL.REBASE_ALTERADO,
+      };
+    }
+    case 'sem_mudanca':
+      return { sucesso: true, mensagem: TEXTOS_REBASE.JA_ESTA(r.hash, r.acao), acao: ACOES_FASE_FINAL.REBASE_INFO };
+    case 'continuar':
+      ctx.tentativas++;
+      return { sucesso: false, mensagem: comDica(TEXTOS_REBASE.CONTINUAR), acao: ACOES_FASE_FINAL.REBASE_INFO };
+    case 'formato': {
+      const mensagem =
+        r.motivo === 'hash_inexistente'
+          ? TEXTOS_REBASE.HASH_INEXISTENTE(r.hash ?? '')
+          : r.motivo === 'so_hash'
+            ? TEXTOS_REBASE.SO_HASH
+            : r.motivo === 'sem_hash'
+              ? TEXTOS_REBASE.SEM_HASH
+              : r.motivo === 'outro_comando'
+                ? TEXTOS_REBASE.OUTRO_COMANDO
+                : TEXTOS_REBASE.FORMATO;
+      return { sucesso: false, mensagem, acao: ACOES_FASE_FINAL.REBASE_INFO };
+    }
+  }
 }
 
 /* =========================================================================

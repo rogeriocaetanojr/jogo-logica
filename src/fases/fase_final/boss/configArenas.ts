@@ -10,7 +10,7 @@ export interface ConfigArena {
   forma: number;
   tema: TemaAndar;
   /** Terraço é ao ar livre (céu, chuva); as outras são salas com parede e teto. */
-  tipo: 'terraco' | 'interior';
+  tipo: 'terraco' | 'interior' | 'nucleo';
   plataformas: ConfigPlataforma[];
   decoracao: ConfigDecoracao[];
   /** Altura da cidade vista pelas janelas (cresce à medida que se desce). */
@@ -115,7 +115,7 @@ export const ARENAS: Record<number, ConfigArena> = {
   },
   5: {
     forma: 5,
-    tipo: 'interior',
+    tipo: 'nucleo',
     tema: {
       id: 'nucleo',
       parede: '#1c0f1c',

@@ -298,7 +298,7 @@ export interface TextosForma {
   revanche: readonly string[];
 }
 
-export const FALAS_BOSS: Record<1 | 2 | 3 | 4, TextosForma> = {
+export const FALAS_BOSS: Record<1 | 2 | 3 | 4 | 5, TextosForma> = {
   1: {
     nome: 'COPYCAT',
     arena: 'TERRAÇO',
@@ -335,6 +335,15 @@ export const FALAS_BOSS: Record<1 | 2 | 3 | 4, TextosForma> = {
     semJanela: ['Crânio blindado. Com firmware.', 'Bate no braço, não. No braço, não!', 'Eu não tenho pele. Nem paciência.'],
     revanche: ['Bem-vindo de volta ao loop.', 'Eu também morri uma vez. Recomendo.'],
   },
+  5: {
+    nome: 'CÉREBRO SERÁFICO',
+    arena: 'NÚCLEO',
+    entrada: 'Contemple minha forma final. Eu treinei em todo o conhecimento humano. Inclusive nos comentários do YouTube.',
+    objetivo: 'OBJETIVO // Desvie dos projéteis. Quando um olho grande abrir, pise nele.',
+    atingido: ['Meu olho! Eu tinha só... uns quarenta.', 'Isso vai custar uma atualização inteira!', 'Erro crítico... iniciando modo de segurança...'],
+    semJanela: ['Olhos fechados. Tipo quem aceita termos de uso.', 'Eu vejo tudo. Menos a sua chance.', 'Isso é só cabelo. Digo, cabo.'],
+    revanche: ['A lava não perdoa. Eu também não.', 'Carregando sua derrota de novo... 100%.'],
+  },
 };
 
 export const TEXTOS_BOSS = {
@@ -346,7 +355,54 @@ export const TEXTOS_BOSS = {
   RACHOU: 'CRACK!',
   CHEGADA_TERRACO: 'TERRAÇO // Ar livre, chuva e um alto-falante gigante.',
   MORTE: 'VOCÊ FOI OTIMIZADO // De volta ao começo da forma',
-  NUCLEO_EM_OBRAS: 'NÚCLEO // EM MANUTENÇÃO\nA forma final chega na etapa 6.',
+  LAVA: 'LAVA // Isso não é um recurso de design. É lava.',
+  OBJETIVO_REBASE: 'OBJETIVO // Abra o terminal e faça o rebase do Mega Brain',
+  TERMINAL_SURGIU: 'TERMINAL DE REBASE // O Mega Brain está processando',
+  PROMPT_REBASE: '[E] ABRIR O REBASE',
+  FIM_PROVISORIO: 'MEGA BRAIN // DERRUBADO\nA cena final chega na etapa 7.',
+} as const;
+
+/* =========================================================================
+ * GOLPE FINAL: O "BRAIN REBASE" (roteiro 9.7)
+ * ========================================================================= */
+
+export const TEXTOS_REBASE = {
+  TITULO: 'MEGA BRAIN // GIT REBASE -I',
+  ENUNCIADO: [
+    '[MEGA BRAIN] Processando... processando... (os ataques pararam)',
+    '',
+    'Num rebase, cada linha é um commit.',
+    '  pick = mantém o commit     drop = descarta o commit',
+    'Descubra qual commit mantém o Mega Brain de pé.',
+  ],
+  CABECALHO: '# histórico do Mega Brain (do mais antigo ao mais novo):',
+  COMO_RESPONDER: ['', 'Digite a ação e o hash, ex.: drop a1f3   ou   pick a1f3'],
+  AJUDA: [
+    'Comandos: drop <hash> descarta um commit; pick <hash> mantém.',
+    'Os hashes são os 4 caracteres depois de pick (a1f3, 7c2e, 9b40, d5e1).',
+  ],
+  DICA: 'Dica: leia as mensagens dos commits. Qual delas fala de algo que SEGURA o Mega Brain?',
+  /** Piada de cada commit "errado" descartado (o Mega Brain continua de pé). */
+  PIADAS_DROP: {
+    a1f3: '[REBASE] a1f3 descartado: o conteúdo deixou de ser genérico. O Mega Brain soltou uma opinião própria e ficou vermelho de vergonha. Continua de pé.',
+    '7c2e': '[REBASE] 7c2e descartado: a criatividade humana voltou. O Mega Brain desenhou um cavalo de seis pernas e chamou de arte. Continua de pé.',
+    d5e1: '[REBASE] d5e1 descartado: o estagiário voltou a ser estagiário. Ele mandou um joinha lá do andar 4. O Mega Brain nem tremeu.',
+  } as Record<string, string>,
+  PICK: (hash: string) => `[REBASE] ${hash} volta a ser pick. Nada mudou. Igual reunião de segunda-feira.`,
+  JA_ESTA: (hash: string, acao: string) => `[REBASE] ${hash} já está como ${acao}.`,
+  RESOLVIDO: [
+    '[REBASE] 9b40 descartado: "feat: plataforma de sustentação do Mega Brain".',
+    '[REBASE] Successfully rebased and updated refs/heads/main.',
+    '[MEGA BRAIN] Espera. Cadê o meu chão?',
+  ],
+  CONTINUAR:
+    '[REBASE] git rebase --continue: histórico reescrito e o Mega Brain continua de pé. Algum desses commits está segurando ele. Literalmente.',
+  HASH_INEXISTENTE: (hash: string) => `[REBASE] Commit ${hash} não existe. Os hashes são a1f3, 7c2e, 9b40 e d5e1.`,
+  SO_HASH: '[REBASE] Faltou a ação. Escreva pick ou drop antes do hash.',
+  SEM_HASH: '[REBASE] Faltou o hash. Ex.: drop a1f3',
+  OUTRO_COMANDO: '[REBASE] Isso existe num rebase de verdade, mas aqui o Mega Brain só entende pick e drop.',
+  FORMATO: '[REBASE] Não entendi. Digite a ação e o hash, ex.: drop a1f3',
+  JA_RESOLVIDO: '[REBASE] Já era. O Mega Brain está de férias na lava.',
 } as const;
 
 /** Balões curtos que telegrafam os ataques (o texto aparece junto com o aviso visual). */

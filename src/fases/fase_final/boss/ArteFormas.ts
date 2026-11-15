@@ -657,3 +657,335 @@ export function desenharGarra(p: Pincel, q: number): void {
     p.ponto(x1 + curva, meio + 7, OURO.claro);
   }
 }
+
+/* =========================================================================
+ * FORMA 5: CÉREBRO SERÁFICO — corpo 128x100 (2 quadros: olhinhos abertos/piscando),
+ * olhos grandes 28x20 (fechado, abrindo, aberto, ferido) e tela do rosto 30x22 (8 rostos)
+ * ========================================================================= */
+
+const CARNE = { claro: '#ff8fc0', base: '#c2477a', escuro: '#7a1f4a', fundo: '#4a0f2c' };
+
+/** Olhinho na superfície do cérebro (aberto ou piscando). */
+function olhinho(p: Pincel, x: number, y: number, r: number, aberto: boolean): void {
+  if (!aberto) {
+    p.px(x - r, y, r * 2 + 1, 1, CARNE.fundo);
+    return;
+  }
+  p.elipse(x, y, r + 1, r, CARNE.fundo);
+  p.elipse(x, y, r, Math.max(1, r - 1), '#f2f0f6');
+  p.disco(x, y, Math.max(1, r - 2), COR.vermelho);
+  p.ponto(x, y, '#05050c');
+  p.ponto(x - 1, y - 1, '#ffffff');
+}
+
+export function desenharCerebro(p: Pincel, q: number): void {
+  const cx = 64;
+  // Massa do cérebro: lóbulos sobrepostos
+  const lobulos: Array<[number, number, number]> = [
+    [26, 34, 20],
+    [46, 22, 20],
+    [64, 18, 20],
+    [82, 22, 20],
+    [102, 34, 20],
+    [18, 56, 18],
+    [110, 56, 18],
+    [40, 62, 22],
+    [88, 62, 22],
+    [64, 50, 26],
+    [30, 78, 14],
+    [98, 78, 14],
+  ];
+  for (const [x, y, r] of lobulos) p.disco(x, y, r + 1, CARNE.fundo);
+  for (const [x, y, r] of lobulos) p.disco(x, y, r, CARNE.base);
+  // Volume: sombra pontilhada embaixo e brilho em cima de cada lóbulo
+  for (let y = 0; y < 100; y++) {
+    for (let x = 0; x < 128; x++) {
+      const dentro = lobulos.some(([lx, ly, r]) => (x - lx) ** 2 + (y - ly) ** 2 <= r * r);
+      if (!dentro) continue;
+      if (y > 56 && (y - 56) / 40 > bayer(x, y) + 0.2) p.ponto(x, y, CARNE.escuro);
+    }
+  }
+  for (const [x, y, r] of lobulos) if (y < 60) p.elipse(x - r * 0.3, y - r * 0.55, Math.max(2, Math.round(r * 0.45)), 2, CARNE.claro);
+  // Sulcos e fissura central
+  const sulco = (pts: Array<[number, number]>) => {
+    for (let i = 0; i < pts.length - 1; i++) p.linha(pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1], CARNE.fundo);
+  };
+  sulco([[16, 40], [24, 34], [32, 40], [38, 32]]);
+  sulco([[90, 32], [96, 40], [104, 34], [112, 42]]);
+  sulco([[44, 30], [52, 26], [56, 34]]);
+  sulco([[72, 34], [76, 26], [84, 30]]);
+  sulco([[14, 62], [22, 58], [26, 66]]);
+  sulco([[102, 66], [106, 58], [114, 62]]);
+  sulco([[30, 74], [36, 70], [40, 78]]);
+  sulco([[88, 78], [92, 70], [98, 74]]);
+  p.px(cx - 1, 4, 2, 30, CARNE.fundo);
+  // Placas de metal grampeadas na carne
+  const placas: Array<[number, number, number, number]> = [
+    [6, 46, 14, 10],
+    [108, 44, 14, 10],
+    [54, 82, 20, 8],
+  ];
+  for (const [x, y, w, h] of placas) {
+    placa(p, x, y, w, h, COR.metal);
+    for (let i = 2; i < w - 2; i += 4) p.px(x + i, y - 2, 1, h + 4, COR.metalClaro);
+  }
+  // Muitos olhinhos
+  const olhos: Array<[number, number, number]> = [
+    [30, 46, 3],
+    [98, 46, 3],
+    [20, 66, 2],
+    [108, 66, 2],
+    [44, 72, 3],
+    [84, 72, 3],
+    [36, 26, 2],
+    [92, 26, 2],
+    [64, 30, 2],
+    [16, 84, 2],
+    [112, 84, 2],
+  ];
+  olhos.forEach(([x, y, r], i) => olhinho(p, x, y, r, q === 0 || i % 3 !== 0));
+  // Moldura da tela do rosto (o rosto é outra textura por cima)
+  p.px(cx - 18, 44, 36, 28, COR.contorno);
+  p.px(cx - 17, 45, 34, 26, '#2b2f45');
+  p.px(cx - 16, 46, 32, 24, '#05070f');
+  p.px(cx - 17, 45, 34, 1, COR.metalClaro);
+  rebite(p, cx - 16, 70);
+  rebite(p, cx + 14, 70);
+  // Cabos saindo de baixo
+  const cabos: Array<[number, string]> = [
+    [40, COR.magenta],
+    [52, COR.ciano],
+    [76, COR.ciano],
+    [88, COR.magenta],
+  ];
+  for (const [x0, cor] of cabos) {
+    p.px(x0, 86, 3, 14, COR.contorno);
+    p.px(x0 + 1, 86, 1, 14, cor);
+  }
+}
+
+/** Olho grande do cérebro (28x20): 0 fechado, 1 abrindo, 2 aberto (íris no código), 3 ferido. */
+export function desenharOlhoGrande(p: Pincel, q: number): void {
+  const cx = 14;
+  const cy = 10;
+  p.elipse(cx, cy, 13, 9, CARNE.fundo);
+  p.elipse(cx, cy, 12, 8, CARNE.base);
+  if (q === 0) {
+    p.linha(cx - 10, cy, cx + 10, cy, CARNE.fundo);
+    p.linha(cx - 10, cy + 1, cx + 10, cy + 1, CARNE.escuro);
+    for (let x = cx - 8; x <= cx + 8; x += 4) p.linha(x, cy + 1, x - 1, cy + 4, CARNE.fundo);
+    return;
+  }
+  if (q === 3) {
+    p.elipse(cx, cy, 10, 6, '#3a1030');
+    p.linha(cx - 6, cy - 5, cx + 6, cy + 5, COR.ciano);
+    p.linha(cx + 6, cy - 5, cx - 6, cy + 5, COR.ciano);
+    p.linha(cx - 5, cy - 5, cx + 7, cy + 5, '#ffffff');
+    return;
+  }
+  const ry = q === 1 ? 3 : 7;
+  p.elipse(cx, cy, 11, ry, '#f6f2f8');
+  for (let x = cx - 9; x <= cx + 9; x += 3) p.ponto(x, cy + ry - 1, '#e2b8c8');
+  p.linha(cx - 10, cy - 1, cx - 6, cy - 2, '#d86a8a');
+  p.linha(cx + 6, cy + 2, cx + 10, cy + 1, '#d86a8a');
+  if (q === 2) p.linha(cx - 11, cy - ry, cx + 11, cy - ry, CARNE.fundo);
+  else p.disco(cx, cy, 2, COR.vermelho);
+}
+
+/** Tela do rosto (30x22): 0 neutro, 1 raiva, 2 risada, 3 susto, 4 tonto, 5 processando, 6 joinha, 7 vergonha. */
+export function desenharTelaRosto(p: Pincel, q: number): void {
+  p.px(0, 0, 30, 22, '#05070f');
+  for (let y = 1; y < 22; y += 3) p.px(0, y, 30, 1, '#0b1020');
+  const cx = 15;
+  const cy = 11;
+  const amarelo = q === 1 ? '#ff9a3c' : '#ffd84a';
+  const tinta = '#3a2408';
+  if (q === 5) {
+    poligono(p, [[10, 3], [20, 3], [15, 11]], '#cfd6f2');
+    poligono(p, [[15, 11], [10, 19], [20, 19]], '#cfd6f2');
+    p.px(9, 2, 12, 2, COR.metalClaro);
+    p.px(9, 18, 12, 2, COR.metalClaro);
+    poligono(p, [[12, 17], [18, 17], [15, 13]], COR.janelaQuente);
+    for (const x of [23, 25, 27]) p.ponto(x, 18, COR.ciano);
+    return;
+  }
+  if (q === 6) {
+    p.px(10, 10, 9, 8, '#ffd84a');
+    p.px(13, 3, 4, 8, '#ffd84a');
+    p.moldura(10, 10, 9, 8, tinta);
+    p.moldura(13, 3, 4, 8, tinta);
+    for (const y of [12, 14, 16]) p.px(11, y, 7, 1, '#e0b030');
+    p.px(19, 10, 3, 8, COR.metal);
+    return;
+  }
+  p.disco(cx, cy, 9, tinta);
+  p.disco(cx, cy, 8, amarelo);
+  p.px(cx - 5, cy - 6, 4, 1, '#fff2b0');
+  switch (q) {
+    case 0:
+      p.px(cx - 4, cy - 3, 2, 3, tinta);
+      p.px(cx + 2, cy - 3, 2, 3, tinta);
+      p.px(cx - 3, cy + 4, 6, 1, tinta);
+      break;
+    case 1:
+      p.linha(cx - 6, cy - 5, cx - 2, cy - 3, tinta);
+      p.linha(cx + 6, cy - 5, cx + 2, cy - 3, tinta);
+      p.px(cx - 4, cy - 2, 2, 2, tinta);
+      p.px(cx + 2, cy - 2, 2, 2, tinta);
+      p.linha(cx - 4, cy + 5, cx, cy + 3, tinta);
+      p.linha(cx, cy + 3, cx + 4, cy + 5, tinta);
+      break;
+    case 2:
+      p.linha(cx - 5, cy - 2, cx - 3, cy - 4, tinta);
+      p.linha(cx - 3, cy - 4, cx - 1, cy - 2, tinta);
+      p.linha(cx + 1, cy - 2, cx + 3, cy - 4, tinta);
+      p.linha(cx + 3, cy - 4, cx + 5, cy - 2, tinta);
+      p.px(cx - 5, cy + 1, 11, 2, tinta);
+      p.px(cx - 4, cy + 3, 9, 2, '#a3203a');
+      p.px(cx - 3, cy + 5, 7, 1, tinta);
+      p.px(cx - 8, cy - 1, 2, 3, COR.janelaFria);
+      p.px(cx + 7, cy - 1, 2, 3, COR.janelaFria);
+      break;
+    case 3:
+      p.disco(cx - 3, cy - 2, 2, '#ffffff');
+      p.disco(cx + 3, cy - 2, 2, '#ffffff');
+      p.ponto(cx - 3, cy - 2, tinta);
+      p.ponto(cx + 3, cy - 2, tinta);
+      p.elipse(cx, cy + 4, 2, 3, tinta);
+      p.px(cx + 7, cy - 6, 2, 3, COR.janelaFria);
+      break;
+    case 4:
+      p.linha(cx - 5, cy - 4, cx - 2, cy - 1, tinta);
+      p.linha(cx - 2, cy - 4, cx - 5, cy - 1, tinta);
+      p.linha(cx + 2, cy - 4, cx + 5, cy - 1, tinta);
+      p.linha(cx + 5, cy - 4, cx + 2, cy - 1, tinta);
+      for (let x = cx - 4; x < cx + 4; x += 2) p.ponto(x, cy + 4 + (x % 4 === 0 ? 0 : 1), tinta);
+      break;
+    case 7:
+      p.px(cx - 4, cy - 2, 2, 2, tinta);
+      p.px(cx + 3, cy - 2, 2, 2, tinta);
+      p.px(cx - 7, cy + 1, 3, 2, '#ff6a8a');
+      p.px(cx + 5, cy + 1, 3, 2, '#ff6a8a');
+      for (let x = cx - 3; x < cx + 3; x += 2) p.ponto(x, cy + 4 + (x % 4 === 0 ? 0 : 1), tinta);
+      break;
+  }
+}
+
+/** Projétil de risada (14x14). */
+export const QUADROS_PROJETIL = 6;
+
+/** Projéteis do leque (14x14, 6 quadros): mistura de computação e lembranças das fases anteriores. */
+export function desenharEmojiProjetil(p: Pincel, q: number): void {
+  const K = '#05050c';
+  switch (q) {
+    case 0: // bug
+      p.disco(7, 8, 4, K);
+      p.disco(7, 8, 3, '#4adf6a');
+      p.px(6, 3, 2, 2, K);
+      p.ponto(5, 7, K);
+      p.ponto(9, 7, K);
+      p.px(1, 6, 3, 1, K);
+      p.px(10, 6, 3, 1, K);
+      p.px(1, 10, 3, 1, K);
+      p.px(10, 10, 3, 1, K);
+      p.ponto(6, 6, '#fff2b0');
+      break;
+    case 1: // chaves { }
+      p.px(2, 1, 10, 12, K);
+      p.px(3, 2, 8, 10, '#1b2a4a');
+      p.px(4, 3, 2, 8, '#6fe3ff');
+      p.px(3, 6, 2, 2, '#6fe3ff');
+      p.px(8, 3, 2, 8, '#6fe3ff');
+      p.px(9, 6, 2, 2, '#6fe3ff');
+      break;
+    case 2: // erro 404
+      p.px(0, 2, 14, 10, K);
+      p.px(1, 3, 12, 8, '#a3203a');
+      p.px(2, 5, 2, 4, '#fff2b0');
+      p.px(5, 5, 2, 4, '#fff2b0');
+      p.px(8, 5, 2, 4, '#fff2b0');
+      p.px(10, 7, 2, 2, '#fff2b0');
+      p.px(3, 4, 1, 1, '#a3203a');
+      break;
+    case 3: // pasta de arquivo
+      p.px(1, 3, 12, 9, K);
+      p.px(2, 4, 10, 7, '#ffd36b');
+      p.px(1, 2, 5, 2, K);
+      p.px(2, 3, 3, 1, '#ffd36b');
+      p.px(3, 6, 8, 1, '#c28a1a');
+      break;
+    case 4: // raio de vento (fase 1)
+      p.disco(7, 7, 6, K);
+      p.disco(7, 7, 5, '#bfefff');
+      p.px(3, 5, 7, 1, '#ffffff');
+      p.px(5, 8, 6, 1, '#7fc8ff');
+      p.px(3, 10, 5, 1, '#ffffff');
+      break;
+    default: // âncora (fase do porto)
+      p.px(6, 1, 2, 9, K);
+      p.px(2, 4, 10, 2, K);
+      p.px(1, 8, 12, 4, K);
+      p.px(6, 2, 2, 8, '#c9d4e6');
+      p.px(3, 4, 8, 1, '#c9d4e6');
+      p.px(2, 9, 2, 2, '#c9d4e6');
+      p.px(10, 9, 2, 2, '#c9d4e6');
+      p.px(4, 11, 6, 1, '#c9d4e6');
+      break;
+  }
+}
+
+/** Anel que cai do alto (16x16, vazado no meio). */
+export function desenharAnelProjetil(p: Pincel): void {
+  for (let y = 0; y < 16; y++) {
+    for (let x = 0; x < 16; x++) {
+      const d = Math.hypot(x - 7.5, y - 7.5);
+      if (d > 7.5 || d < 3) continue;
+      p.ponto(x, y, d > 6.5 || d < 4 ? COR.contorno : COR.magenta);
+    }
+  }
+  p.ponto(5, 3, '#ffd6f6');
+  p.ponto(7, 1, COR.ciano);
+  p.ponto(8, 14, COR.ciano);
+}
+
+/* =========================================================================
+ * NÚCLEO: plataformas suspensas e o mecanismo de sustentação (commit 9b40)
+ * ========================================================================= */
+
+/** Laje de grade metálica (ladrilho 32x24). */
+export function desenharLaje(p: Pincel, acento: string): void {
+  p.px(0, 0, 32, 24, '#14121c');
+  p.px(0, 0, 32, 4, COR.metal);
+  p.px(0, 0, 32, 1, COR.metalClaro);
+  for (let x = 1; x < 32; x += 4) p.px(x, 1, 2, 2, '#2b2f45');
+  p.px(0, 4, 32, 2, acento);
+  for (let x = 0; x < 32; x += 8) {
+    p.px(x, 6, 4, 3, COR.janelaQuente);
+    p.px(x + 4, 6, 4, 3, '#1a1a1a');
+  }
+  p.px(0, 9, 32, 15, '#1c1a28');
+  for (let x = 2; x < 32; x += 8) {
+    p.linha(x, 10, x + 6, 22, '#2b2838');
+    p.linha(x + 6, 10, x, 22, '#2b2838');
+  }
+  p.px(0, 23, 32, 1, '#05050c');
+}
+
+/** Pistão hidráulico (ladrilho vertical 28x16). */
+export function desenharPistao(p: Pincel): void {
+  p.px(0, 0, 28, 16, COR.contorno);
+  p.px(2, 0, 24, 16, '#4a5172');
+  p.px(4, 0, 6, 16, '#8a93b8');
+  p.px(5, 0, 2, 16, '#c3cae6');
+  p.px(20, 0, 4, 16, '#2b2f45');
+  p.px(2, 14, 24, 2, '#2b2f45');
+}
+
+/** Placa luminosa do commit que segura o Mega Brain (80x16): 0 acesa, 1 vermelha (dropado). */
+export function desenharPlacaCommit(p: Pincel, q: number): void {
+  const acesa = q === 0;
+  p.px(0, 0, 80, 16, COR.contorno);
+  p.px(1, 1, 78, 14, '#0a0b18');
+  p.moldura(2, 2, 76, 12, acesa ? COR.janelaQuente : COR.vermelho);
+  p.textoCentro(acesa ? 'COMMIT 9B40' : 'DROP 9B40', 40, 5, acesa ? COR.janelaQuente : COR.vermelho, 1);
+}

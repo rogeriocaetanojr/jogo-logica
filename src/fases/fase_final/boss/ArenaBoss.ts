@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { COR, hexNum } from '../ArteFaseFinal';
+import { COR, hexNum, texturaBrilho } from '../ArteFaseFinal';
 import { ANDAR_FASE_FINAL, BOSS_FASE_FINAL, ESCALA_ARTE } from '../constantesFaseFinal';
 import { TEX_EXTERIOR, gerarTexturasExterior } from '../exterior/TexturasExterior';
 import {
@@ -11,7 +11,10 @@ import {
   texturaPlataforma,
 } from '../andares/TexturasAndar';
 import { type ConfigArena, VAO_QUEDA } from './configArenas';
+import { Particulas } from './EfeitosBoss';
 import { TEX_BOSS, gerarTexturasBoss } from './TexturasBoss';
+
+const N = BOSS_FASE_FINAL.NUCLEO;
 
 const A = ANDAR_FASE_FINAL;
 const B = BOSS_FASE_FINAL;
@@ -28,8 +31,17 @@ export class ArenaBoss {
   public readonly umaVia: Phaser.Physics.Arcade.StaticGroup;
 
   private readonly cena: Phaser.Scene;
-  private pisoMeio!: Phaser.GameObjects.TileSprite;
-  private zonaMeio!: Phaser.GameObjects.Zone;
+  private pisoMeio?: Phaser.GameObjects.TileSprite;
+  private zonaMeio?: Phaser.GameObjects.Zone;
+  // Núcleo (forma 5)
+  private lava?: Phaser.GameObjects.Graphics;
+  private particulasLava?: Particulas;
+  private acumuladorBrasaMs: number = 0;
+  private plataformaBoss: Array<Phaser.GameObjects.TileSprite | Phaser.GameObjects.Sprite | Phaser.GameObjects.Image> = [];
+  private zonaPlataformaBoss?: Phaser.GameObjects.Zone;
+  private placaCommit?: Phaser.GameObjects.Sprite;
+  private correntesBoss?: Phaser.GameObjects.Graphics;
+  private pistao?: Phaser.GameObjects.TileSprite;
 
   constructor(cena: Phaser.Scene, cfg: ConfigArena, buracoNoTeto: boolean) {
     this.cena = cena;
@@ -43,7 +55,8 @@ export class ArenaBoss {
 
     if (cfg.tipo === 'terraco') this.criarTerraco();
     else this.criarSala(buracoNoTeto);
-    this.criarPiso();
+    if (cfg.tipo === 'nucleo') this.criarNucleo();
+    else this.criarPiso();
     this.criarPlataformas();
   }
 
@@ -159,13 +172,15 @@ export class ArenaBoss {
       }
     }
 
-    if (buracoNoTeto) this.desenharBuracoNoTeto();
+    if (buracoNoTeto) {
+      const buracos = this.cfg.tipo === 'nucleo' ? N.BURACOS_TETO : [[VAO_QUEDA.x0, VAO_QUEDA.x1] as const];
+      for (const [x0, x1] of buracos) this.desenharBuracoNoTeto(x0, x1);
+    }
   }
 
   /** Por onde os dois acabaram de cair: rombo no teto com vergalhões e fios pendurados. */
-  private desenharBuracoNoTeto(): void {
+  private desenharBuracoNoTeto(x0: number, x1: number): void {
     const g = this.cena.add.graphics().setDepth(-8);
-    const { x0, x1 } = VAO_QUEDA;
     const recortes = [0, 14, 6, 22, 10, 26, 8, 18, 4, 16, 0];
     const passo = (x1 - x0) / (recortes.length - 1);
     const pontos = [new Phaser.Math.Vector2(x0, 0)];
@@ -231,6 +246,185 @@ export class ArenaBoss {
   }
 
   /* =======================================================================
+   * NÚCLEO: LAVA, PLATAFORMAS SUSPENSAS E O MECANISMO DO COMMIT 9b40
+   * ======================================================================= */
+
+  private criarNucleo(): void {
+    const cena = this.cena;
+    const pj = N.PLATAFORMA_JOGADOR;
+    const pb = N.PLATAFORMA_BOSS;
+
+    // Brilho de fogo subindo da lava pelas paredes
+    const brilho = cena.add.graphics().setDepth(-9).setBlendMode(Phaser.BlendModes.ADD);
+    brilho.fillGradientStyle(0xff5a1a, 0xff5a1a, 0xff5a1a, 0xff5a1a, 0, 0, 0.45, 0.45);
+    brilho.fillRect(0, 260, B.LARGURA, N.LAVA_Y - 260);
+    for (const x of [200, 640, 1080]) {
+      cena.add
+        .image(x, N.LAVA_Y, texturaBrilho(cena))
+        .setTint(0xff7a1a)
+        .setBlendMode(Phaser.BlendModes.ADD)
+        .setScale(5, 2.2)
+        .setAlpha(0.35)
+        .setDepth(-8);
+    }
+
+    // Correntes do teto segurando as plataformas
+    const correntes = cena.add.graphics().setDepth(7);
+    this.desenharCorrente(correntes, pj.x0 + 40, pj.topo);
+    this.desenharCorrente(correntes, pj.x1 - 30, pj.topo);
+    this.correntesBoss = cena.add.graphics().setDepth(7);
+    this.desenharCorrente(this.correntesBoss, pb.x0 + 24, pb.topo);
+    this.desenharCorrente(this.correntesBoss, pb.x1 - 24, pb.topo);
+
+    // Plataforma do jogador
+    cena.add
+      .tileSprite(pj.x0, pj.topo, (pj.x1 - pj.x0) / S, 24, TEX_BOSS.LAJE_JOGADOR)
+      .setOrigin(0)
+      .setScale(S)
+      .setDepth(8);
+    this.solidos.add(cena.add.zone((pj.x0 + pj.x1) / 2, pj.topo + 15, pj.x1 - pj.x0, 30));
+
+    // Plataforma do Mega Brain, o pistão que a sustenta e a placa do commit
+    const xPistao = (pb.x0 + pb.x1) / 2;
+    this.pistao = cena.add
+      .tileSprite(xPistao, pb.topo + 40, 28, (A.ALTURA - pb.topo) / S, TEX_BOSS.PISTAO)
+      .setOrigin(0.5, 0)
+      .setScale(S)
+      .setDepth(7.5);
+    const laje = cena.add
+      .tileSprite(pb.x0, pb.topo, (pb.x1 - pb.x0) / S, 24, TEX_BOSS.LAJE_BOSS)
+      .setOrigin(0)
+      .setScale(S)
+      .setDepth(8);
+    this.placaCommit = cena.add.sprite(xPistao, pb.topo + 30, TEX_BOSS.PLACA_COMMIT, 0).setScale(S).setDepth(8.5);
+    const brilhoPlaca = cena.add
+      .image(xPistao, pb.topo + 30, texturaBrilho(cena))
+      .setTint(hexNum(COR.janelaQuente))
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setScale(1.8, 0.5)
+      .setAlpha(0.35)
+      .setDepth(8.4);
+    this.zonaPlataformaBoss = cena.add.zone(xPistao, pb.topo + 15, pb.x1 - pb.x0, 30);
+    this.solidos.add(this.zonaPlataformaBoss);
+    this.plataformaBoss = [laje, this.placaCommit, brilhoPlaca];
+
+    // Ressaltos de uma via para alcançar os olhos
+    for (const r of N.RESSALTOS) {
+      const cfg = { tipo: 'passarela' as const, x: r.x, topo: r.topo, largura: r.largura };
+      cena.add.image(r.x, r.topo, texturaPlataforma(cena, cfg, this.cfg.tema)).setOrigin(0.5, 0).setScale(S).setDepth(8);
+      this.umaVia.add(cena.add.zone(r.x, r.topo + 8, r.largura, 16));
+      this.desenharCorrente(correntes, r.x, r.topo);
+    }
+
+    this.lava = cena.add.graphics().setDepth(9);
+    this.particulasLava = new Particulas(cena, 9.5);
+  }
+
+  /** Corrente do teto até um ponto (elos alternados). */
+  private desenharCorrente(g: Phaser.GameObjects.Graphics, x: number, ate: number): void {
+    for (let y = A.TETO_Y; y < ate; y += 10) {
+      const largo = Math.floor(y / 10) % 2 === 0;
+      g.fillStyle(0x14121c, 1);
+      g.fillRect(x - (largo ? 4 : 2), y, largo ? 8 : 4, 10);
+      g.fillStyle(largo ? 0x4a5172 : 0x7b84aa, 1);
+      g.fillRect(x - (largo ? 3 : 1), y + 1, largo ? 6 : 2, 8);
+    }
+  }
+
+  /** Lava ondulando, bolhas, línguas de fogo e brasas subindo. */
+  public update(tempo: number, delta: number): void {
+    const g = this.lava;
+    if (!g) return;
+    g.clear();
+    const superficie = (x: number) => N.LAVA_Y + Math.sin(x / 40 + tempo / 400) * 4 + Math.sin(x / 17 - tempo / 250) * 2;
+    const pontos: Phaser.Math.Vector2[] = [];
+    for (let x = 0; x <= B.LARGURA; x += 16) pontos.push(new Phaser.Math.Vector2(x, superficie(x)));
+    pontos.push(new Phaser.Math.Vector2(B.LARGURA, A.ALTURA), new Phaser.Math.Vector2(0, A.ALTURA));
+    g.fillStyle(0x8a1a0a, 1);
+    g.fillPoints(pontos, true);
+    // Faixas de calor (laranja e amarelo) logo abaixo da superfície
+    for (let x = 0; x < B.LARGURA; x += 16) {
+      const y = superficie(x);
+      g.fillStyle(0xff5a1a, 1);
+      g.fillRect(x, y, 16, 10);
+      g.fillStyle(0xffb03a, 1);
+      g.fillRect(x, y, 16, 3);
+      if (Math.sin(x * 0.7 + tempo / 300) > 0.6) {
+        g.fillStyle(0xfff0a0, 1);
+        g.fillRect(x + 4, y, 6, 2);
+      }
+    }
+    // Bolhas que estouram (posições fixas, fase pelo tempo)
+    for (let i = 0; i < 14; i++) {
+      const x = 40 + i * 91;
+      const t = ((tempo / (900 + (i % 4) * 170) + i * 0.37) % 1 + 1) % 1;
+      const r = 2 + t * 7;
+      g.fillStyle(t > 0.85 ? 0xfff0a0 : 0xff7a1a, 1 - t * 0.6);
+      g.fillCircle(x, superficie(x) + 8 - t * 10, r);
+    }
+    // Línguas de fogo subindo e descendo
+    for (let i = 0; i < 9; i++) {
+      const x = 70 + i * 140;
+      const h = 18 + Math.max(0, Math.sin(tempo / 260 + i * 1.3)) * 34;
+      const y = superficie(x);
+      g.fillStyle(0xff5a1a, 0.85);
+      g.fillTriangle(x - 12, y, x + 12, y, x + Math.sin(tempo / 120 + i) * 6, y - h);
+      g.fillStyle(0xffd36b, 0.9);
+      g.fillTriangle(x - 6, y, x + 6, y, x + Math.sin(tempo / 120 + i) * 4, y - h * 0.6);
+    }
+    // Brasas
+    this.acumuladorBrasaMs += delta;
+    if (this.acumuladorBrasaMs >= 90 && this.particulasLava) {
+      this.acumuladorBrasaMs = 0;
+      const x = ((tempo * 7.3) % B.LARGURA + B.LARGURA) % B.LARGURA;
+      this.particulasLava.emitir(x, N.LAVA_Y, {
+        quantidade: 2,
+        angulo: -Math.PI / 2,
+        abertura: 0.4,
+        velocidade: [40, 120],
+        vidaMs: [900, 1600],
+        tamanho: [2, 3],
+        cores: [0xffb03a, 0xff5a1a, 0xfff0a0],
+        gravidade: -20,
+        arrasto: 0.99,
+      });
+    }
+  }
+
+  /** drop 9b40: a placa vira DROP, a plataforma se desmancha, o pistão afunda e as correntes caem. */
+  public derrubarPlataformaBoss(): void {
+    const cena = this.cena;
+    const pb = N.PLATAFORMA_BOSS;
+    if (this.zonaPlataformaBoss) (this.zonaPlataformaBoss.body as Phaser.Physics.Arcade.StaticBody).enable = false;
+    this.placaCommit?.setFrame(1);
+    let pisca = 0;
+    cena.time.addEvent({
+      delay: 90,
+      repeat: 8,
+      callback: () => {
+        pisca++;
+        this.placaCommit?.setVisible(pisca % 2 === 0);
+      },
+    });
+    cena.time.delayedCall(800, () => {
+      for (const obj of this.plataformaBoss) {
+        cena.tweens.add({
+          targets: obj,
+          y: obj.y + 260,
+          alpha: 0,
+          angle: 8,
+          duration: 1100,
+          ease: 'Quad.easeIn',
+        });
+      }
+      this.particulasLava?.detritos((pb.x0 + pb.x1) / 2, pb.topo, 30, [0x4a5172, 0x1c1a28, 0xff2a3d, 0xffd36b], N.LAVA_Y);
+      if (this.pistao) cena.tweens.add({ targets: this.pistao, y: A.ALTURA + 40, duration: 1400, ease: 'Quad.easeIn' });
+      if (this.correntesBoss) cena.tweens.add({ targets: this.correntesBoss, y: 300, alpha: 0, duration: 900, ease: 'Quad.easeIn' });
+      cena.cameras.main.shake(600, 0.008);
+    });
+  }
+
+  /* =======================================================================
    * TRANSIÇÃO: O CHÃO RACHA E CAI
    * ======================================================================= */
 
@@ -261,6 +455,7 @@ export class ArenaBoss {
   /** O trecho do meio despenca (com destroços) e deixa o poço escuro. */
   public quebrarChao(): void {
     const cena = this.cena;
+    if (!this.zonaMeio || !this.pisoMeio) return;
     (this.zonaMeio.body as Phaser.Physics.Arcade.StaticBody).enable = false;
     const w = VAO_QUEDA.x1 - VAO_QUEDA.x0;
     cena.add

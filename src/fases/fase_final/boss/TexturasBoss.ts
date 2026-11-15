@@ -2,12 +2,21 @@ import Phaser from 'phaser';
 import { COR, desenharLogoMegaBrain, folhaPixel, misturar, sombrear, texturaPixel, texturaSuave } from '../ArteFaseFinal';
 import {
   desenharAguia,
+  desenharAnelProjetil,
   desenharCanhao,
   desenharCaveira,
+  desenharCerebro,
+  desenharEmojiProjetil,
   desenharGarra,
+  desenharLaje,
   desenharLaser,
+  desenharOlhoGrande,
+  desenharPistao,
+  desenharPlacaCommit,
   desenharSerra,
+  desenharTelaRosto,
   desenharTita,
+  QUADROS_PROJETIL,
 } from './ArteFormas';
 
 /**
@@ -39,6 +48,16 @@ export const TEX_BOSS = {
   FUMACA: 'ff-fumaca',
   /** Holograma do cérebro do Mega Brain (intro do Copycat). */
   CEREBRO: 'ff-cerebro-holo',
+  /** Forma 5: corpo 128x100 (2 quadros), olho grande 28x20 (4), tela do rosto 30x22 (8). */
+  SERAFICO: 'ff-boss-serafico',
+  OLHO_GRANDE: 'ff-boss-olho-grande',
+  ROSTO: 'ff-boss-rosto',
+  EMOJI: 'ff-projetil-emoji',
+  ANEL: 'ff-projetil-anel',
+  LAJE_JOGADOR: 'ff-nucleo-laje',
+  LAJE_BOSS: 'ff-nucleo-laje-boss',
+  PISTAO: 'ff-nucleo-pistao',
+  PLACA_COMMIT: 'ff-nucleo-placa-9b40',
 } as const;
 
 /** Quadros das animações das formas (para o código das formas não depender de números soltos). */
@@ -46,6 +65,8 @@ export const QUADROS_BOSS = {
   TITA: { PARADO: 0, PREPARO: 1, INVESTIDA: 2, TRAVADO: 3, MIRA: 4, RESPIRA: 5, INVESTIDA_B: 6 },
   AGUIA: { BATER: [0, 1, 2, 3, 2, 1] as readonly number[], GRITO: 4, RASANTE: 5, PRESA: 6 },
   CAVEIRA: { NORMAL: 0, TONTA: 1, BOCA: 2, ACESA: 3 },
+  OLHO: { FECHADO: 0, ABRINDO: 1, ABERTO: 2, FERIDO: 3 },
+  ROSTO: { NEUTRO: 0, RAIVA: 1, RISADA: 2, SUSTO: 3, TONTO: 4, PROCESSANDO: 5, JOINHA: 6, VERGONHA: 7 },
 } as const;
 
 /** Caminho dos sprites finais do Copycat (um por protagonista). */
@@ -71,6 +92,15 @@ export function gerarTexturasBoss(cena: Phaser.Scene): void {
     ctx.fillRect(0, 0, 64, 64);
   });
   texturaPixel(cena, TEX_BOSS.CEREBRO, 48, 42, (p) => desenharLogoMegaBrain(p, 24, 21, 21));
+  folhaPixel(cena, TEX_BOSS.SERAFICO, 128, 100, 2, desenharCerebro);
+  folhaPixel(cena, TEX_BOSS.OLHO_GRANDE, 28, 20, 4, desenharOlhoGrande);
+  folhaPixel(cena, TEX_BOSS.ROSTO, 30, 22, 8, desenharTelaRosto);
+  folhaPixel(cena, TEX_BOSS.EMOJI, 14, 14, QUADROS_PROJETIL, desenharEmojiProjetil);
+  texturaPixel(cena, TEX_BOSS.ANEL, 16, 16, desenharAnelProjetil);
+  texturaPixel(cena, TEX_BOSS.LAJE_JOGADOR, 32, 24, (p) => desenharLaje(p, COR.ciano));
+  texturaPixel(cena, TEX_BOSS.LAJE_BOSS, 32, 24, (p) => desenharLaje(p, COR.vermelho));
+  texturaPixel(cena, TEX_BOSS.PISTAO, 28, 16, desenharPistao);
+  folhaPixel(cena, TEX_BOSS.PLACA_COMMIT, 80, 16, 2, desenharPlacaCommit);
   texturaPixel(cena, TEX_BOSS.PENA, 12, 4, (p) => {
     p.px(0, 1, 12, 2, COR.metalClaro);
     p.px(0, 1, 3, 2, COR.magenta);

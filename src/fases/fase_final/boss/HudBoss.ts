@@ -11,9 +11,11 @@ export class HudBoss {
   private readonly cena: Phaser.Scene;
   private readonly nome: Phaser.GameObjects.Text;
   private readonly barra: Phaser.GameObjects.Graphics;
+  private readonly total: number;
 
-  constructor(cena: Phaser.Scene, titulo: string) {
+  constructor(cena: Phaser.Scene, titulo: string, total: number = BOSS_FASE_FINAL.PISOES_POR_FORMA) {
     this.cena = cena;
+    this.total = total;
     const prof = CENA_FASE_FINAL.PROFUNDIDADE_HUD;
     this.nome = cena.add
       .text(cena.scale.width / 2, Y, titulo, {
@@ -29,7 +31,7 @@ export class HudBoss {
       .setDepth(prof)
       .setAlpha(0);
     this.barra = cena.add.graphics().setScrollFactor(0).setDepth(prof).setAlpha(0);
-    this.atualizar(BOSS_FASE_FINAL.PISOES_POR_FORMA);
+    this.atualizar(total);
   }
 
   public mostrar(): void {
@@ -41,7 +43,7 @@ export class HudBoss {
   }
 
   public atualizar(vida: number): void {
-    const total = BOSS_FASE_FINAL.PISOES_POR_FORMA;
+    const total = this.total;
     const largura = total * LARGURA_SEGMENTO + (total - 1) * 6;
     const x0 = this.cena.scale.width / 2 - largura / 2;
     const g = this.barra;
