@@ -382,3 +382,35 @@ export const BOSS_FASE_FINAL = {
     QUEDA_CEREBRO_MS: 3400,
   },
 } as const;
+
+/** Final da fase (etapa 7): joinha na lava, terraço ao amanhecer, Valdir e créditos. */
+export const FINAL_FASE_FINAL = {
+  /** Mão do joinha saindo da lava depois que o cérebro some. */
+  JOINHA: {
+    ESCALA: 3,
+    SOBE_MS: 1100,
+    /** Quanto da mão aparece acima da lava. */
+    ALTURA_VISIVEL: 140,
+    PAUSA_ANTES_FALA_MS: 600,
+    AFUNDA_MS: 3200,
+    PAUSA_DEPOIS_MS: 900,
+  },
+  FADE_BRANCO_MS: 1400,
+  FADE_ENTRADA_MS: 1800,
+  /** Faixas pretas de cinema (altura em px). */
+  FAIXA_CINEMA: 56,
+  JOGADOR: { x: 430, y: 532 },
+  SOL: { x: 930, deY: 560, ateY: 300, SUBIDA_MS: 9000, RAIO: 46 },
+  VALDIR: { PORTA_X: 110, PONTO_X: 214, RELOGIO_X: 262, ANDAR_MS: 1300 },
+  /** Ritmo da cena antes dos créditos. */
+  PAUSA_INICIAL_MS: 1800,
+  PAUSA_VALDIR_MS: 900,
+  PAUSA_ANTES_CREDITOS_MS: 1400,
+  CREDITOS: {
+    VELOCIDADE: 48,
+    VELOCIDADE_RAPIDA: 260,
+    ESCURECER: 0.62,
+    PAUSA_FIM_MS: 2200,
+    ATUALIZACAO_MS: 2600,
+  },
+} as const;

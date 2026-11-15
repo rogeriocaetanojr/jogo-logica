@@ -224,6 +224,13 @@ export class JogadorFaseFinal {
     if (this.noChao) this.tocarAnimacao('idle');
   }
 
+  /** Cutscene: fixa um quadro do spritesheet (0 de frente, 2 de costas) e para onde olha. */
+  public pose(quadro: number, olharEsquerda: boolean = false): void {
+    this.sprite.anims.stop();
+    this.sprite.setFrame(quadro);
+    this.sprite.setFlipX(olharEsquerda);
+  }
+
   /** Teleporta para o ponto com física e temporizadores zerados. */
   public respawnar(ponto: Ponto): void {
     const corpo = this.corpo;

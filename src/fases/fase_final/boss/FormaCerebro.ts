@@ -467,6 +467,7 @@ export class FormaCerebro extends FormaBoss {
     this.giro = 2.5;
     const cena = this.cena;
     let respingou = false;
+    let joinha = false;
     cena.tweens.addCounter({
       from: 0,
       to: 1,
@@ -476,6 +477,11 @@ export class FormaCerebro extends FormaBoss {
         const k = tw.getValue() ?? 0;
         this.quedaY = k * 520;
         this.inclinacao = Math.sin(k * Math.PI * 3) * 6;
+        // Passado o susto, afunda fazendo joinha na tela
+        if (!joinha && tw.progress > 0.35) {
+          joinha = true;
+          this.rosto.setFrame(QR.JOINHA);
+        }
         if (!respingou && this.centroY + 90 >= N.LAVA_Y) {
           respingou = true;
           cena.cameras.main.shake(900, 0.012);

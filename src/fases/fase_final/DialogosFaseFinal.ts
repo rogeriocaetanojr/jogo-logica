@@ -359,7 +359,6 @@ export const TEXTOS_BOSS = {
   OBJETIVO_REBASE: 'OBJETIVO // Abra o terminal e faça o rebase do Mega Brain',
   TERMINAL_SURGIU: 'TERMINAL DE REBASE // O Mega Brain está processando',
   PROMPT_REBASE: '[E] ABRIR O REBASE',
-  FIM_PROVISORIO: 'MEGA BRAIN // DERRUBADO\nA cena final chega na etapa 7.',
 } as const;
 
 /* =========================================================================
@@ -418,3 +417,93 @@ export const FALAS_EXTRAS_BOSS = {
     garra: 'Braço 4: GARRA!',
   },
 } as const;
+
+/* =========================================================================
+ * FINAL (etapa 7): joinha na lava, terraço ao amanhecer e créditos
+ * ========================================================================= */
+
+export type ProtagonistaFinal = 'alvares' | 'reis';
+
+export const TEXTOS_FINAL = {
+  FALANTE_MEGA_BRAIN: '> MEGA BRAIN // AFUNDANDO COM ESTILO',
+  VOLTO: ['Eu volto.', 'Na próxima atualização.'],
+  FALANTE_JOGADOR: {
+    alvares: '> ALVARES // PROGRAMADOR',
+    reis: '> REIS // PROGRAMADOR (MODO DIFÍCIL)',
+  } as Record<ProtagonistaFinal, string>,
+  FALA_JOGADOR: {
+    alvares: 'Pronto. Agora alguém precisa escrever a documentação.',
+    reis: 'Funcionou. Não sei por quê. Melhor não mexer mais.',
+  } as Record<ProtagonistaFinal, string>,
+  VALDIR: 'Acabou? Ótimo. Hora extra eu não faço.',
+  VALDIR_EXTRA: {
+    alvares: 'Você realmente tava usando essa jaqueta naquela lava lá em baixo? Tá 30 graus aqui fora, bicho...',
+    reis: 'Óculos escuro às seis da manhã... melhor eu não perguntar.',
+  } as Record<ProtagonistaFinal, string>,
+  BIP: 'BIP!',
+  PONTO: 'PONTO REGISTRADO // 06:00',
+  ACELERAR: '[ESPAÇO] acelera os créditos',
+  ATUALIZACAO_TITULO: 'ATUALIZAÇÃO DISPONÍVEL',
+  ATUALIZACAO_TEXTO: 'MEGA BRAIN 2.0 está pronto para instalar.\nNovidades: mais formas, mais olhos, menos bugs (mentira).',
+  ATUALIZACAO_BOTOES: ['[ INSTALAR AGORA ]', '[ LEMBRAR MAIS TARDE ]'],
+  ATUALIZACAO_ADIADA: 'Lembrete adiado para sempre.',
+  VOLTAR: '[E] ou [ENTER] volta ao hub',
+};
+
+export type TipoLinhaCredito = 'titulo' | 'subtitulo' | 'secao' | 'nome' | 'piada' | 'espaco' | 'fim';
+
+export interface LinhaCredito {
+  tipo: TipoLinhaCredito;
+  texto?: string;
+}
+
+/** Créditos (roteiro, seção 10). Nada de menção a ferramentas de produção (seção 13). */
+export function linhasCreditos(protagonista: ProtagonistaFinal, mortes: number): LinhaCredito[] {
+  const nome = protagonista === 'reis' ? 'REIS' : 'ALVARES';
+  const l = (tipo: TipoLinhaCredito, texto?: string): LinhaCredito => ({ tipo, texto });
+  const piadaMortes =
+    mortes === 0
+      ? 'Zero mortes nesta tentativa. O Valdir ficou desconfiado.'
+      : mortes === 1
+        ? '1 morte nesta tentativa. Quase perfeito. Quase.'
+        : `${mortes} mortes nesta tentativa. O Mega Brain anotou todas.`;
+  return [
+    l('titulo', 'BRAIN REBASE'),
+    l('subtitulo', 'Fase Final // Mega Brain World'),
+    l('espaco'),
+    l('secao', 'EQUIPE FEJOLEROUS'),
+    l('nome', 'Davi Pinheiro'),
+    l('nome', 'João Ferrari'),
+    l('nome', 'Jonathan Freire'),
+    l('nome', 'Leonardo Kusma'),
+    l('nome', 'Rogério Caetano'),
+    l('espaco'),
+    l('piada', 'Parabéns. Já pode colocar que é programador no currículo.'),
+    l('espaco'),
+    l('secao', 'ROTEIRO E PIADAS RUINS'),
+    l('nome', 'A equipe toda. Ninguém assume nenhuma.'),
+    l('espaco'),
+    l('piada', 'Nenhum junior foi substituído durante a produção deste jogo. Ainda.'),
+    l('espaco'),
+    l('secao', 'ELENCO'),
+    l('nome', `${nome} ........ você`),
+    l('nome', 'MEGA BRAIN ........ ele mesmo, em cinco formas'),
+    l('nome', 'COPYCAT ........ você, só que atrasado'),
+    l('nome', 'SEU VALDIR ........ o último funcionário de carne e osso'),
+    l('nome', 'COMMIT 9B40 ........ segurou tudo até não segurar mais'),
+    l('espaco'),
+    l('piada', 'O termo de ciência continua válido. Você não leu, mas continua válido.'),
+    l('espaco'),
+    l('secao', 'ESTATÍSTICAS'),
+    l('nome', piadaMortes),
+    l('espaco'),
+    l('secao', 'AGRADECIMENTOS'),
+    l('nome', 'A todos que testaram e morreram para os puzzles bugados'),
+    l('nome', 'A você, que jogou até o fim'),
+    l('espaco'),
+    l('piada', 'Obrigado por jogar. Se você pulou os diálogos, o Valdir sabe.'),
+    l('espaco'),
+    l('espaco'),
+    l('fim', 'FIM'),
+  ];
+}

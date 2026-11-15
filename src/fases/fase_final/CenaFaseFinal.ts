@@ -13,6 +13,7 @@ import {
   CHECKPOINTS_FASE_FINAL,
   ESCALA_ARTE,
   EXTERIOR_FASE_FINAL,
+  FINAL_FASE_FINAL,
   INTERACAO_FASE_FINAL,
   TRANSICAO_ELEVADOR,
 } from './constantesFaseFinal';
@@ -31,7 +32,9 @@ import {
   textoDestinoElevador,
   textoPassageirosElevador,
   TEXTOS_TERMO,
+  TEXTOS_FINAL,
   falasValdir,
+  linhasCreditos,
 } from './DialogosFaseFinal';
 import { ExteriorFaseFinal } from './exterior/ExteriorFaseFinal';
 import { TEX_EXTERIOR, retratoValdir } from './exterior/TexturasExterior';
@@ -64,6 +67,9 @@ import { FormaTita } from './boss/FormaTita';
 import { HudBoss } from './boss/HudBoss';
 import { QUADROS_BOSS, TEX_BOSS, caminhoCopycat } from './boss/TexturasBoss';
 import { type AparenciaForma, brigaEQueda, cerebroViraCopycat, quedaEMorfose } from './boss/TransicaoBoss';
+import { TerracoAmanhecer, joinhaNaLava } from './final/CutsceneFinal';
+import { CreditosFaseFinal } from './final/CreditosFaseFinal';
+import { retratoProtagonista } from './final/TexturasFinal';
 
 /** Contexto do terminal do andar antes de saber qual andar é. */
 function contextoAndarVazio(): ContextoPuzzleAndar {
@@ -88,7 +94,7 @@ export interface DadosCenaFaseFinal {
   mortes?: number;
 }
 
-type Trecho = 'exterior' | 'andar' | 'boss';
+type Trecho = 'exterior' | 'andar' | 'boss' | 'final';
 type ChegadaBoss = 'elevador' | 'queda' | 'revanche';
 type IdForma = 1 | 2 | 3 | 4 | 5;
 
@@ -175,6 +181,10 @@ export class CenaFaseFinal extends CenaBase {
   private promptRebase?: Phaser.GameObjects.Text;
   private reacaoRebase?: Phaser.Time.TimerEvent;
 
+  // Final
+  private amanhecer?: TerracoAmanhecer;
+  private creditos?: CreditosFaseFinal;
+
   constructor() {
     super('CenaFaseFinal', 'fase_final');
   }
@@ -207,6 +217,8 @@ export class CenaFaseFinal extends CenaBase {
     this.terminalRebase = undefined;
     this.promptRebase = undefined;
     this.reacaoRebase = undefined;
+    this.amanhecer = undefined;
+    this.creditos = undefined;
   }
 
   override preload(): void {
@@ -227,6 +239,7 @@ export class CenaFaseFinal extends CenaBase {
 
     if (this.trecho === 'andar') this.montarAndar();
     else if (this.trecho === 'boss') this.montarBoss();
+    else if (this.trecho === 'final') this.montarFinal();
     else this.montarExterior();
 
     this.criarEfeitoCRT(this.scale.width, this.scale.height, CENA_FASE_FINAL.OPACIDADE_CRT);
@@ -959,14 +972,68 @@ export class CenaFaseFinal extends CenaBase {
       this.promptRebase?.setVisible(false);
       this.textoObjetivo.setAlpha(0);
       this.arena?.derrubarPlataformaBoss();
-      this.time.delayedCall(1300, () => boss.cairNaLava(() => this.fimProvisorio()));
+      this.time.delayedCall(1300, () => boss.cairNaLava(() => this.joinhaFinal()));
     });
   }
 
-  /** A cutscene final e os créditos entram na etapa 7. */
-  private fimProvisorio(): void {
-    this.estado = 'livre';
-    this.mostrarNotificacao(TEXTOS_BOSS.FIM_PROVISORIO, 60000);
+  /** O cérebro sumiu na lava: a mão sobe fazendo joinha, ele promete voltar e tudo fica branco. */
+  private joinhaFinal(): void {
+    const falante = TEXTOS_FINAL.FALANTE_MEGA_BRAIN;
+    const avatar = this.avatarMegaBrain;
+    joinhaNaLava(
+      this,
+      B.CEREBRO.X,
+      B.NUCLEO.LAVA_Y,
+      (depois) => this.comunicador.iniciarDialogo(TEXTOS_FINAL.VOLTO.map((texto) => ({ falante, texto, avatar })), depois),
+      () => {
+        this.cameras.main.fadeOut(FINAL_FASE_FINAL.FADE_BRANCO_MS, 255, 255, 255);
+        this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => this.irPara({ trecho: 'final' }));
+      }
+    );
+  }
+
+  /* =========================================================================
+   * FINAL: TERRAÇO AO AMANHECER E CRÉDITOS
+   * ========================================================================= */
+
+  private montarFinal(): void {
+    const F = FINAL_FASE_FINAL;
+    this.physics.world.setBounds(0, 0, B.LARGURA, A.ALTURA);
+    this.physics.world.checkCollision.down = true;
+    this.cameras.main.setBounds(0, 0, B.LARGURA, A.ALTURA);
+    this.arena = new ArenaBoss(this, ARENAS[1], false, true);
+    this.jogador = new JogadorFaseFinal(this, F.JOGADOR);
+    this.physics.add.collider(this.jogador.sprite, this.arena.solidos);
+    this.criarHud(TEXTOS_BOSS.SETOR(FALAS_BOSS[1].arena), '');
+    this.estado = 'transicao';
+    // A fase está vencida a partir daqui: sair pelo ESC nos créditos não perde nada
+    this.concluirFaseAtual();
+    this.cameras.main.fadeIn(F.FADE_ENTRADA_MS, 255, 255, 255);
+
+    const personagem = this.jogador.tipoPersonagem;
+    const avatarJogador = avatarHtml(retratoProtagonista(this, personagem), personagem.toUpperCase());
+    const avatarValdir = avatarHtml(retratoValdir(), 'VALDIR');
+    this.amanhecer = new TerracoAmanhecer(this);
+    this.amanhecer.iniciar({
+      falarJogador: (depois) =>
+        this.comunicador.iniciarDialogo(
+          [{ falante: TEXTOS_FINAL.FALANTE_JOGADOR[personagem], texto: TEXTOS_FINAL.FALA_JOGADOR[personagem], avatar: avatarJogador }],
+          depois
+        ),
+      falarValdir: (depois) =>
+        this.comunicador.iniciarDialogo(
+          [TEXTOS_FINAL.VALDIR, TEXTOS_FINAL.VALDIR_EXTRA[personagem]].map((texto) => ({
+            falante: FALANTES.VALDIR,
+            texto,
+            avatar: avatarValdir,
+          })),
+          depois
+        ),
+      virarJogador: (deFrente, olharEsquerda) => this.jogador.pose(deFrente ? 0 : 2, olharEsquerda),
+      comecarCreditos: () => {
+        this.creditos = new CreditosFaseFinal(this, linhasCreditos(personagem, this.mortes), () => this.retornarAoHub());
+      },
+    });
   }
 
   /** Forma vencida: briga na poeira, o chão quebra e os dois caem para a próxima arena. */
@@ -1008,6 +1075,11 @@ export class CenaFaseFinal extends CenaBase {
     this.clima?.update(tempo, delta);
     this.andar?.update(tempo, delta);
     this.arena?.update(tempo, delta);
+    if (this.trecho === 'final') {
+      this.amanhecer?.update(delta);
+      this.creditos?.update(delta);
+      return;
+    }
     // A queda do Mega Brain na lava continua animando com o jogador parado
     if (this.faseNucleo === 'queda' && this.boss) this.boss.update(delta, this.jogador, false);
 

@@ -13,6 +13,7 @@ import {
 import { type ConfigArena, VAO_QUEDA } from './configArenas';
 import { Particulas } from './EfeitosBoss';
 import { TEX_BOSS, gerarTexturasBoss } from './TexturasBoss';
+import { COR_AMANHECER, TEX_FINAL, gerarTexturasFinal } from '../final/TexturasFinal';
 
 const N = BOSS_FASE_FINAL.NUCLEO;
 
@@ -43,7 +44,8 @@ export class ArenaBoss {
   private correntesBoss?: Phaser.GameObjects.Graphics;
   private pistao?: Phaser.GameObjects.TileSprite;
 
-  constructor(cena: Phaser.Scene, cfg: ConfigArena, buracoNoTeto: boolean) {
+  /** `amanhecer`: o terraço da cena final, com céu claro e o letreiro apagado. */
+  constructor(cena: Phaser.Scene, cfg: ConfigArena, buracoNoTeto: boolean, amanhecer: boolean = false) {
     this.cena = cena;
     this.cfg = cfg;
     gerarTexturasExterior(cena);
@@ -53,7 +55,8 @@ export class ArenaBoss {
     this.solidos = cena.physics.add.staticGroup();
     this.umaVia = cena.physics.add.staticGroup();
 
-    if (cfg.tipo === 'terraco') this.criarTerraco();
+    if (amanhecer) gerarTexturasFinal(cena);
+    if (cfg.tipo === 'terraco') this.criarTerraco(amanhecer);
     else this.criarSala(buracoNoTeto);
     if (cfg.tipo === 'nucleo') this.criarNucleo();
     else this.criarPiso();
@@ -64,25 +67,30 @@ export class ArenaBoss {
    * CENÁRIO
    * ======================================================================= */
 
-  private criarTerraco(): void {
+  private criarTerraco(amanhecer: boolean): void {
     const cena = this.cena;
     const largura = B.LARGURA;
-    cena.add.image(0, 0, TEX_EXTERIOR.CEU).setOrigin(0).setScale(4).setDepth(-100);
+    cena.add.image(0, 0, amanhecer ? TEX_FINAL.CEU_AMANHECER : TEX_EXTERIOR.CEU).setOrigin(0).setScale(4).setDepth(-100);
     // No topo da torre mais alta: a cidade fica toda lá embaixo
     cena.add
       .tileSprite(0, 360, (largura + 200) / S, 220, TEX_EXTERIOR.SKYLINE_LONGE)
       .setOrigin(0)
       .setScale(S)
-      .setDepth(-90);
+      .setDepth(-90)
+      .setTint(amanhecer ? COR_AMANHECER.cidadeLonge : 0xffffff);
     cena.add
       .tileSprite(-80, 440, (largura + 300) / S, 260, TEX_EXTERIOR.SKYLINE_PERTO)
       .setOrigin(0)
       .setScale(S)
-      .setDepth(-80);
+      .setDepth(-80)
+      .setTint(amanhecer ? COR_AMANHECER.cidadePerto : 0xffffff);
 
-    cena.add.image(930, B.CHAO_Y - 28, TEX_BOSS.TERRACO_LETREIRO).setOrigin(0.5, 1).setScale(S).setDepth(-50);
+    const letreiro = cena.add.image(930, B.CHAO_Y - 28, TEX_BOSS.TERRACO_LETREIRO).setOrigin(0.5, 1).setScale(S).setDepth(-50);
+    // Depois da luta o letreiro fica apagado e torto
+    if (amanhecer) letreiro.setTint(0x6a6478).setAngle(-4);
     cena.add
       .image(930, B.CHAO_Y - 160, TEX_EXTERIOR.CONE_LUZ)
+      .setVisible(!amanhecer)
       .setScale(2.4, 1.4)
       .setTint(hexNum(COR.vermelho))
       .setAlpha(0.12)
