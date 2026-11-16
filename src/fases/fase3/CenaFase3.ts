@@ -77,6 +77,7 @@ export class CenaFase3 extends CenaBase {
   public checkpoint: PontoCheckpoint = { x: 0, y: CHAO_Y - 4, trecho: 0, ordem: 0 };
   public hud!: HudLixao;
   public som!: SomLixao;
+  public musica!: MusicaLixao;
 
   private indiceTrecho = 0;
   /** Depuração: posição em CLIMAS do clima forçado pela tecla C; -1 segue o trecho. */
@@ -134,9 +135,9 @@ export class CenaFase3 extends CenaBase {
     this.cenario = new CenarioLixao(this, this.trechos);
     this.cenario.construir();
     this.som = new SomLixao(this);
-    const musica = new MusicaLixao(this);
-    musica.iniciar();
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => musica.parar());
+    this.musica = new MusicaLixao(this);
+    this.musica.iniciar();
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.musica.parar());
     this.mecanismos = new MecanismosLixao(this, (x) => this.aoTocarPerigo(x));
     this.trechos.forEach((t) => t.construir());
     this.cenario.clima.criarPocas(this.trechos);

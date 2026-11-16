@@ -282,7 +282,10 @@ export class ChefaoLixao {
     this.visual.avanco = 0;
     this.falouMetade = false;
     this.cena.tweens.killTweensOf(this.visual);
-    if (this.arenaTravada) this.cena.time.delayedCall(900, () => this.falar('voltou', true));
+    if (this.arenaTravada) {
+      this.cena.musica.iniciarLuta();
+      this.cena.time.delayedCall(900, () => this.falar('voltou', true));
+    }
     else this.balao?.setVisible(false);
     for (const s of this.sucatas) s.img.destroy();
     for (const f of this.faiscas) f.img.destroy();
@@ -432,6 +435,7 @@ export class ChefaoLixao {
     tempo.delayedCall(CHEFAO.ENTRADA_ACORDA_MS, () => {
       this.zz.setVisible(false);
       this.cena.som.monstroAcorda(this.x);
+      this.cena.musica.iniciarLuta();
       [0, 140, 260, 420].forEach((ms, i) =>
         tempo.delayedCall(ms, () => this.corpo.setFrame(i % 2 === 0 ? QUADRO_MONSTRO.ANDAR[0] : QUADRO_MONSTRO.DORMINDO))
       );
@@ -668,6 +672,7 @@ export class ChefaoLixao {
     this.cena.cameras.main.shake(300, 0.006);
     this.estilhacos(this.x, CHAO_Y - 100, [COR.sucataClara, COR.cobre, COR.verdePlaca], 12);
     this.cena.som.monstroDerrotado(this.x);
+    this.cena.musica.aoDerrotar();
     this.poseForcada = null;
     this.cena.tweens.killTweensOf(this.visual);
     this.visual.avanco = 0;
@@ -696,6 +701,7 @@ export class ChefaoLixao {
     this.estado = 'compactado';
     this.balao.setVisible(false);
     this.cena.som.compactar(this.conteiner.x);
+    this.cena.musica.aoVencer();
     this.cena.solidos.remove(this.solido, true, true);
     for (const l of this.luzes) l.y = -9999;
     this.barraFundo.setVisible(false);
