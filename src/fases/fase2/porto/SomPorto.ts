@@ -37,7 +37,7 @@ export class SomPorto {
     this.contexto = gerenciador && 'context' in gerenciador ? gerenciador.context : null;
     if (this.contexto) {
       this.saida = this.contexto.createGain();
-      this.saida.gain.value = 0.32;
+      this.saida.gain.value = 0.24;
       this.saida.connect(gerenciador.destination ?? this.contexto.destination);
       this.ruido = this.criarRuido(2);
     } else {

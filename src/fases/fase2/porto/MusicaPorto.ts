@@ -1,6 +1,6 @@
 import { lerMudoSalvo } from '../../../hub/MusicaHub';
 
-const VOLUME_PORTO = 0.2;
+const VOLUME_PORTO = 0.15;
 const FADE_ENTRADA_S = 2.5;
 const FADE_SAIDA_S = 0.8;
 const PASSO_MS = 50;
