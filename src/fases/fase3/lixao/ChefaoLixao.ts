@@ -5,6 +5,7 @@ import { COR_LINHA, COR_LINHA_APAGADA, TelaoAviso } from './TelaoAviso';
 import { COR, ESCALA, grade, hexNum, texturaPixel } from './ArteLixao';
 import type { Pincel } from './ArteLixao';
 import { ALTURA_TELA, CHAO_Y, LARGURA_TELA, TIPOS_RECICLAVEIS } from './TiposLixao';
+import { GARRA_ARREMESSO, QUADRO_MONSTRO, SUCATAS_MONSTRO, gerarTexturasMonstro } from './ArteMonstroLixao';
 
 /** Índice do trecho da arena (noite) em TRECHOS. */
 export const TRECHO_ARENA = 3;
@@ -56,6 +57,19 @@ export const CHEFAO = {
   CHOQUE_ATIVO_MS: 350,
   /** Empurrar o monstro derrotado (px/s). */
   VELOCIDADE_EMPURRAO: 90,
+  /** Entrada na arena: câmera indo até o monstro, ele acordando e o começo da luta (ms). */
+  ENTRADA_PAN_MS: 1400,
+  ENTRADA_ACORDA_MS: 900,
+  ENTRADA_FIM_MS: 2900,
+  /** Investida ao arremessar: quanto avança (px) e quanto dura a pose de arremesso. */
+  INVESTIDA: 18,
+  POSE_ARREMESSO_MS: 380,
+  POSE_DOR_MS: 260,
+  /** Intervalo entre os passos da esteira e o arrasto ao ser empurrado (som). */
+  PASSO_MS: 420,
+  ARRASTO_MS: 240,
+  /** Fumaça da chaminé. */
+  FUMACA_MS: 900,
   /** Recicláveis na arena: a cada intervalo, repõe até haver este mínimo no chão. */
   MUNICAO_INTERVALO_MS: 1800,
   MUNICAO_MINIMA: 4,
@@ -63,15 +77,30 @@ export const CHEFAO = {
   COMPACTAR_MS: 900,
 } as const;
 
-/** Monstro em pixels de arte e a hitbox dentro dele (px de mundo). */
-const MONSTRO_W = 48;
-const MONSTRO_H = 40;
+/** Hitbox do monstro (px de mundo). */
 const HITBOX = { LARGURA: 160, ALTURA: 140 } as const;
 const CONTEINER_W = 26;
 const CONTEINER_H = 20;
 
 /** Telão no céu da arena com o passo a passo para derrotar o monstro. */
 const PASSOS = ['PEGUE UM RECICLÁVEL [F]', 'ESPERE ELE FICAR TONTO  * * *', 'ARREMESSE NELE!'] as const;
+
+/**
+ * Falas curtas do monstro (balão acima dele). Cada grupo tem a chance de sair quando o
+ * momento acontece; entre duas falas há um intervalo mínimo para não virar tagarelice.
+ */
+const FALAS = {
+  acordar: { chance: 1, linhas: ['Quem mexeu no meu lixo?'] },
+  voltou: { chance: 1, linhas: ['Voltou? Tem sucata pra todo mundo.', 'De novo? Eu não enferrujo.'] },
+  preparo: { chance: 0.3, linhas: ['Toma sucata!', 'Pega essa!', 'Tem mais de onde veio.'] },
+  dor: { chance: 0.45, linhas: ['Ai! Minha lataria!', 'Isso amassa, sabia?', 'Ei! Sem reciclar!'] },
+  quica: { chance: 0.6, linhas: ['Nem fez cosquinha.', 'Espera eu ficar tonto, ué.'] },
+  tonto: { chance: 0.35, linhas: ['Tudo... girando...', 'Meus parafusos...'] },
+  metade: { chance: 1, linhas: ['Para de me jogar coisas!'] },
+  derrotado: { chance: 1, linhas: ['Tá bom... pode me levar.'] },
+} as const;
+type Fala = keyof typeof FALAS;
+const FALA = { DURACAO_MS: 2200, INTERVALO_MS: 3800, ACIMA: HITBOX.ALTURA + 96 } as const;
 
 /** Barra de vida no topo da tela. */
 const BARRA = { LARGURA: 520, ALTURA: 22, Y: 20 } as const;
@@ -137,6 +166,21 @@ export class ChefaoLixao {
   /** Setas pulando sobre os recicláveis da arena. */
   private readonly setas: Phaser.GameObjects.Text[] = [];
   private arenaTravada = false;
+  /** Entrada em andamento (câmera indo até o monstro, que ainda está acordando). */
+  private entrando = false;
+  /** Pose forçada por um tempo (arremesso, dor) e o avanço da investida (tween). */
+  private poseForcada: number | null = null;
+  private poseAte = 0;
+  private readonly visual = { avanco: 0 };
+  private andando = false;
+  private esperaPasso = 0;
+  private esperaArrasto = 0;
+  private esperaFumaca = 0;
+  private xAnterior = 0;
+  private balao!: Phaser.GameObjects.Text;
+  private ultimaFala = -Infinity;
+  private falouMetade = false;
+  private zz!: Phaser.GameObjects.Text;
 
   private corpo!: Phaser.GameObjects.Image;
   private solido!: Phaser.GameObjects.Rectangle;
@@ -171,7 +215,7 @@ export class ChefaoLixao {
       .setDepth(PROF.objetos);
     this.cena.cenario.registrarTingivel(this.conteiner);
 
-    this.corpo = this.cena.add.image(0, CHAO_Y, 'lx-monstro-0').setOrigin(0.5, 1).setScale(ESCALA).setDepth(PROF.objetos + 2);
+    this.corpo = this.cena.add.image(0, CHAO_Y, 'lx-monstro', QUADRO_MONSTRO.DORMINDO).setOrigin(0.5, 1).setScale(ESCALA).setDepth(PROF.objetos + 2);
     this.solido = this.cena.add.rectangle(0, CHAO_Y - HITBOX.ALTURA / 2, HITBOX.LARGURA, HITBOX.ALTURA, 0, 0);
     this.cena.solidos.add(this.solido);
     for (const dx of [-56, 0, 56]) {
@@ -185,6 +229,22 @@ export class ChefaoLixao {
       .setOrigin(0.5)
       .setDepth(PROF.escuro + 2)
       .setVisible(false);
+
+    this.balao = this.cena.add
+      .text(0, 0, '', {
+        fontFamily: 'Consolas, "Courier New", monospace',
+        fontSize: '16px',
+        color: COR.contorno,
+        backgroundColor: '#F2E6C8',
+        padding: { x: 8, y: 5 },
+      })
+      .setOrigin(0.5, 1)
+      .setDepth(PROF.textos)
+      .setVisible(false);
+    this.zz = this.cena.add
+      .text(0, 0, 'z Z', { fontFamily: 'monospace', fontSize: '20px', color: COR.ceuPoeiraClaro, stroke: COR.contorno, strokeThickness: 4 })
+      .setOrigin(0.5, 1)
+      .setDepth(PROF.escuro + 2);
 
     this.criarMonitor();
     this.criarBarra();
@@ -218,6 +278,12 @@ export class ChefaoLixao {
     this.atrasoTonto = 0;
     this.tonto = 0;
     this.estado = this.arenaTravada ? 'lutando' : 'dormindo';
+    this.poseForcada = null;
+    this.visual.avanco = 0;
+    this.falouMetade = false;
+    this.cena.tweens.killTweensOf(this.visual);
+    if (this.arenaTravada) this.cena.time.delayedCall(900, () => this.falar('voltou', true));
+    else this.balao?.setVisible(false);
     for (const s of this.sucatas) s.img.destroy();
     for (const f of this.faiscas) f.img.destroy();
     for (const c of this.choques) c.faixa.destroy();
@@ -227,6 +293,11 @@ export class ChefaoLixao {
     this.corpo.setAlpha(1).setScale(ESCALA).setAngle(0).clearTint();
     this.posicionar();
     this.desenharBarra();
+  }
+
+  /** Meio da carcaça durante a luta (alvo da mira pelo teclado). */
+  get alvo(): { x: number; y: number } | null {
+    return this.estado === 'lutando' ? { x: this.x, y: CHAO_Y - HITBOX.ALTURA * 0.55 } : null;
   }
 
   /** Reciclável em voo em (x, y) acerta o monstro? Tira vida e o deixa mais lento. */
@@ -239,9 +310,17 @@ export class ChefaoLixao {
     if (this.tonto <= 0) {
       // Fora da janela de tontura o lixo só quica na carcaça
       this.estilhacos(x, y, [COR.sucataClara], 3);
+      this.cena.som.monstroQuica(this.x);
+      this.falar('quica');
       return true;
     }
     this.vida -= 1;
+    this.cena.som.monstroAcertado(this.x);
+    this.forcarPose(QUADRO_MONSTRO.DOR, CHEFAO.POSE_DOR_MS);
+    if (!this.falouMetade && this.vida <= CHEFAO.VIDA / 2 && this.vida > 0) {
+      this.falouMetade = true;
+      this.falar('metade', true);
+    } else if (this.vida > 0) this.falar('dor');
     this.lentidao = Math.max(CHEFAO.LENTIDAO_MINIMA, this.lentidao * CHEFAO.LENTIDAO_POR_ACERTO);
     // Pisca ao levar o golpe
     this.corpo.setAlpha(0.35);
@@ -253,6 +332,7 @@ export class ChefaoLixao {
   }
 
   atualizar(delta: number): void {
+    this.atualizarEnfeites(delta);
     if (!this.arenaTravada) {
       if (this.cena.jogador.x >= this.offset + ARENA.GATILHO) this.travarArena();
       return;
@@ -329,23 +409,55 @@ export class ChefaoLixao {
    * ARENA
    * ========================================================================= */
 
-  /** Trava câmera e bordas na arena, muda o checkpoint e acorda o monstro. */
+  /**
+   * Entrada na arena sem tranco: fecha as bordas e muda o checkpoint, pausa a física, leva a
+   * câmera devagar até a arena, o monstro acorda (olhos piscando, ronco e um tremor leve), fala
+   * e a barra de vida aparece; só então a câmera trava na arena e a luta começa.
+   */
   private travarArena(): void {
     this.arenaTravada = true;
+    this.entrando = true;
     const inicio = this.offset + ARENA.INICIO;
-    this.cena.cameras.main.setBounds(inicio, 0, LARGURA_TELA, ALTURA_TELA);
     // Paredes invisíveis do topo da tela ao chão nas duas bordas
     for (const x of [inicio - 16, this.offset + ARENA.FIM + 16]) {
       this.cena.solidos.add(this.cena.add.rectangle(x, CHAO_Y / 2, 32, CHAO_Y, 0, 0));
     }
     this.cena.checkpoint = { x: this.xRenascer, y: CHAO_Y - 4, trecho: TRECHO_ARENA, ordem: TRECHO_ARENA * 100 + 90 };
-    this.estado = 'lutando';
-    this.esperaAtaque = CHEFAO.INTERVALO_ATAQUE_MS;
-    this.barraFundo.setVisible(true);
-    this.barraVida.setVisible(true);
-    this.barraTexto.setVisible(true);
-    this.desenharBarra();
-    this.cena.cameras.main.shake(400, 0.008);
+    const cam = this.cena.cameras.main;
+    this.cena.definirCinematica(true);
+    cam.stopFollow();
+    cam.pan(inicio + LARGURA_TELA / 2, cam.midPoint.y, CHEFAO.ENTRADA_PAN_MS, 'Sine.easeInOut');
+    const tempo = this.cena.time;
+    // Acordando: olhos piscam entre fechado e aberto e ele se ergue
+    tempo.delayedCall(CHEFAO.ENTRADA_ACORDA_MS, () => {
+      this.zz.setVisible(false);
+      this.cena.som.monstroAcorda(this.x);
+      [0, 140, 260, 420].forEach((ms, i) =>
+        tempo.delayedCall(ms, () => this.corpo.setFrame(i % 2 === 0 ? QUADRO_MONSTRO.ANDAR[0] : QUADRO_MONSTRO.DORMINDO))
+      );
+      tempo.delayedCall(560, () => {
+        this.corpo.setFrame(QUADRO_MONSTRO.PREPARO);
+        this.cena.tweens.add({ targets: this.corpo, scaleY: { from: ESCALA * 0.92, to: ESCALA }, duration: 320, ease: 'Back.easeOut' });
+        cam.shake(220, 0.003);
+      });
+      tempo.delayedCall(900, () => {
+        this.corpo.setFrame(QUADRO_MONSTRO.ANDAR[0]);
+        this.falar('acordar', true);
+        for (const barra of [this.barraFundo, this.barraVida, this.barraTexto]) {
+          barra.setVisible(true).setAlpha(0);
+          this.cena.tweens.add({ targets: barra, alpha: 1, duration: 500 });
+        }
+        this.desenharBarra();
+      });
+    });
+    tempo.delayedCall(CHEFAO.ENTRADA_FIM_MS, () => {
+      cam.setBounds(inicio, 0, LARGURA_TELA, ALTURA_TELA);
+      cam.startFollow(this.cena.jogador.sprite, true, 0.08, 0.08);
+      this.entrando = false;
+      this.estado = 'lutando';
+      this.esperaAtaque = CHEFAO.INTERVALO_ATAQUE_MS;
+      this.cena.definirCinematica(false);
+    });
   }
 
   /** Repõe recicláveis temporários longe do monstro e do contêiner. */
@@ -374,7 +486,11 @@ export class ChefaoLixao {
     const jogador = this.cena.jogador;
     if (this.atrasoTonto > 0) {
       this.atrasoTonto -= delta;
-      if (this.atrasoTonto <= 0) this.tonto = CHEFAO.TONTO_MS;
+      if (this.atrasoTonto <= 0) {
+        this.tonto = CHEFAO.TONTO_MS;
+        this.cena.som.monstroTonto(this.x);
+        this.falar('tonto');
+      }
     }
     if (this.tonto > 0) {
       // Tonto: parado, sem atacar, esperando apanhar
@@ -395,11 +511,21 @@ export class ChefaoLixao {
     if (this.esperaAtaque <= 0) {
       this.esperaAtaque = CHEFAO.INTERVALO_ATAQUE_MS / this.lentidao;
       this.preparo = CHEFAO.PREPARO_MS;
+      // Ergue a sucata acima da cabeça encolhendo o corpo, como quem toma impulso
+      this.cena.som.monstroPreparo(this.x);
+      this.cena.tweens.add({ targets: this.corpo, scaleY: { from: ESCALA, to: ESCALA * 0.94 }, scaleX: { from: ESCALA, to: ESCALA * 1.04 }, duration: CHEFAO.PREPARO_MS, ease: 'Sine.easeOut' });
+      this.falar('preparo');
     }
   }
 
   private atacar(ataque: Ataque): void {
     this.proximoAtaque = (this.proximoAtaque + 1) % ORDEM_ATAQUES.length;
+    // Investida curta para a frente, esticando o braço, e volta
+    this.forcarPose(QUADRO_MONSTRO.ARREMESSO, CHEFAO.POSE_ARREMESSO_MS);
+    this.cena.tweens.killTweensOf(this.visual);
+    this.cena.tweens.add({ targets: this.visual, avanco: { from: 0, to: CHEFAO.INVESTIDA }, duration: 110, ease: 'Quad.easeOut', yoyo: true, hold: 120 });
+    this.cena.tweens.add({ targets: this.corpo, scaleY: ESCALA, scaleX: ESCALA, duration: 120, ease: 'Back.easeOut' });
+    if (ataque === 'sucata') this.cena.som.monstroArremesso(this.x);
     if (ataque === 'sucata') this.jogarSucata();
     else if (ataque === 'faiscas') this.soltarFaiscas();
     else this.prepararChoque();
@@ -416,15 +542,19 @@ export class ChefaoLixao {
     if (c.right > this.x - meio && c.left < this.x + meio && c.bottom > CHAO_Y - HITBOX.ALTURA - 6) this.aoAtingir(this.x);
   }
 
-  /** Sucata em arco: sai da boca e cai onde o jogador está agora. */
+  /** Sucata em arco: sai da garra esticada e cai onde o jogador está agora. */
   private jogarSucata(): void {
     const jogador = this.cena.jogador;
-    const x0 = this.x;
-    const y0 = CHAO_Y - 120;
+    const lado = jogador.x > this.x ? 1 : -1;
+    const x0 = this.x - lado * GARRA_ARREMESSO.DX * ESCALA;
+    const y0 = CHAO_Y - GARRA_ARREMESSO.ALTURA * ESCALA;
     const t = CHEFAO.SUCATA_VOO_MS / 1000;
     const vx = (jogador.x - x0) / t;
     const vy = (jogador.y - 40 - y0 - 0.5 * CHEFAO.SUCATA_GRAVIDADE * t * t) / t;
-    const img = this.cena.add.image(x0, y0, 'lx-monstro-sucata').setScale(ESCALA).setDepth(PROF.escuro + 1);
+    const img = this.cena.add
+      .image(x0, y0, `lx-monstro-sucata-${Phaser.Math.Between(0, SUCATAS_MONSTRO - 1)}`)
+      .setScale(ESCALA)
+      .setDepth(PROF.escuro + 1);
     this.sucatas.push({ img, x: x0, y: y0, vx, vy });
   }
 
@@ -443,6 +573,7 @@ export class ChefaoLixao {
       const noMonstro = Math.abs(p.x - this.x) < HITBOX.LARGURA / 2 && p.y > CHAO_Y - HITBOX.ALTURA;
       if (acertou || p.y >= CHAO_Y || (!noMonstro && this.cena.solidoEm(p.x, p.y))) {
         this.estilhacos(p.x, Math.min(p.y, CHAO_Y), [COR.sucataClara, COR.cobre], 5);
+        this.cena.som.sucataCai(p.x);
         p.img.destroy();
         this.sucatas.splice(i, 1);
       }
@@ -534,8 +665,13 @@ export class ChefaoLixao {
     this.preparo = 0;
     for (const c of this.choques) c.faixa.destroy();
     this.choques.length = 0;
-    this.cena.cameras.main.shake(300, 0.01);
+    this.cena.cameras.main.shake(300, 0.006);
     this.estilhacos(this.x, CHAO_Y - 100, [COR.sucataClara, COR.cobre, COR.verdePlaca], 12);
+    this.cena.som.monstroDerrotado(this.x);
+    this.poseForcada = null;
+    this.cena.tweens.killTweensOf(this.visual);
+    this.visual.avanco = 0;
+    this.cena.time.delayedCall(700, () => this.falar('derrotado', true));
   }
 
   /** Derrotado: andar contra ele o empurra; ao chegar no contêiner, é compactado. */
@@ -543,8 +679,14 @@ export class ChefaoLixao {
     const c = this.cena.jogador.corpo;
     const encostado = (lado: 'left' | 'right') => c.blocked[lado] || c.touching[lado];
     const passo = CHEFAO.VELOCIDADE_EMPURRAO * (delta / 1000);
+    const antes = this.x;
     if (this.cena.jogador.x < this.x && encostado('right')) this.x += passo;
     else if (this.cena.jogador.x > this.x && encostado('left')) this.x = Math.max(this.offset + ARENA.MONSTRO_MIN, this.x - passo);
+    this.esperaArrasto -= delta;
+    if (this.x !== antes && this.esperaArrasto <= 0) {
+      this.esperaArrasto = CHEFAO.ARRASTO_MS;
+      this.cena.som.monstroArrasta(this.x);
+    }
 
     const bordaConteiner = this.conteiner.x - (CONTEINER_W * ESCALA) / 2;
     if (this.x + HITBOX.LARGURA / 2 >= bordaConteiner + 8) this.compactar();
@@ -552,6 +694,8 @@ export class ChefaoLixao {
 
   private compactar(): void {
     this.estado = 'compactado';
+    this.balao.setVisible(false);
+    this.cena.som.compactar(this.conteiner.x);
     this.cena.solidos.remove(this.solido, true, true);
     for (const l of this.luzes) l.y = -9999;
     this.barraFundo.setVisible(false);
@@ -597,10 +741,23 @@ export class ChefaoLixao {
     if (this.estado === 'compactado') return;
     this.x = Phaser.Math.Clamp(this.x, this.offset + ARENA.MONSTRO_MIN, this.offset + ARENA.CONTEINER);
     const x = grade(this.x);
+    const agora = this.cena.time.now;
     const boca = this.estado === 'lutando' && this.preparo > 0;
-    const quadro = this.derrotado ? 'lx-monstro-derrotado' : boca ? 'lx-monstro-1' : 'lx-monstro-0';
-    this.corpo.setTexture(quadro).setPosition(x, CHAO_Y);
-    if (this.estado === 'lutando') this.corpo.setFlipX(this.cena.jogador.x > this.x);
+    const tontoAgora = this.estado === 'lutando' && this.tonto > 0;
+    if (this.poseForcada !== null && agora >= this.poseAte) this.poseForcada = null;
+    let quadro: number = QUADRO_MONSTRO.ANDAR[0];
+    if (this.derrotado) quadro = QUADRO_MONSTRO.DERROTADO;
+    else if (this.estado === 'dormindo') quadro = QUADRO_MONSTRO.DORMINDO;
+    else if (this.poseForcada !== null) quadro = this.poseForcada;
+    else if (tontoAgora) quadro = QUADRO_MONSTRO.TONTO[Math.floor(agora / 220) % 2];
+    else if (boca) quadro = QUADRO_MONSTRO.PREPARO;
+    else quadro = QUADRO_MONSTRO.ANDAR[Math.floor(agora / (this.andando ? 140 : 520)) % 2];
+    if (!this.entrando) this.corpo.setFrame(quadro);
+    const lado = this.corpo.flipX ? 1 : -1;
+    // Andando a esteira sacode o corpo um pixel de arte
+    const sacode = this.andando && !boca && !tontoAgora && Math.floor(agora / 140) % 2 === 0 ? ESCALA : 0;
+    this.corpo.setPosition(x + lado * grade(this.visual.avanco), CHAO_Y - sacode);
+    if (this.estado === 'lutando' && this.poseForcada === null) this.corpo.setFlipX(this.cena.jogador.x > this.x);
     // Tremor ao preparar um ataque
     if (boca) this.corpo.setX(x + (Math.floor(this.preparo / 50) % 2 === 0 ? ESCALA : -ESCALA));
     this.solido.setPosition(x, CHAO_Y - HITBOX.ALTURA / 2);
@@ -611,11 +768,85 @@ export class ChefaoLixao {
     this.estrelas.setVisible(tonto);
     if (tonto) {
       const t = this.cena.time.now;
-      this.corpo.setAngle(Math.sin(t / 120) * 5).setTint(Math.floor(t / 200) % 2 === 0 ? 0xffffff : 0xfff2a0);
+      this.corpo.setAngle(Math.sin(t / 120) * 4).setTint(Math.floor(t / 200) % 2 === 0 ? 0xffffff : 0xfff2a0);
       this.estrelas.setPosition(x + Math.sin(t / 150) * 14, CHAO_Y - HITBOX.ALTURA - 24 + Math.cos(t / 150) * 4);
     } else if (this.estado === 'lutando') {
       this.corpo.clearTint();
       if (this.preparo <= 0 && this.corpo.angle !== 0 && !this.cena.tweens.isTweening(this.corpo)) this.corpo.setAngle(0);
+    }
+  }
+
+  /** Segura uma pose (arremesso, dor) por um tempo, por cima da pose normal. */
+  private forcarPose(quadro: number, ms: number): void {
+    this.poseForcada = quadro;
+    this.poseAte = this.cena.time.now + ms;
+  }
+
+  /**
+   * Balão de fala curto acima do monstro. Sai com a chance do grupo e respeita o intervalo
+   * entre falas; `sempre` ignora os dois (falas de momentos importantes).
+   */
+  private falar(fala: Fala, sempre = false): void {
+    if (this.estado === 'compactado') return;
+    const agora = this.cena.time.now;
+    const grupo = FALAS[fala];
+    if (!sempre && (agora - this.ultimaFala < FALA.INTERVALO_MS || Math.random() > grupo.chance)) return;
+    this.ultimaFala = agora;
+    const texto = grupo.linhas[Phaser.Math.Between(0, grupo.linhas.length - 1)];
+    this.balao.setText(texto).setVisible(true).setAlpha(0);
+    this.posicionarBalao();
+    this.cena.tweens.killTweensOf(this.balao);
+    this.cena.tweens.add({ targets: this.balao, alpha: 1, duration: 140 });
+    this.cena.tweens.add({ targets: this.balao, alpha: 0, delay: FALA.DURACAO_MS, duration: 300, onComplete: () => this.balao.setVisible(false) });
+    this.cena.som.monstroFala(this.x);
+  }
+
+  /** Balão acima do monstro, sem sair da tela (na entrada, pela câmera onde ela vai parar). */
+  private posicionarBalao(): void {
+    const cam = this.cena.cameras.main.worldView;
+    const esq = this.entrando ? this.offset + ARENA.INICIO : cam.x;
+    const meia = this.balao.width / 2 + 8;
+    this.balao.setPosition(grade(Phaser.Math.Clamp(this.x, esq + meia, esq + LARGURA_TELA - meia)), grade(CHAO_Y - FALA.ACIMA));
+  }
+
+  /** Balão seguindo o monstro, "z Z" dormindo, fumaça da chaminé e o som da esteira. */
+  private atualizarEnfeites(delta: number): void {
+    const agora = this.cena.time.now;
+    this.andando = this.estado === 'lutando' && Math.abs(this.x - this.xAnterior) > 0.01;
+    this.xAnterior = this.x;
+    if (this.balao.visible) this.posicionarBalao();
+    const dormindo = this.estado === 'dormindo' && !this.entrando;
+    this.zz.setVisible(dormindo);
+    if (dormindo) {
+      const ciclo = (agora % 1800) / 1800;
+      this.zz.setPosition(grade(this.x - 40 + ciclo * 16), grade(CHAO_Y - HITBOX.ALTURA - 10 - ciclo * 30)).setAlpha(1 - ciclo * 0.8);
+    }
+    if (this.estado === 'compactado') return;
+    // Fumaça: mais densa e escura quando ele está bravo
+    this.esperaFumaca -= delta;
+    if (this.esperaFumaca <= 0 && this.estado !== 'derrotado') {
+      this.esperaFumaca = this.estado === 'lutando' ? CHEFAO.FUMACA_MS * 0.6 : CHEFAO.FUMACA_MS * 1.6;
+      const lado = this.corpo.flipX ? -1 : 1;
+      const fx = this.corpo.x + lado * 12 * ESCALA;
+      const fy = this.corpo.y - 50 * ESCALA + 12 * ESCALA;
+      const fumaca = this.cena.add.circle(fx, fy, ESCALA * 2, hexNum(this.estado === 'lutando' ? COR.sombraSucata : COR.sucata), 0.8).setDepth(PROF.objetos + 1);
+      this.cena.tweens.add({
+        targets: fumaca,
+        y: fy - 60,
+        x: fx + lado * 10,
+        scale: 2.4,
+        alpha: 0,
+        duration: 1300,
+        ease: 'Sine.easeOut',
+        onComplete: () => fumaca.destroy(),
+      });
+    }
+    if (this.andando) {
+      this.esperaPasso -= delta;
+      if (this.esperaPasso <= 0) {
+        this.esperaPasso = CHEFAO.PASSO_MS;
+        this.cena.som.monstroPasso(this.x);
+      }
     }
   }
 
@@ -674,59 +905,9 @@ export class ChefaoLixao {
   }
 
   private gerarTexturas(): void {
-    texturaPixel(this.cena, 'lx-monstro-0', MONSTRO_W, MONSTRO_H, (p) => desenharMonstro(p, 'normal'));
-    texturaPixel(this.cena, 'lx-monstro-1', MONSTRO_W, MONSTRO_H, (p) => desenharMonstro(p, 'boca'));
-    texturaPixel(this.cena, 'lx-monstro-derrotado', MONSTRO_W, MONSTRO_H, (p) => desenharMonstro(p, 'derrotado'));
-    texturaPixel(this.cena, 'lx-monstro-sucata', 7, 6, (p) => {
-      p.caixa(0, 0, 7, 6, COR.sucataClara);
-      p.px(1, 1, 3, 2, COR.cobre);
-      p.ponto(4, 3, COR.sombraSucata);
-    });
+    gerarTexturasMonstro(this.cena);
     texturaPixel(this.cena, 'lx-conteiner', CONTEINER_W, CONTEINER_H, desenharConteiner);
   }
-}
-
-/**
- * Monstro de Sucata em 48x40, olhando para a esquerda: um amontoado de chapas, placas e
- * canos de cobre com dois olhos de perigo e uma bocarra de grade. `boca` abre a mandíbula
- * (prepara ataque); `derrotado` apaga os olhos e entorta o corpo para baixo.
- */
-function desenharMonstro(p: Pincel, pose: 'normal' | 'boca' | 'derrotado'): void {
-  const caido = pose === 'derrotado' ? 3 : 0;
-  // Corpo: monte arredondado de sucata
-  for (let y = 4 + caido; y < 36; y++) {
-    const meia = Math.round(10 + (y - 4 - caido) * 0.5);
-    const cx = 24;
-    p.px(cx - meia - 1, y, meia * 2 + 2, 1, COR.contorno);
-    p.px(cx - meia, y, meia * 2, 1, y < 14 + caido ? COR.sucataClara : COR.sucata);
-  }
-  // Chapas de cobre e uma placa de circuito no peito
-  p.caixa(28, 14 + caido, 10, 6, COR.cobre);
-  p.px(29, 15 + caido, 8, 1, COR.cobreClaro);
-  p.caixa(14, 22 + caido, 12, 8, COR.verdePlaca);
-  p.px(16, 24 + caido, 8, 1, COR.cobreClaro);
-  p.px(18, 26 + caido, 1, 3, COR.cobreClaro);
-  p.px(21, 25 + caido, 1, 4, COR.verdePlacaClaro);
-  p.caixa(34, 24 + caido, 8, 6, COR.cobreEscuro);
-  // Canos saindo das costas
-  p.caixa(36, 2 + caido, 3, 8, COR.cobre);
-  p.caixa(40, 6 + caido, 3, 7, COR.cobreEscuro);
-  // Olhos
-  const corOlho = pose === 'derrotado' ? COR.sombraSucata : COR.perigo;
-  p.caixa(12, 9 + caido, 6, 4, corOlho);
-  p.caixa(20, 9 + caido, 5, 4, corOlho);
-  if (pose !== 'derrotado') {
-    p.ponto(13, 10, COR.luz);
-    p.ponto(21, 10, COR.luz);
-  }
-  // Boca de grade: fechada ou escancarada
-  const altura = pose === 'boca' ? 6 : 2;
-  p.px(8, 15 + caido, 16, altura + 2, COR.contorno);
-  for (let x = 9; x < 23; x += 3) p.px(x, 16 + caido, 1, altura, COR.sucataClara);
-  // Pés de esteira
-  p.caixa(6, 35, 16, 5, COR.sombraSucata);
-  p.caixa(26, 35, 16, 5, COR.sombraSucata);
-  for (let x = 8; x < 40; x += 3) p.ponto(x, 37, COR.sucataClara);
 }
 
 /** Contêiner de reciclagem 26x20: caçamba verde com tampa e o símbolo de três setas. */

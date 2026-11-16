@@ -131,9 +131,24 @@ interface Ima {
   y: number;
   atraso: number;
   img: Phaser.GameObjects.Image;
-  campo: Phaser.GameObjects.Rectangle[];
+  /** Linhas de campo, cone de luz e faíscas, redesenhados a cada quadro. */
+  campo: Phaser.GameObjects.Graphics;
+  /** Cisquinhos de sucata que sobem até as pontas quando ele liga e caem quando desliga. */
+  ciscos: CiscoIma[];
   ultimaFase: number;
 }
+
+interface CiscoIma {
+  img: Phaser.GameObjects.Image;
+  x: number;
+  y: number;
+  vy: number;
+  /** Grudado numa das pontas (-1 esquerda, 1 direita) ou 0 solto. */
+  grudado: number;
+}
+
+/** Ímã em pixels de arte: ferradura de 22x18 com as pontas para baixo. */
+const IMA_ARTE = { W: 22, H: 18, POLO_DX: 7, POLO_BASE: 9 } as const;
 
 interface Abrivel {
   /** Ponto que a câmera mostra ao abrir. */
@@ -293,6 +308,11 @@ export class MecanismosLixao {
     for (const g of this.garras) this.reiniciarGarra(g);
   }
 
+  /** Botões-alvo ainda não acertados (alvos da mira pelo teclado). */
+  get alvosBotoes(): { x: number; y: number }[] {
+    return this.botoes.filter((b) => !b.ativo).map((b) => ({ x: b.x, y: b.y }));
+  }
+
   /** Reciclável em voo em (x, y) acerta um botão-alvo? */
   atingir(x: number, y: number): boolean {
     const b = this.botoes.find((bt) => Phaser.Math.Distance.Between(x, y, bt.x, bt.y) <= MECANISMO.RAIO_BOTAO);
@@ -318,6 +338,7 @@ export class MecanismosLixao {
     if (!a) return;
     a.puxada = true;
     a.img.setFrame(1);
+    this.cena.som.alavanca(a.x);
     this.cena.som.bipesAcerto();
     this.mostrarAbertura(a.alvo);
   }
@@ -525,9 +546,9 @@ export class MecanismosLixao {
       const topoHaste = p.haste.y;
       p.haste.setSize(16, Math.max(4, base - 28 - topoHaste));
       // Bipe ao começar o aviso e "clang" ao bater
-      if (avisando && p.ultimaFase < M.PRENSA_AVISO && this.visivel(p.x, base)) this.cena.som.aviso();
+      if (avisando && p.ultimaFase < M.PRENSA_AVISO && this.visivel(p.x, base)) this.cena.som.aviso(p.x);
       if (f >= M.PRENSA_EMBAIXO && p.ultimaFase < M.PRENSA_EMBAIXO && this.visivel(p.x, base)) {
-        this.cena.som.batida();
+        this.cena.som.batida(p.x);
         this.cena.cameras.main.shake(60, 0.002);
       }
       p.ultimaFase = f;
@@ -574,7 +595,7 @@ export class MecanismosLixao {
         if (this.emCima(body.left, body.width, body.top)) {
           f.estado = 'tremendo';
           f.tempo = 0;
-          if (this.visivel(f.x, f.y)) this.cena.som.aviso();
+          if (this.visivel(f.x, f.y)) this.cena.som.fragilRacha(f.x);
         }
       } else if (f.estado === 'tremendo') {
         f.img.setX(f.x + (Math.floor(f.tempo / 50) % 2 === 0 ? ESCALA : -ESCALA));
@@ -582,6 +603,7 @@ export class MecanismosLixao {
           f.estado = 'caida';
           f.tempo = 0;
           body.enable = false;
+          if (this.visivel(f.x, f.y)) this.cena.som.fragilCai(f.x);
           this.cena.tweens.add({ targets: f.img, y: f.y + 160, alpha: 0, duration: 400, ease: 'Quad.easeIn' });
         }
       } else if (f.tempo >= MECANISMO.FRAGIL_VOLTA_MS) {
@@ -828,7 +850,7 @@ export class MecanismosLixao {
           if (!embaixo) g.liberada = true;
           if (g.liberada && embaixo && noChao) {
             g.estado = 'descendo';
-            if (this.visivel(g.x, g.y)) this.cena.som.aviso();
+            if (this.visivel(g.x, g.y)) this.cena.som.aviso(g.x);
           }
           break;
         case 'descendo': {
@@ -937,8 +959,8 @@ export class MecanismosLixao {
       const ligado = f >= M.CHOQUE_LIGA;
       ch.faisca.setVisible((avisando && Math.floor(f / 100) % 2 === 0) || ligado);
       ch.descarga.setVisible(ligado && Math.floor(f / 50) % 2 === 0).setFillStyle(hexNum(Math.floor(f / 100) % 2 === 0 ? COR.bateriaAmarela : COR.luz));
-      if (avisando && ch.ultimaFase < M.CHOQUE_AVISO && this.visivel(ch.x, CHAO_Y)) this.cena.som.aviso();
-      if (ligado && ch.ultimaFase < M.CHOQUE_LIGA && this.visivel(ch.x, CHAO_Y)) this.cena.som.choque();
+      if (avisando && ch.ultimaFase < M.CHOQUE_AVISO && this.visivel(ch.x, CHAO_Y)) this.cena.som.aviso(ch.x);
+      if (ligado && ch.ultimaFase < M.CHOQUE_LIGA && this.visivel(ch.x, CHAO_Y)) this.cena.som.choque(ch.x);
       ch.ultimaFase = f;
       const noChao = c.blocked.down || c.touching.down;
       if (ligado && noChao && Math.abs(c.bottom - CHAO_Y) <= 4 && c.right > ch.x + 4 && c.left < ch.x + ch.w - 4) this.aoAtingir(ch.x + ch.w / 2);
@@ -987,21 +1009,26 @@ export class MecanismosLixao {
 
   private criarIma(x: number, alt: number, atraso: number): void {
     const y = CHAO_Y - alt;
-    this.cena.add.rectangle(grade(x), y - 30, ESCALA, 900, hexNum(COR.contorno)).setOrigin(0.5, 1).setDepth(PROF.objetos - 1);
+    // Cabo grosso de guindaste até a alça do ímã
+    this.cena.add.rectangle(grade(x), y - 30, ESCALA * 2, 900, hexNum(COR.contorno)).setOrigin(0.5, 1).setDepth(PROF.objetos - 1);
+    const campo = this.cena.add.graphics().setDepth(PROF.objetos);
     const img = this.cena.add.image(grade(x), grade(y), 'lx-ima', 0).setScale(ESCALA).setDepth(PROF.objetos + 1);
     this.tingir(img);
-    // Ondas do campo abaixo do ímã: sobem pulsando enquanto ligado
-    const campo: Phaser.GameObjects.Rectangle[] = [];
-    for (let k = 1; k <= 3; k++) {
-      campo.push(
-        this.cena.add
-          .rectangle(grade(x), grade(y + 40 + k * 56), 48 + k * 40, ESCALA, hexNum(COR.janela))
-          .setDepth(PROF.escuro + 1)
-          .setAlpha(0.6)
-          .setVisible(false)
-      );
+    const ciscos: CiscoIma[] = [];
+    for (let k = 0; k < 7; k++) {
+      const cisco = this.cena.add.image(0, 0, 'lx-ima-cisco', k % 3).setScale(ESCALA).setDepth(PROF.objetos + 2).setVisible(false);
+      ciscos.push({ img: cisco, x: 0, y: 0, vy: 0, grudado: 0 });
     }
-    this.imas.push({ x, y, atraso, img, campo, ultimaFase: -1 });
+    this.imas.push({ x, y, atraso, img, campo, ciscos, ultimaFase: -1 });
+  }
+
+  /** Pontas da ferradura (onde o campo sai e os cisquinhos grudam), em coordenadas de mundo. */
+  private polosIma(im: Ima): [{ x: number; y: number }, { x: number; y: number }] {
+    const base = im.y + IMA_ARTE.POLO_BASE * ESCALA;
+    return [
+      { x: im.x - IMA_ARTE.POLO_DX * ESCALA, y: base },
+      { x: im.x + IMA_ARTE.POLO_DX * ESCALA, y: base },
+    ];
   }
 
   private atualizarImas(dt: number): void {
@@ -1010,13 +1037,15 @@ export class MecanismosLixao {
       const f = this.fase(M.IMA_CICLO, im.atraso);
       const avisando = f >= M.IMA_AVISO && f < M.IMA_LIGA;
       const ligado = f >= M.IMA_LIGA;
-      // Quadro 1: pontas acesas (perigo ligado); no aviso pisca e treme
-      im.img.setFrame(ligado || (avisando && Math.floor(f / 100) % 2 === 0) ? 1 : 0);
-      im.img.setX(grade(im.x) + (avisando && Math.floor(f / 60) % 2 === 0 ? ESCALA : 0));
-      const onda = (this.tempo / 120) % 3;
-      im.campo.forEach((r, i) => r.setVisible(ligado && Math.floor(onda) === 2 - i));
+      // Quadros: 0 desligado, 1 carregando (aviso pisca), 2 ligado (pontas azuis acesas)
+      im.img.setFrame(ligado ? 2 : avisando && Math.floor(f / 90) % 2 === 0 ? 1 : 0);
+      im.img.setX(grade(im.x) + (avisando ? (Math.floor(f / 50) % 2 === 0 ? ESCALA : -ESCALA) : ligado ? Math.round(Math.sin(this.tempo / 30)) : 0));
       if (avisando && im.ultimaFase < M.IMA_AVISO && this.visivel(im.x, im.y)) this.cena.som.aviso();
+      if (ligado && im.ultimaFase < M.IMA_LIGA && this.visivel(im.x, im.y)) this.cena.som.imaLiga(im.x, (M.IMA_CICLO - f) / 1000);
+      if (!ligado && im.ultimaFase >= M.IMA_LIGA && this.visivel(im.x, im.y)) this.cena.som.imaDesliga(im.x);
       im.ultimaFase = f;
+      this.desenharCampoIma(im, ligado, avisando, f);
+      this.atualizarCiscos(im, ligado, dt);
       if (!ligado) continue;
       // Ligado: ergue quem está embaixo e o segura pendurado; os lados ficam livres para
       // atravessar. Saiu do alcance ou o ímã desligou: cai.
@@ -1025,6 +1054,103 @@ export class MecanismosLixao {
       if (Math.abs(c.center.x - im.x) < M.IMA_ALCANCE_X && abaixo > 0 && abaixo < M.IMA_ALCANCE_Y) {
         const alvoTopo = im.y + M.IMA_FOLGA;
         c.velocity.y = Phaser.Math.Clamp((alvoTopo - c.top) * M.IMA_SUBIDA, -M.IMA_SUBIDA_MAX, M.IMA_SUBIDA_MAX) - 600 * dt;
+      }
+    }
+  }
+
+  /**
+   * Ligado: cone de luz azul até onde ele puxa e linhas de campo em arco saindo das pontas,
+   * com os traços correndo para o ímã. Carregando: faíscas nas pontas.
+   */
+  private desenharCampoIma(im: Ima, ligado: boolean, avisando: boolean, f: number): void {
+    const g = im.campo;
+    g.clear();
+    if (!this.visivel(im.x, im.y)) return;
+    const M = MECANISMO;
+    const [esq, dir] = this.polosIma(im);
+    const azul = hexNum(COR.neonCiano);
+    if (avisando) {
+      // Faíscas brancas e azuis estalando nas pontas, cada vez mais
+      const k = (f - M.IMA_AVISO) / (M.IMA_LIGA - M.IMA_AVISO);
+      for (const p of [esq, dir]) {
+        for (let i = 0; i < 1 + Math.floor(k * 4); i++) {
+          if (Math.random() > 0.5) continue;
+          const ax = p.x + (Math.random() - 0.5) * 28;
+          const ay = p.y + Math.random() * 18;
+          g.fillStyle(Math.random() < 0.5 ? 0xffffff : azul, 0.9).fillRect(grade(ax), grade(ay), ESCALA, ESCALA);
+        }
+      }
+      return;
+    }
+    if (!ligado) return;
+    // Cone de luz: até onde o ímã alcança
+    const base = im.y + M.IMA_ALCANCE_Y;
+    g.fillStyle(azul, 0.07).fillTriangle(esq.x, esq.y, dir.x, dir.y, im.x + M.IMA_ALCANCE_X * 0.7, base);
+    g.fillTriangle(esq.x, esq.y, im.x - M.IMA_ALCANCE_X * 0.7, base, im.x + M.IMA_ALCANCE_X * 0.7, base);
+    // Linhas de campo: arcos entre as pontas, cada vez mais largos e fundos, tracejados e correndo
+    const deslocamento = (this.tempo / 60) % 4;
+    for (let k = 1; k <= 4; k++) {
+      const meiaLargura = (dir.x - esq.x) / 2 + k * 34;
+      const fundo = k * 62;
+      const passos = 22;
+      for (let i = 0; i <= passos; i++) {
+        if ((i + Math.floor(deslocamento)) % 4 >= 2) continue;
+        const t = i / passos;
+        const ang = Math.PI * t;
+        const x = im.x - Math.cos(ang) * meiaLargura;
+        const y = esq.y + Math.sin(ang) * fundo;
+        g.fillStyle(azul, 0.75 - k * 0.13).fillRect(grade(x), grade(y), ESCALA, ESCALA);
+      }
+    }
+    // Faíscas azuis presas nas pontas
+    for (const p of [esq, dir]) {
+      if (Math.random() < 0.6) g.fillStyle(0xffffff, 1).fillRect(grade(p.x + (Math.random() - 0.5) * 16), grade(p.y + Math.random() * 6), ESCALA, ESCALA);
+    }
+  }
+
+  /** Cisquinhos sobem do chão até as pontas com o ímã ligado; desligado, despencam. */
+  private atualizarCiscos(im: Ima, ligado: boolean, dt: number): void {
+    const M = MECANISMO;
+    const [esq, dir] = this.polosIma(im);
+    for (const c of im.ciscos) {
+      if (ligado) {
+        if (!c.img.visible) {
+          // Nasce no chão dentro do alcance, em momentos diferentes
+          if (Math.random() > 0.02) continue;
+          c.x = im.x + (Math.random() - 0.5) * M.IMA_ALCANCE_X * 1.2;
+          c.y = Math.min(CHAO_Y - 6, im.y + M.IMA_ALCANCE_Y);
+          c.vy = 0;
+          c.grudado = 0;
+          c.img.setVisible(true).setAlpha(1).setAngle(0);
+        }
+        if (c.grudado !== 0) {
+          const p = c.grudado < 0 ? esq : dir;
+          c.img.setPosition(grade(p.x + c.x), grade(p.y + 4)).setAngle(Math.sin(this.tempo / 40 + c.x) * 15);
+          continue;
+        }
+        // Puxado para a ponta mais perto, cada vez mais rápido
+        const alvo = c.x < im.x ? esq : dir;
+        c.vy = Math.max(c.vy - 900 * dt, -520);
+        c.y += c.vy * dt;
+        c.x += (alvo.x - c.x) * Math.min(1, dt * 3);
+        c.img.setPosition(grade(c.x), grade(c.y)).setAngle(c.img.angle + 600 * dt);
+        if (c.y <= alvo.y + 4) {
+          c.grudado = c.x < im.x ? -1 : 1;
+          c.x = (Math.random() - 0.5) * 18;
+        }
+      } else if (c.img.visible) {
+        // Desligou: tudo que estava grudado cai e some
+        if (c.grudado !== 0) {
+          const p = c.grudado < 0 ? esq : dir;
+          c.x = p.x + c.x;
+          c.y = p.y + 4;
+          c.grudado = 0;
+          c.vy = 0;
+        }
+        c.vy += 1400 * dt;
+        c.y += c.vy * dt;
+        c.img.setPosition(grade(c.x), grade(c.y));
+        if (c.y > CHAO_Y) c.img.setVisible(false);
       }
     }
   }
@@ -1104,7 +1230,10 @@ export class MecanismosLixao {
     const alvo = this.abriveis.get(id);
     if (!alvo || alvo.aberto) return;
     alvo.aberto = true;
-    this.cena.mostrarEvento(alvo.x, alvo.y, () => alvo.abrir());
+    this.cena.mostrarEvento(alvo.x, alvo.y, () => {
+      this.cena.som.mecanismoAbrindo(alvo.x);
+      alvo.abrir();
+    });
   }
 
   /* =========================================================================
@@ -1217,6 +1346,7 @@ export class MecanismosLixao {
       if (el.espera >= M.ELEVADOR_PAUSA_CICLO_MS) {
         el.sentido = noAlto ? 1 : -1;
         el.espera = 0;
+        this.somPartida(el, y);
       }
       return;
     }
@@ -1229,6 +1359,7 @@ export class MecanismosLixao {
     if (!noAlto && esperandoNoAlto && !emCima) {
       el.sentido = -1;
       el.liberado = true;
+      this.somPartida(el, y);
       return;
     }
     if (!emCima) {
@@ -1243,8 +1374,15 @@ export class MecanismosLixao {
       el.sentido = noAlto ? 1 : -1;
       el.liberado = false;
       el.espera = 0;
-      if (this.visivel(el.x, y)) this.cena.som.aviso();
+      this.somPartida(el, y);
     }
+  }
+
+  /** Motor do elevador pelo tempo aproximado da viagem. */
+  private somPartida(el: Elevador, y: number): void {
+    if (!this.visivel(el.x, y)) return;
+    const curso = Math.abs(el.yBaixo - el.yAlto);
+    this.cena.som.elevadorPartida(el.x + el.w / 2, curso / MECANISMO.ELEVADOR_VELOCIDADE + 0.5);
   }
 
   /**
@@ -1278,6 +1416,7 @@ export class MecanismosLixao {
           b.reset(el.x + el.w / 2, alvo + 10);
           el.sentido = 0;
           el.espera = 0;
+          if (this.visivel(el.x, alvo)) this.cena.som.elevadorChegada(el.x + el.w / 2);
           if (this.emCima(el.x, el.w, alvo) && this.visivel(el.x, alvo)) this.cena.cameras.main.shake(80, 0.002);
         } else vy = el.sentido * velocidade;
       }
@@ -1359,7 +1498,7 @@ export class MecanismosLixao {
   private atualizarCheckpoints(): void {
     const j = this.jogador;
     for (const cp of this.checkpoints) {
-      if (Math.abs(j.x - cp.x) > MECANISMO.ALCANCE_CHECKPOINT || Math.abs(j.y - cp.superficie) > 8) continue;
+      if (Math.abs(j.x - cp.x) > MECANISMO.ALCANCE_CHECKPOINT || Math.abs(j.y - cp.superficie) > 12) continue;
       if (this.cena.salvarCheckpoint({ x: cp.x, y: cp.superficie - 4, trecho: cp.trecho, ordem: cp.trecho * 100 + cp.ordem })) {
         cp.luz.setFillStyle(hexNum(COR.bateriaVerde));
       }
@@ -1420,20 +1559,49 @@ export class MecanismosLixao {
       p.px(3, 44, 1, 3, COR.cobreClaro);
       p.ponto(2, 47, COR.cobre);
     });
-    // Ímã em U de sucata com bobinas de cobre; quadro 1 com as pontas em perigo (ligado)
-    folhaPixel(this.cena, 'lx-ima', 16, 12, 2, (p: Pincel, q: number) => {
-      p.caixa(0, 0, 16, 5, COR.sucata);
-      p.px(1, 1, 14, 1, COR.sucataClara);
-      p.caixa(0, 4, 5, 8, COR.sucata);
-      p.caixa(11, 4, 5, 8, COR.sucata);
-      for (let y = 5; y < 10; y += 2) {
-        p.px(1, y, 3, 1, COR.cobre);
-        p.px(12, y, 3, 1, COR.cobre);
+    // Ímã de ferradura: corpo vermelho, faixa de bobina de cobre e pontas de aço (o desenho
+    // clássico de ímã). Quadro 0 desligado, 1 carregando (pontas brancas), 2 ligado (pontas azuis)
+    folhaPixel(this.cena, 'lx-ima', IMA_ARTE.W, IMA_ARTE.H, 3, (p: Pincel, q: number) => {
+      const vermelho = q === 0 ? '#9A2A1E' : '#D8372A';
+      const vermelhoClaro = q === 0 ? '#B8443A' : '#F06A50';
+      // Alça no topo
+      p.caixa(9, 0, 4, 3, COR.sombraSucata);
+      // Arco da ferradura
+      p.caixa(1, 2, 20, 6, vermelho);
+      p.px(2, 3, 18, 1, vermelhoClaro);
+      p.px(3, 2, 16, 1, COR.contorno);
+      // Braços
+      p.caixa(1, 7, 6, 8, vermelho);
+      p.caixa(15, 7, 6, 8, vermelho);
+      p.px(2, 8, 1, 6, vermelhoClaro);
+      p.px(16, 8, 1, 6, vermelhoClaro);
+      // Miolo vazado entre os braços
+      p.px(7, 8, 8, 7, COR.contorno);
+      // Bobina de cobre enrolada no arco
+      for (let x = 4; x < 18; x += 2) p.px(x, 4, 1, 3, COR.cobre);
+      p.px(4, 5, 14, 1, COR.cobreClaro);
+      // Pontas de aço (polos)
+      const ponta = q === 2 ? COR.neonCiano : q === 1 ? COR.luz : COR.sucataClara;
+      p.caixa(1, 14, 6, 4, COR.sucata);
+      p.caixa(15, 14, 6, 4, COR.sucata);
+      p.px(2, 16, 4, 1, ponta);
+      p.px(16, 16, 4, 1, ponta);
+      p.px(2, 17, 4, 1, q === 2 ? COR.luz : COR.sombraSucata);
+      p.px(16, 17, 4, 1, q === 2 ? COR.luz : COR.sombraSucata);
+    });
+    // Cisquinhos que o ímã puxa: porca, mola e pedaço de placa
+    folhaPixel(this.cena, 'lx-ima-cisco', 3, 3, 3, (p: Pincel, q: number) => {
+      if (q === 0) {
+        p.px(0, 0, 3, 3, COR.sucataClara);
+        p.ponto(1, 1, COR.contorno);
+      } else if (q === 1) {
+        p.px(0, 0, 3, 1, COR.cobre);
+        p.px(0, 2, 3, 1, COR.cobre);
+        p.ponto(1, 1, COR.cobreClaro);
+      } else {
+        p.px(0, 0, 3, 2, COR.verdePlaca);
+        p.ponto(2, 0, COR.cobreClaro);
       }
-      const ponta = q === 1 ? COR.perigo : COR.sombraSucata;
-      p.px(1, 10, 3, 2, ponta);
-      p.px(12, 10, 3, 2, ponta);
-      p.px(6, 0, 4, 1, COR.contorno);
     });
     // Alavanca: base de sucata e cabo ciano (interativo); quadro 1 puxada
     folhaPixel(this.cena, 'lx-alavanca', 12, 14, 2, (p: Pincel, q: number) => {

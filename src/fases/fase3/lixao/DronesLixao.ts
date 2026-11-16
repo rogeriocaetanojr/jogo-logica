@@ -192,6 +192,11 @@ export class DronesLixao {
    * Reciclável em voo em (x, y): se acertar um drone no ar, derruba e devolve true (o item
    * faz o próprio impacto).
    */
+  /** Drones no ar (alvos da mira pelo teclado). */
+  get alvos(): { x: number; y: number }[] {
+    return this.drones.filter((d) => this.voando(d)).map((d) => ({ x: d.x, y: d.y }));
+  }
+
   atingir(x: number, y: number): boolean {
     const meioW = (DRONE_W * ESCALA) / 2 + ESCALA;
     const meioH = (DRONE_H * ESCALA) / 2 + ESCALA;

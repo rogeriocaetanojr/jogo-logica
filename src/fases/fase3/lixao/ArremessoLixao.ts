@@ -36,7 +36,14 @@ export const ARREMESSO = {
   VALIDADE_CLIQUE_MS: 150,
   /** Altura do item acima da cabeça do jogador. */
   ACIMA_CABECA: 4,
+  /** Mira pelo teclado (J): ângulo para cima sem alvo (graus) e até onde procura alvos à frente (px). */
+  ANGULO_TECLADO: 38,
+  ALCANCE_ALVO: 900,
+  /** Sem mexer o mouse por este tempo, a trajetória mostrada passa a ser a do teclado. */
+  MOUSE_PARADO_MS: 1200,
 } as const;
+
+type Mira = { x: number; y: number; vx: number; vy: number };
 
 /** Giro no ar: graus por segundo e se o item capota de lado (achata e volta, como um disco). */
 const GIRO: Record<TipoReciclavel, { grausPorSegundo: number; capota: boolean }> = {
@@ -69,7 +76,8 @@ function gravidadeDe(tipo: TipoReciclavel): number {
 /**
  * Arremesso de recicláveis, igual no caminho e no chefão. F pega o item mais perto (só com a
  * mão vazia), que vai acima da cabeça do jogador. O mouse mira com uma trajetória curta
- * pontilhada e o clique arremessa. O item voa com giro próprio, curva conforme o peso e,
+ * pontilhada e o clique arremessa. Pelo teclado, J arremessa para a frente: mira sozinho no
+ * alvo mais perto à frente (drone, botão ou o monstro) ou, sem alvo, joga num arco de 38°. O item voa com giro próprio, curva conforme o peso e,
  * ao bater num sólido, faz a animação de impacto do tipo e some.
  *
  * Só avança em `atualizar`, que a cena não chama com o terminal aberto ou a física pausada.
@@ -77,6 +85,9 @@ function gravidadeDe(tipo: TipoReciclavel): number {
 export class ArremessoLixao {
   private readonly cena: CenaFase3;
   private readonly teclaPegar?: Phaser.Input.Keyboard.Key;
+  private readonly teclaArremesso?: Phaser.Input.Keyboard.Key;
+  /** Última vez que o mouse mexeu ou clicou (decide qual trajetória mostrar). */
+  private mouseEm = -Infinity;
   private readonly trajetoria: Phaser.GameObjects.Graphics;
   private readonly textoPegar: Phaser.GameObjects.Text;
   private readonly projeteis: Projetil[] = [];
@@ -90,9 +101,12 @@ export class ArremessoLixao {
   constructor(cena: CenaFase3) {
     this.cena = cena;
     this.teclaPegar = cena.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.F, false);
+    this.teclaArremesso = cena.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.J, false);
     cena.input.on(Phaser.Input.Events.POINTER_DOWN, (ponteiro: Phaser.Input.Pointer) => {
+      this.mouseEm = cena.time.now;
       if (ponteiro.leftButtonDown()) this.cliqueEm = cena.time.now;
     });
+    cena.input.on(Phaser.Input.Events.POINTER_MOVE, () => (this.mouseEm = cena.time.now));
     // Acima da escuridão: a mira é interativa e fica visível à noite
     this.trajetoria = cena.add.graphics().setDepth(PROF.escuro + 2);
     this.textoPegar = cena.add
@@ -138,6 +152,13 @@ export class ArremessoLixao {
     this.trajetoria.clear();
     this.textoPegar.setVisible(false);
     this.cliqueEm = -Infinity;
+    this.teclaArremesso?.reset();
+  }
+
+  /** Esquece J/F apertados com a cena pausada (digitados no terminal). */
+  soltarTeclas(): void {
+    this.teclaArremesso?.reset();
+    this.teclaPegar?.reset();
   }
 
   /** Ao morrer: some o que está no ar e a mão volta vazia. */
@@ -160,7 +181,10 @@ export class ArremessoLixao {
     this.textoPegar.setPosition(perto.x, perto.y - LADO_RECICLAVEL * ESCALA - 12);
     if (this.teclaPegar && Phaser.Input.Keyboard.JustDown(this.teclaPegar)) {
       const tipo = perto.pegar();
-      if (tipo) this.definirMao(tipo);
+      if (tipo) {
+        this.cena.som.pegar(jogador.x);
+        this.definirMao(tipo);
+      }
     }
   }
 
@@ -191,26 +215,74 @@ export class ArremessoLixao {
    * MIRA E ARREMESSO
    * ========================================================================= */
 
+  private origemArremesso(): { x: number; y: number } {
+    const mao = this.pontoMao();
+    return { x: mao.x, y: mao.y - (LADO_RECICLAVEL * ESCALA) / 2 };
+  }
+
   /** Velocidade inicial na direção do ponteiro, em coordenadas do mundo. */
-  private velocidadeMira(tipo: TipoReciclavel): { x: number; y: number; vx: number; vy: number } {
+  private velocidadeMira(tipo: TipoReciclavel): Mira {
     const ponteiro = this.cena.input.activePointer;
     ponteiro.updateWorldPoint(this.cena.cameras.main);
-    const mao = this.pontoMao();
-    const origem = { x: mao.x, y: mao.y - (LADO_RECICLAVEL * ESCALA) / 2 };
+    const origem = this.origemArremesso();
     const angulo = Math.atan2(ponteiro.worldY - origem.y, ponteiro.worldX - origem.x);
     const v = velocidadeDe(tipo);
     return { ...origem, vx: Math.cos(angulo) * v, vy: Math.sin(angulo) * v };
+  }
+
+  /**
+   * Mira do teclado: para o lado em que o jogador olha, no alvo mais perto que o arco alcança
+   * sem bater em nada (arco baixo primeiro, depois o alto); sem alvo, arco fixo de 38°.
+   */
+  private miraTeclado(tipo: TipoReciclavel): Mira {
+    const origem = this.origemArremesso();
+    const lado = this.cena.jogador.sprite.flipX ? -1 : 1;
+    const v = velocidadeDe(tipo);
+    const g = gravidadeDe(tipo);
+    const alvos = [...this.cena.drones.alvos, ...this.cena.mecanismos.alvosBotoes, ...(this.cena.chefao.alvo ? [this.cena.chefao.alvo] : [])]
+      .filter((a) => (a.x - origem.x) * lado > 24 && Math.abs(a.x - origem.x) < ARREMESSO.ALCANCE_ALVO)
+      .sort((a, b) => Math.hypot(a.x - origem.x, a.y - origem.y) - Math.hypot(b.x - origem.x, b.y - origem.y));
+    for (const alvo of alvos) {
+      const dx = Math.abs(alvo.x - origem.x);
+      const subida = origem.y - alvo.y;
+      const disc = v ** 4 - g * (g * dx * dx + 2 * subida * v * v);
+      if (disc < 0) continue;
+      for (const sinal of [-1, 1]) {
+        const angulo = Math.atan((v * v + sinal * Math.sqrt(disc)) / (g * dx));
+        const mira: Mira = { ...origem, vx: lado * Math.cos(angulo) * v, vy: -Math.sin(angulo) * v };
+        if (this.caminhoLivre(mira, g, alvo)) return mira;
+      }
+    }
+    const a = Phaser.Math.DegToRad(ARREMESSO.ANGULO_TECLADO);
+    return { ...origem, vx: lado * Math.cos(a) * v, vy: -Math.sin(a) * v };
+  }
+
+  /** O arco chega perto do alvo antes de bater num sólido? */
+  private caminhoLivre(m: Mira, g: number, alvo: { x: number; y: number }): boolean {
+    for (let t = 0.02; t < 2.5; t += 0.02) {
+      const x = m.x + m.vx * t;
+      const y = m.y + m.vy * t + (g * t * t) / 2;
+      if (Math.hypot(x - alvo.x, y - alvo.y) < 28) return true;
+      if (this.solidoEm(x, y) || y > ALTURA_TELA) return false;
+    }
+    return false;
   }
 
   private atualizarMira(): void {
     this.trajetoria.clear();
     const tipo = this.naMao;
     if (!tipo) return;
-    const mira = this.velocidadeMira(tipo);
+    if (this.teclaArremesso && Phaser.Input.Keyboard.JustDown(this.teclaArremesso)) {
+      this.mouseEm = -Infinity;
+      this.arremessar(tipo, this.miraTeclado(tipo));
+      return;
+    }
+    const peloMouse = this.cena.time.now - this.mouseEm < ARREMESSO.MOUSE_PARADO_MS;
+    const mira = peloMouse ? this.velocidadeMira(tipo) : this.miraTeclado(tipo);
 
     if (this.cena.time.now - this.cliqueEm <= ARREMESSO.VALIDADE_CLIQUE_MS) {
       this.cliqueEm = -Infinity;
-      this.arremessar(tipo, mira);
+      this.arremessar(tipo, this.velocidadeMira(tipo));
       return;
     }
 
@@ -227,7 +299,7 @@ export class ArremessoLixao {
     }
   }
 
-  private arremessar(tipo: TipoReciclavel, mira: { x: number; y: number; vx: number; vy: number }): void {
+  private arremessar(tipo: TipoReciclavel, mira: Mira): void {
     const img = this.cena.add.image(mira.x, mira.y, `lx-rec-${tipo}`).setScale(ESCALA).setDepth(PROF.jogador + 1);
     this.projeteis.push({ tipo, img, x: mira.x, y: mira.y, vx: mira.vx, vy: mira.vy, gravidade: gravidadeDe(tipo), tempo: 0 });
     this.definirMao(null);

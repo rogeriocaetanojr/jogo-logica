@@ -70,11 +70,11 @@ export interface InfoTrecho {
  * primeiros têm um exercício no meio e o 4 é a arena do Monstro de Sucata.
  */
 export const TRECHOS: readonly InfoTrecho[] = [
-  // Sem estações: o mapa inteiro tem o visual do início com uma garoa leve (EFEITOS_CLIMA.sol)
-  { numero: 1, nome: 'Portão do Lixão', clima: 'sol', rotuloClima: 'GAROA' },
-  { numero: 2, nome: 'Tempestade de Pó', clima: 'sol', rotuloClima: 'GAROA' },
-  { numero: 3, nome: 'Pilhas Encharcadas', clima: 'sol', rotuloClima: 'GAROA' },
-  { numero: 4, nome: 'Arena da Sucata', clima: 'sol', rotuloClima: 'GAROA' },
+  // Sem estações: o mapa inteiro tem o visual do início, sem chuva (EFEITOS_CLIMA.sol)
+  { numero: 1, nome: 'Portão do Lixão', clima: 'sol', rotuloClima: 'SECO' },
+  { numero: 2, nome: 'Tempestade de Pó', clima: 'sol', rotuloClima: 'SECO' },
+  { numero: 3, nome: 'Pilhas Encharcadas', clima: 'sol', rotuloClima: 'SECO' },
+  { numero: 4, nome: 'Arena da Sucata', clima: 'sol', rotuloClima: 'SECO' },
 ];
 
 /** Recicláveis que servem de munição: caem das pilhas e ficam soltos pelo chão. */

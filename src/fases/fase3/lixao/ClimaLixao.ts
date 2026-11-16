@@ -14,8 +14,8 @@ export interface EstadoClima {
 
 /** Efeitos de cada clima do plano; cada trecho escolhe o seu em TRECHOS (TiposLixao). */
 export const EFEITOS_CLIMA: Record<Clima, EstadoClima> = {
-  /** Clima de toda a fase: o visual do início com uma garoa bem leve. */
-  sol: { poeira: 0, chuva: 0.25, noite: 0 },
+  /** Clima de toda a fase: o visual do início, sem chuva. */
+  sol: { poeira: 0, chuva: 0, noite: 0 },
   nevoa: { poeira: 1, chuva: 0, noite: 0 },
   chuva: { poeira: 0, chuva: 1, noite: 0 },
   noite: { poeira: 0, chuva: 0, noite: 1 },

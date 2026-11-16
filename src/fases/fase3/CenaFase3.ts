@@ -90,6 +90,10 @@ export class CenaFase3 extends CenaBase {
   private exerciciosResolvidos = 0;
   private teclas!: Record<string, Phaser.Input.Keyboard.Key>;
   private textoPrompt!: Phaser.GameObjects.Text;
+  /** Dica "[S] Agachar" sobre a passagem baixa mais perto. */
+  private textoAgachar!: Phaser.GameObjects.Text;
+  /** Passagens baixas (x de mundo do início e largura), registradas pelos trechos. */
+  public passagensBaixas: { x: number; largura: number }[] = [];
 
   /** Há um prompt de interação ("[E] ...") na tela: avisos do cenário cedem o espaço. */
   get promptVisivel(): boolean {
@@ -125,6 +129,7 @@ export class CenaFase3 extends CenaBase {
 
     this.solidos = this.physics.add.staticGroup();
     this.perigos = this.physics.add.staticGroup();
+    this.passagensBaixas = [];
     this.trechos = criarTrechos(this);
     this.cenario = new CenarioLixao(this, this.trechos);
     this.cenario.construir();
@@ -163,6 +168,18 @@ export class CenaFase3 extends CenaBase {
       .text(0, 0, '', {
         fontFamily: 'Consolas, "Courier New", monospace',
         fontSize: '16px',
+        color: COR.neonCiano,
+        backgroundColor: COR.contorno,
+        padding: { x: 6, y: 3 },
+      })
+      .setOrigin(0.5, 1)
+      .setDepth(PROF.textos)
+      .setVisible(false);
+
+    this.textoAgachar = this.add
+      .text(0, 0, '[S] Agachar', {
+        fontFamily: 'Consolas, "Courier New", monospace',
+        fontSize: '15px',
         color: COR.neonCiano,
         backgroundColor: COR.contorno,
         padding: { x: 6, y: 3 },
@@ -215,7 +232,9 @@ export class CenaFase3 extends CenaBase {
 
   private configurarTerminal(): void {
     this.terminal.definirInterpretador(interpretarComandoFase3);
+    this.som.definirTerminal(() => this.terminal.estaAberto);
     this.terminal.definirAoSubmeter((resultado: ResultadoComando) => {
+      if (!resultado.sucesso) this.som.terminalErro();
       if (resultado.acao === 'CLEAR_TERMINAL') {
         this.terminal.limpar();
         return;
@@ -234,6 +253,7 @@ export class CenaFase3 extends CenaBase {
     const exercicio = EXERCICIOS[indice];
     this.trechoTerminal = trecho;
     this.contextoTerminal = { exercicio: indice, linhaPendente: '', resolvido: trecho.exercicioResolvido };
+    this.som.terminalAbrir();
     this.terminal.abrir({
       titulo: `LIXÃO // TERMINAL ${indice + 1}`,
       contexto: this.contextoTerminal,
@@ -278,6 +298,7 @@ export class CenaFase3 extends CenaBase {
         this.physics.world.resume();
         // O que foi digitado no terminal não pode virar atalho (ex.: o "4" de degraus = 4)
         for (const tecla of Object.values(this.teclas)) tecla.reset();
+        this.arremesso.soltarTeclas();
       }
     }
 
@@ -296,8 +317,8 @@ export class CenaFase3 extends CenaBase {
     // Caiu num buraco ou de muito alto: perde a vida toda e volta ao checkpoint
     if (this.jogador.consumirQuedaFatal()) {
       this.cameras.main.shake(200, 0.012);
-      this.som.batida();
-      this.morrer();
+      this.som.quedaFatal();
+      this.morrer(false);
       return;
     }
     if (this.jogador.y > ALTURA_TELA + QUEDA_FATAL) {
@@ -350,6 +371,11 @@ export class CenaFase3 extends CenaBase {
     return true;
   }
 
+  /** Pausa (ou solta) a física para uma cena curta conduzida por outro módulo (entrada do chefão). */
+  definirCinematica(ativa: boolean): void {
+    this.cinematica = ativa;
+  }
+
   /**
    * Mostra algo abrindo longe do jogador: pausa a física, leva a câmera até (x, y), roda
    * `acao` e fica ali por 1 s antes de voltar ao jogador.
@@ -376,6 +402,7 @@ export class CenaFase3 extends CenaBase {
     if (this.morrendo || this.vitoria || !this.jogador.receberDano(origemX)) return;
     this.hud.atualizarVida(this.jogador.vida);
     this.cameras.main.shake(120, 0.004);
+    this.som.dano(this.jogador.x);
     if (this.jogador.vida <= 0) this.morrer();
   }
 
@@ -386,8 +413,9 @@ export class CenaFase3 extends CenaBase {
     this.morrer();
   }
 
-  private morrer(): void {
+  private morrer(comSom = true): void {
     this.morrendo = true;
+    if (comSom) this.som.morte();
     this.terminal.fecharForcado();
     this.cameras.main.fadeOut(FADE_MORTE_MS, 0, 0, 0);
     this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
@@ -415,7 +443,22 @@ export class CenaFase3 extends CenaBase {
     this.hud.atualizarClima(TRECHOS[this.indiceTrecho].clima);
   }
 
+  /** Perto de uma passagem baixa (vindo na direção dela), mostra "[S] Agachar" em cima do cano. */
+  private atualizarDicaAgachar(): void {
+    const j = this.jogador;
+    const noChaoDeBaixo = j.y > CHAO_Y - 24;
+    const passagem = noChaoDeBaixo && !j.estaAbaixado
+      ? this.passagensBaixas.find((p) => j.x > p.x - 280 && j.x < p.x + p.largura + 40)
+      : undefined;
+    this.textoAgachar.setVisible(!!passagem);
+    if (passagem) {
+      const pulo = Math.abs(Math.sin(this.time.now / 260)) * 4;
+      this.textoAgachar.setPosition(passagem.x + passagem.largura / 2, CHAO_Y - 112 - pulo);
+    }
+  }
+
   private atualizarInteracoes(): void {
+    this.atualizarDicaAgachar();
     const x = this.jogador.x;
     const trecho = this.trechos[this.indiceTrecho];
     const xExercicio = trecho.xExercicio;
@@ -491,7 +534,7 @@ export class CenaFase3 extends CenaBase {
     this.hud.atualizarClima(TRECHOS[0].clima);
     this.hud.atualizarLimpo(100);
     this.chefao.comemorar();
-    this.som.bipesAcerto();
+    this.som.vitoria();
     this.add
       .text(this.scale.width / 2, this.scale.height / 2 - 60, 'LIXÃO LIMPO!\nFase concluída', {
         fontFamily: 'Consolas, "Courier New", monospace',

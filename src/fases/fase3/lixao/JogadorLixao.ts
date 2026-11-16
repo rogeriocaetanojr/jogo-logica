@@ -2,8 +2,21 @@ import Phaser from 'phaser';
 import { GerenciadorEstado, type TipoPersonagem } from '../../../nucleo/GerenciadorEstado';
 import { DANO, MOVIMENTO_LIXAO, VIDA_MAXIMA } from './TiposLixao';
 import { QUEDA_MORTAL } from '../trechos/LayoutLixao';
+import { chaveAbaixado, gerarAbaixado } from './AbaixadoLixao';
 
 export { MOVIMENTO_LIXAO };
+
+/** Evento de som do jogador (pulo, pouso e passos), ouvido pelo SomLixao. */
+export const EVENTO_JOGADOR = 'lixao-jogador';
+export interface DadosSomJogador {
+  acao: 'pulo' | 'pouso' | 'passo';
+  x: number;
+  /** Pouso: 0 a 1 pela altura da queda. */
+  forca: number;
+}
+/** Distância andada entre um passo e outro (px) e menor queda que faz barulho ao pousar. */
+const PASSADA = { EM_PE: 70, ABAIXADO: 50 } as const;
+const QUEDA_COM_SOM = 24;
 
 /**
  * Parâmetros de movimento do jogador no lixão (px/s e px/s²). Cada jogador guarda uma cópia
@@ -12,9 +25,9 @@ export { MOVIMENTO_LIXAO };
  */
 export type ParametrosMovimento = { -readonly [K in keyof typeof MOVIMENTO_LIXAO]: number };
 
-/** Hitbox em pé (na escala do quadro de 128x128) e achatamento visual ao abaixar. */
+/** Hitbox em pé (na escala do quadro de 128x128) e a altura dela agachado (os pés ficam no lugar). */
 const HITBOX = { LARGURA: 44, ALTURA: 96, OFFSET_X: 42, OFFSET_Y: 26 } as const;
-const ESCALA_Y_ABAIXADO = 0.6;
+const ALTURA_ABAIXADO = 58;
 const PROFUNDIDADE = 60;
 /** Maior degrau que o jogador sobe ou desce andando, sem pular (colinas do chão). */
 const DEGRAU_MAX = 10;
@@ -48,6 +61,8 @@ export class JogadorLixao {
   private yMaisAlto: number | null = null;
   /** Pousou de uma queda maior que QUEDA_MORTAL (a cena consome e mata). */
   private quedaFatal = false;
+  /** Distância andada desde o último passo (para o som). */
+  private andado = 0;
   /** Sólidos onde o jogador pisa: usados para subir e descer degraus baixos andando. */
   public solidos?: Phaser.Physics.Arcade.StaticGroup;
 
@@ -61,6 +76,8 @@ export class JogadorLixao {
     this.sprite.setCollideWorldBounds(true);
     this.corpo.setSize(HITBOX.LARGURA, HITBOX.ALTURA).setOffset(HITBOX.OFFSET_X, HITBOX.OFFSET_Y);
     this.tocarAnimacao('idle');
+    // Folha agachada (cabeça inteira, tronco curvado e pernas dobradas), gerada dos quadros em pé
+    gerarAbaixado(cena, textura);
 
     const kb = cena.input.keyboard;
     if (kb) {
@@ -158,6 +175,7 @@ export class JogadorLixao {
     const pediuPulo = tempo - this.tempoUltimoPulo <= p.TEMPO_BUFFER_PULO_MS;
     if (pediuPulo && podePular && !this.abaixado) {
       this.sprite.setVelocityY(p.IMPULSO_PULO);
+      this.emitirSom('pulo');
       this.tempoUltimoPulo = -9999;
       this.tempoUltimaVezNoChao = -9999;
       this.puloCortavel = true;
@@ -169,11 +187,20 @@ export class JogadorLixao {
       else if (!pulo) this.sprite.setVelocityY(corpo.velocity.y + p.GRAVIDADE_PULO_CURTO * dt);
     }
 
+    // Passos: um a cada passada andada no chão
+    if (noChao && direcao !== 0 && Math.abs(corpo.velocity.x) > 40 && !corpo.blocked.left && !corpo.blocked.right) {
+      this.andado += Math.abs(corpo.velocity.x - this.empurraoX) * dt;
+      if (this.andado >= (this.abaixado ? PASSADA.ABAIXADO : PASSADA.EM_PE)) {
+        this.andado = 0;
+        this.emitirSom('passo');
+      }
+    } else if (!noChao) this.andado = PASSADA.EM_PE * 0.6;
+
     // Invencível: pisca
     this.sprite.setAlpha(this.estaInvencivel && Math.floor(tempo / DANO.PISCA_MS) % 2 === 0 ? 0.25 : 1);
 
     if (!noChao) this.tocarAnimacao('jump');
-    else if (this.abaixado) this.tocarAnimacao('idle');
+    else if (this.abaixado) this.tocarAnimacao(direcao !== 0 ? 'abaixado_andar' : 'abaixado_parado');
     else this.tocarAnimacao(direcao !== 0 ? 'run' : 'idle');
   }
 
@@ -185,7 +212,13 @@ export class JogadorLixao {
       return;
     }
     if (this.yMaisAlto !== null && y - this.yMaisAlto > QUEDA_MORTAL) this.quedaFatal = true;
+    else if (this.yMaisAlto !== null && y - this.yMaisAlto > QUEDA_COM_SOM) this.emitirSom('pouso', Math.min(1, (y - this.yMaisAlto) / 320));
     this.yMaisAlto = null;
+  }
+
+  private emitirSom(acao: DadosSomJogador['acao'], forca = 0): void {
+    const dados: DadosSomJogador = { acao, x: this.sprite.x, forca };
+    this.cena.events.emit(EVENTO_JOGADOR, dados);
   }
 
   /** Esquece a queda em andamento (teleporte de depuração). */
@@ -243,11 +276,13 @@ export class JogadorLixao {
     if (this.corpo.blocked.down) this.tocarAnimacao('idle');
   }
 
-  /** Achata o sprite; a hitbox acompanha a escala e encolhe para baixo da cabeça. */
+  /** Troca para a pose agachada e encolhe a hitbox de cima para baixo (os pés ficam no chão). */
   private definirAbaixado(abaixado: boolean): void {
     if (abaixado === this.abaixado) return;
     this.abaixado = abaixado;
-    this.sprite.setScale(1, abaixado ? ESCALA_Y_ABAIXADO : 1);
+    const altura = abaixado ? ALTURA_ABAIXADO : HITBOX.ALTURA;
+    this.corpo.setSize(HITBOX.LARGURA, altura, false).setOffset(HITBOX.OFFSET_X, HITBOX.OFFSET_Y + HITBOX.ALTURA - altura);
+    if (abaixado) this.tocarAnimacao('abaixado_parado');
   }
 
   /** Confere se a hitbox em pé caberia sem encostar em nenhum sólido. */
@@ -258,7 +293,8 @@ export class JogadorLixao {
     return acima.length === 0;
   }
 
-  private tocarAnimacao(nome: 'idle' | 'run' | 'jump'): void {
-    this.sprite.anims.play(`${this.tipoPersonagem}_${nome}`, true);
+  private tocarAnimacao(nome: 'idle' | 'run' | 'jump' | 'abaixado_parado' | 'abaixado_andar'): void {
+    const chave = nome.startsWith('abaixado') ? `${chaveAbaixado(this.tipoPersonagem)}${nome.slice('abaixado'.length)}` : `${this.tipoPersonagem}_${nome}`;
+    this.sprite.anims.play(chave, true);
   }
 }

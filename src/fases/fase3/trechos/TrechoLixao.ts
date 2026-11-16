@@ -423,6 +423,8 @@ export abstract class TrechoLixao {
   protected passagemBaixa(nome: string, x: number): void {
     const largura = LARGURA_PASSAGEM_BAIXA;
     const baseCano = CHAO_Y - VAO_ABAIXADO;
+    // A cena mostra "[S] Agachar" quando o jogador chega perto
+    this.cena.passagensBaixas.push({ x: this.offset + x, largura });
     this.solido(`${nome}-cano`, x, baseCano - 24, largura, 24, desenharCano);
     const topo = CHAO_Y - BARREIRA;
     this.solido(`${nome}-andaime`, x, topo, largura, baseCano - 24 - topo, (p, w, h) => desenharBarreira(p, w, h, 'andaime'));

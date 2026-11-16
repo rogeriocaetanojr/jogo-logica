@@ -91,7 +91,7 @@ function desenharClima(cena: Phaser.Scene, clima: Clima): string {
 /**
  * HUD da Fase 3, fixa na câmera. Esquerda: a vida numa bateria fina com um segmento por vida, que descarrega com
  * o dano (verde, amarelo e, por fim, vermelho) e a moldura com o ícone do item na mão.
- * Direita: ícone e nome do clima e o medidor "Lixão limpo". Contextuais: "[Clique]
+ * Direita: ícone e nome do clima e o medidor "Lixão limpo". Contextuais: "[J] ou [Clique]
  * Arremessar" com item na mão e avisos curtos como "Checkpoint salvo".
  */
 export class HudLixao {
@@ -137,7 +137,7 @@ export class HudLixao {
     // Ícone um pouco menor que a escala do mundo para caber com folga na moldura fina
     this.icone = this.fixo(cena.add.image(centro.x, centro.y, '__DEFAULT').setScale(ESCALA - 1).setVisible(false));
     this.avisoArremesso = this.fixo(
-      cena.add.text(POSICAO.x, centro.y + (LADO_MOLDURA / 2) * ESCALA + 8, '[Clique] Arremessar', this.estilo(COR.neonCiano, '14px')).setVisible(false)
+      cena.add.text(POSICAO.x, centro.y + (LADO_MOLDURA / 2) * ESCALA + 8, '[J] ou [Clique] Arremessar', this.estilo(COR.neonCiano, '14px')).setVisible(false)
     );
 
     // Direita: clima (ícone + nome) e o medidor de limpeza logo abaixo

@@ -223,6 +223,8 @@ function topoExercicio(
   elementos.push(
     { tipo: 'elevador', x: xElevador, alt, w: ELEVADOR, ate: altMeio },
     { tipo: 'viga', x: xPatamarMeio, alt: altMeio, w: PATAMAR_MEIO },
+    // Checkpoint no patamar entre os dois elevadores: errar o pulo no de baixo não manda de volta ao terminal
+    { tipo: 'checkpoint', x: xPatamarMeio + 48, alt: altMeio, ordem: 55 },
     { tipo: 'elevador', x: xElevador2, alt: altMeio, w: ELEVADOR, ciclo: true },
     // Chão firme ao lado do elevador embaixo: o jogador desce e segue andando
     { tipo: 'checkpoint', x: fimElevador + 80, alt: 0, ordem: 60 }
