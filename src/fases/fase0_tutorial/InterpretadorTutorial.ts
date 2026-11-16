@@ -17,6 +17,12 @@ function obterErroNaoRepetido(chavePool: string, listaErros: string[]): string {
   return listaErros[proximoIndice];
 }
 
+/** Erro do Mega Brain seguido de uma dica objetiva do que corrigir (o tutorial ensina). */
+function comDica(erro: string, dica: string): string {
+  return `${erro}
+[DICA] ${dica}`;
+}
+
 // Pools de mensagens de erro randômicas do Mega Brain em Português
 const ERROS_MEGA_BRAIN = {
   desafio0: {
@@ -166,7 +172,7 @@ export function interpretarComandoTutorial(
   if (isPython2Print) {
     return {
       sucesso: false,
-      mensagem: obterErroNaoRepetido('d0_obsoleto', ERROS_MEGA_BRAIN.desafio0.obsoleto),
+      mensagem: comDica(obterErroNaoRepetido('d0_obsoleto', ERROS_MEGA_BRAIN.desafio0.obsoleto), "Faltaram os parênteses. O texto entre aspas vai dentro deles: print('...')"),
     };
   }
 
@@ -181,7 +187,7 @@ export function interpretarComandoTutorial(
   if (tentativaBootOuPrint) {
     return {
       sucesso: false,
-      mensagem: obterErroNaoRepetido('d0_sintaxe', ERROS_MEGA_BRAIN.desafio0.sintaxe),
+      mensagem: comDica(obterErroNaoRepetido('d0_sintaxe', ERROS_MEGA_BRAIN.desafio0.sintaxe), "O formato é print('mensagem'), com a mensagem entre aspas. A mensagem é Hello World."),
     };
   }
 
@@ -197,7 +203,7 @@ export function interpretarComandoTutorial(
   if (/^true$/i.test(semPontoEVirgula)) {
     return {
       sucesso: false,
-      mensagem: obterErroNaoRepetido('d1_valor_solto', ERROS_MEGA_BRAIN.desafio1.valorSolto),
+      mensagem: comDica(obterErroNaoRepetido('d1_valor_solto', ERROS_MEGA_BRAIN.desafio1.valorSolto), 'Falta dizer em qual variável guardar o valor: energia = ...'),
     };
   }
 
@@ -220,7 +226,7 @@ export function interpretarComandoTutorial(
   ) {
     return {
       sucesso: false,
-      mensagem: obterErroNaoRepetido('d1_name_error', ERROS_MEGA_BRAIN.desafio1.nameErrorMinusculo),
+      mensagem: comDica(obterErroNaoRepetido('d1_name_error', ERROS_MEGA_BRAIN.desafio1.nameErrorMinusculo), 'True começa com T maiúsculo: energia = True'),
     };
   }
 
@@ -246,7 +252,7 @@ export function interpretarComandoTutorial(
   if (isEnergiaNumero || isEnergiaTexto) {
     return {
       sucesso: false,
-      mensagem: obterErroNaoRepetido('d1_tipo', ERROS_MEGA_BRAIN.desafio1.tipoIncompativel),
+      mensagem: comDica(obterErroNaoRepetido('d1_tipo', ERROS_MEGA_BRAIN.desafio1.tipoIncompativel), 'Ligado/desligado não é número nem texto: use True ou False, sem aspas.'),
     };
   }
 
@@ -254,7 +260,10 @@ export function interpretarComandoTutorial(
   if (isTotemEnergia || atribuicaoCompacta.startsWith('energia=')) {
     return {
       sucesso: false,
-      mensagem: "[SYSTEM FAILURE] Mega Brain: 'O registrador de energia espera um estado lógico afirmativo, não um devaneio aleatório.'",
+      mensagem: comDica(
+        "[SYSTEM FAILURE] Mega Brain: 'O registrador de energia espera um estado lógico afirmativo, não um devaneio aleatório.'",
+        'O formato é energia = valor. O valor que liga é True (ligado).'
+      ),
     };
   }
 
@@ -275,7 +284,7 @@ export function interpretarComandoTutorial(
     if (isNumeroSolto) {
       return {
         sucesso: false,
-        mensagem: obterErroNaoRepetido('d2_numero_solto', ERROS_MEGA_BRAIN.desafio2.numeroSolto),
+        mensagem: comDica(obterErroNaoRepetido('d2_numero_solto', ERROS_MEGA_BRAIN.desafio2.numeroSolto), 'Diga em qual variável guardar o número: tamanho_ponte = ...'),
       };
     }
 
@@ -287,7 +296,7 @@ export function interpretarComandoTutorial(
     if (casamentoTextoAspas) {
       return {
         sucesso: false,
-        mensagem: obterErroNaoRepetido('d2_erro_tipo', ERROS_MEGA_BRAIN.desafio2.erroTipo),
+        mensagem: comDica(obterErroNaoRepetido('d2_erro_tipo', ERROS_MEGA_BRAIN.desafio2.erroTipo), 'Tire as aspas: número se escreve puro.'),
       };
     }
 
@@ -309,12 +318,12 @@ export function interpretarComandoTutorial(
       } else if (valor < 8) {
         return {
           sucesso: false,
-          mensagem: obterErroNaoRepetido('d2_abaixo', ERROS_MEGA_BRAIN.desafio2.abaixo),
+          mensagem: comDica(obterErroNaoRepetido('d2_abaixo', ERROS_MEGA_BRAIN.desafio2.abaixo), 'O mezanino está a 8 metros. Aumente o valor.'),
         };
       } else {
         return {
           sucesso: false,
-          mensagem: obterErroNaoRepetido('d2_acima', ERROS_MEGA_BRAIN.desafio2.acima),
+          mensagem: comDica(obterErroNaoRepetido('d2_acima', ERROS_MEGA_BRAIN.desafio2.acima), 'O mezanino está a 8 metros. Diminua o valor.'),
         };
       }
     }
@@ -322,7 +331,10 @@ export function interpretarComandoTutorial(
     return {
       sucesso: false,
       mensagem:
-        "[ERRO DE SINTAXE] Mega Brain: 'Instrução sem pé nem cabeça. Declare a variável com um valor inteiro válido: tamanho_ponte = X.'",
+        comDica(
+          "[ERRO DE SINTAXE] Mega Brain: 'Instrução sem pé nem cabeça. Declare a variável com um valor inteiro válido.'",
+          'O formato é tamanho_ponte = número, sem aspas.'
+        ),
     };
   }
 
@@ -356,7 +368,7 @@ export function interpretarComandoTutorial(
     ) {
       return {
         sucesso: false,
-        mensagem: obterErroNaoRepetido('d3_invertida', ERROS_MEGA_BRAIN.desafio3.ordemInvertida),
+        mensagem: comDica(obterErroNaoRepetido('d3_invertida', ERROS_MEGA_BRAIN.desafio3.ordemInvertida), 'A ordem importa: primeiro parte1, depois parte2.'),
       };
     }
 
@@ -369,7 +381,7 @@ export function interpretarComandoTutorial(
     if (isHardcoded) {
       return {
         sucesso: false,
-        mensagem: obterErroNaoRepetido('d3_anticheat', ERROS_MEGA_BRAIN.desafio3.antiCheat),
+        mensagem: comDica(obterErroNaoRepetido('d3_anticheat', ERROS_MEGA_BRAIN.desafio3.antiCheat), 'Não digite o texto: some as variáveis parte1 e parte2.'),
       };
     }
 
@@ -377,14 +389,14 @@ export function interpretarComandoTutorial(
     if (/^\s*parte1\s*\+\s*parte2\s*$/i.test(semPontoEVirgula)) {
       return {
         sucesso: false,
-        mensagem: obterErroNaoRepetido('d3_incompleta', ERROS_MEGA_BRAIN.desafio3.sintaxeIncompleta),
+        mensagem: comDica(obterErroNaoRepetido('d3_incompleta', ERROS_MEGA_BRAIN.desafio3.sintaxeIncompleta), 'Guarde o resultado na variável: comece com senha = ...'),
       };
     }
 
     // 5. Qualquer comando genérico ou incorreto
     return {
       sucesso: false,
-      mensagem: obterErroNaoRepetido('d3_negado', ERROS_MEGA_BRAIN.desafio3.acessoNegado),
+      mensagem: comDica(obterErroNaoRepetido('d3_negado', ERROS_MEGA_BRAIN.desafio3.acessoNegado), 'O formato é senha = primeira_variavel + segunda_variavel'),
     };
   }
 

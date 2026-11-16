@@ -150,6 +150,8 @@ export class CenaTutorial extends CenaBase {
 
   update(): void {
     if (!this.player || !this.player.body) return;
+    // ESC com o terminal e o diálogo fechados pergunta antes de voltar ao Hub
+    if (!this.isBootingSequence) this.verificarEscSaida();
 
     // Atualização contínua do facho da lanterna na escuridão
     this.atualizarLanterna();
@@ -2292,10 +2294,18 @@ export class CenaTutorial extends CenaBase {
       permitirFecharComEsc: false,
       linhasIniciais: [
         '=== TERMINAL ZERO // PROTOCOLO DE RECONEXÃO COGNITIVA ===',
-        '> KERNEL DESCONECTADO. O mundo físico precisa de uma instrução primordial para compilar.',
-        "> SINTAXE REQUERIDA: print('...') ou print(\"...\")",
-        '> ENIGMA: Todo estudante de programação escreve essas exatas duas palavras (em inglês e com pontuação) no seu primeiro dia de aula para saudar o mundo e afastar a maldição.',
-        '> Digite a instrução:',
+        '> KERNEL DESCONECTADO. Para religar o mundo, o computador precisa ouvir você.',
+        '',
+        '> LIÇÃO 1: MOSTRAR UMA MENSAGEM NA TELA',
+        '> O comando print manda o computador escrever um texto na tela.',
+        '> O texto vai entre aspas, e as aspas vão dentro dos parênteses:',
+        ">     print('Bom dia')     -> a tela mostra: Bom dia",
+        '',
+        '> Por tradição, o primeiro programa de todo programador cumprimenta o mundo',
+        '> em inglês: "Hello World" (Olá, Mundo).',
+        '',
+        '> SUA VEZ: use o print para mostrar a mensagem Hello World.',
+        '> Digite o comando e aperte ENTER:',
       ],
     });
   }
@@ -2310,31 +2320,45 @@ export class CenaTutorial extends CenaBase {
     if (tipoTotem === 'power') {
       titulo = 'PAINEL DE DISTRIBUIÇÃO PRIMÁRIA // SETOR 0';
       linhas = [
-        '=== PAINEL DE DISTRIBUIÇÃO PRIMÁRIA ===',
-        '> STATUS: energia = False',
-        '> PROTOCOLO: A iluminação do galpão e a tranca magnética exigem fluxo contínuo.',
-        '> REGISTRO DO SISTEMA: Os circuitos operam sob lógica booleana estrita. O estado atual é de corte total. Altere o registrador para o polo oposto se não quiser tatear sucata no escuro.',
-        '> Digite a instrução:',
+        '> STATUS: energia = False   (desligada: a porta de aço continua trancada)',
+        '',
+        '> LIÇÃO 2: VARIÁVEIS E VERDADEIRO/FALSO',
+        '> Variável é uma caixa com nome que guarda um valor. O = põe o valor nela.',
+        '> Para ligado/desligado, o Python usa True (verdadeiro) e False (falso),',
+        '> com a primeira letra MAIÚSCULA e sem aspas:',
+        '>     luz = True     -> acende a luz',
+        '',
+        '> SUA VEZ: a energia está False. Mude o valor dela para ligar o painel.',
+        '> Digite o comando e aperte ENTER:',
       ];
     } else if (tipoTotem === 'bridge') {
       titulo = 'MECANISMO DE ELEVAÇÃO DA ESTEIRA AÉREA';
       linhas = [
-        '=== MECANISMO DE ELEVAÇÃO DA ESTEIRA AÉREA ===',
-        '> STATUS: tamanho_ponte = 2',
-        '> RELATÓRIO DO SENSOR: O mezanino à frente está a 8 metros de distância aérea. A esteira atual não alcança nem a metade do trajeto.',
-        '> COMUNICADOR REBELDE: Subiu até aqui pra ficar olhando pro precipício? Redefina o comprimento da esteira suspensa antes de pular pro nada.',
-        '> Digite a instrução:',
+        '> STATUS: tamanho_ponte = 2   (a esteira tem só 2 metros)',
+        '> SENSOR: o mezanino do outro lado está a 8 metros de distância.',
+        '',
+        '> LIÇÃO 3: NÚMEROS',
+        '> Variáveis também guardam números. Números se escrevem puros, sem aspas:',
+        '>     velocidade = 5       -> certo: o número cinco',
+        ">     velocidade = '5'     -> errado: com aspas vira texto, não número",
+        '',
+        '> SUA VEZ: troque o valor de tamanho_ponte para a esteira alcançar o mezanino.',
+        '> Digite o comando e aperte ENTER:',
       ];
     } else if (tipoTotem === 'elevator') {
       titulo = 'CONSOLE DE LIBERAÇÃO DO ELEVADOR DE CARGA';
       linhas = [
-        '=== CONSOLE DE LIBERAÇÃO DO ELEVADOR DE CARGA ===',
-        '> REGISTRADORES CORROMPIDOS:',
-        "> parte1 = 'Mega'",
-        "> parte2 = 'Fail'",
-        "> PROTOCOLO DE ACESSO: A chave de liberação foi fragmentada. O barramento exige a união das duas palavras na variável 'senha'.",
-        "> COMUNICADOR REBELDE: O estagiário anterior salvou a senha quebrada no meio pra 'poupar memória'. Junte os dois pedaços de texto antes que o elevador despenque na cabeça de alguém.",
-        '> Digite a instrução:',
+        '> A senha do elevador foi quebrada em dois pedaços, em duas variáveis:',
+        ">     parte1 = 'Mega'        parte2 = 'Fail'",
+        '',
+        '> LIÇÃO 4: JUNTAR TEXTOS',
+        '> Texto entre aspas se chama string. O + cola um texto no outro, na ordem:',
+        ">     nome = 'Lixo' + 'Tech'      -> nome guarda 'LixoTech'",
+        '> Também funciona com variáveis:   completo = inicio + fim',
+        '',
+        '> SUA VEZ: guarde em senha os dois pedaços juntos, primeiro parte1 e depois',
+        '> parte2. Use os nomes das variáveis, sem digitar o texto.',
+        '> Digite o comando e aperte ENTER:',
       ];
     }
 

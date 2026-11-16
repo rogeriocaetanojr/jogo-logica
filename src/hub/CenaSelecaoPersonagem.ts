@@ -43,6 +43,8 @@ export class CenaSelecaoPersonagem extends CenaBase {
 
   constructor() {
     super('CenaSelecaoPersonagem', 'selecao_personagem');
+    // Tela de menu: o ESC daqui volta direto ao Hub (ver configurarTeclado)
+    this.confirmarSaidaComEsc = false;
   }
 
   override init(dados?: DadosCenaSelecao): void {

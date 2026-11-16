@@ -1,6 +1,7 @@
 import './style.css';
 import './styles/terminal.css';
 import './styles/dialog.css';
+import './styles/confirmacao.css';
 import Phaser from 'phaser';
 import { configuracaoJogo } from './nucleo/configuracao';
 

@@ -3,6 +3,7 @@ import { FPS_ANDAR, QUADROS_ANDAR } from './animacoesPersonagens';
 import { GerenciadorEstado } from '../nucleo/GerenciadorEstado';
 import { Comunicador } from './Comunicador';
 import { Terminal } from './Terminal';
+import { ConfirmacaoSaida } from './ConfirmacaoSaida';
 
 /**
  * Classe base herdável para todas as fases e cenas interativas do jogo.
@@ -16,6 +17,9 @@ export abstract class CenaBase extends Phaser.Scene {
 
   private overlayCRT?: Phaser.GameObjects.Graphics;
   private teclaEscCena?: Phaser.Input.Keyboard.Key;
+  private readonly confirmacaoSaida = new ConfirmacaoSaida();
+  /** ESC pergunta antes de voltar ao Hub; telas de menu com ESC próprio desligam isto. */
+  protected confirmarSaidaComEsc = true;
 
   constructor(chaveCena: string, idFase: string = '') {
     super(chaveCena);
@@ -51,19 +55,47 @@ export abstract class CenaBase extends Phaser.Scene {
   }
 
   /**
-   * Atualização padrão herdável. Trata tecla ESC para sair para o Hub quando o terminal não está aberto.
+   * Atualização padrão herdável. ESC com o terminal e o diálogo fechados pergunta se o jogador
+   * quer mesmo voltar ao Hub.
    */
   update(_tempo: number, _delta: number): void {
+    this.verificarEscSaida();
+  }
+
+  /** ESC: abre a confirmação de voltar ao Hub (para cenas que não chamam super.update). */
+  protected verificarEscSaida(): void {
     if (
+      this.confirmarSaidaComEsc &&
       this.teclaEscCena &&
-      Phaser.Input.Keyboard.JustDown(this.teclaEscCena) &&
       !this.terminal.estaAberto &&
       !this.comunicador.estaAtivo &&
       this.scene.key !== 'CenaHub' &&
-      this.scene.key !== 'CenaAbertura'
+      this.scene.key !== 'CenaAbertura' &&
+      // Por último: só consome o ESC quando ele é nosso (o tutorial fecha o terminal com ele)
+      Phaser.Input.Keyboard.JustDown(this.teclaEscCena)
     ) {
-      this.retornarAoHub();
+      this.abrirConfirmacaoSaida();
     }
+  }
+
+  /**
+   * Pausa a cena (física, tempo e animações) e pergunta se volta ao Hub. Confirmar sai com o
+   * fade de sempre; cancelar retoma o jogo do ponto exato, com as teclas soltas.
+   */
+  protected abrirConfirmacaoSaida(): void {
+    if (this.confirmacaoSaida.aberta) return;
+    this.scene.pause();
+    const retomar = (): void => {
+      this.input.keyboard?.resetKeys();
+      this.scene.resume();
+    };
+    this.confirmacaoSaida.abrir(
+      () => {
+        retomar();
+        this.retornarAoHub();
+      },
+      retomar
+    );
   }
 
   /**
@@ -209,6 +241,7 @@ export abstract class CenaBase extends Phaser.Scene {
   }
 
   protected destruirCenaBase(): void {
+    this.confirmacaoSaida.fechar();
     if (this.comunicador) {
       this.comunicador.destruir();
     }
