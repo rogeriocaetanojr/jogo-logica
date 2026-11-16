@@ -16,7 +16,7 @@ export type ErroSequencia = 'usa_antes_de_criar' | 'abre_antes_de_validar';
 export type ErroVariaveis = 'destino' | 'passageiros';
 export type ErroCondicionais = 'sem_mudanca';
 export type ErroLacos = 'zero' | 'poucas' | 'muitas';
-export type ErroFuncoes = 'fixo';
+export type ErroFuncoes = 'repetida' | 'inexistente';
 export type CodigoErroPuzzle = ErroSequencia | ErroVariaveis | ErroCondicionais | ErroLacos | ErroFuncoes;
 
 /** Informação extra do erro, usada pela mensagem e pela consequência visual. */

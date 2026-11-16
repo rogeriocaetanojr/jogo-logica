@@ -13,18 +13,21 @@ interface ConfigFaixa {
    * tudo e permite um laço sem emenda com início e fim exatos (loopStart/loopEnd).
    */
   modo: 'fluxo' | 'memoria';
+  /** Entra já no volume cheio, sem fade-in (as faixas da luta contra o Mega Brain). */
+  semFadeEntrada?: boolean;
   laco?: { inicio: number; fim: number };
 }
 
 const FAIXAS: Record<FaixaFaseFinal, ConfigFaixa> = {
   entrada: { arquivo: 'megaBrainEntrance.mp3', volume: M.VOLUMES.entrada, modo: 'fluxo' },
   torre: { arquivo: 'megaBrainTower.mp3', volume: M.VOLUMES.torre, modo: 'fluxo' },
-  introBoss: { arquivo: 'megaBrainBossfightIntro.mp3', volume: M.VOLUMES.introBoss, modo: 'memoria' },
+  introBoss: { arquivo: 'megaBrainBossfightIntro.mp3', volume: M.VOLUMES.introBoss, modo: 'memoria', semFadeEntrada: true },
   // Tema cortado em 3 s de introdução + um laço de 94,43 s (o arquivo original tem 30 min repetindo)
   tema: {
     arquivo: 'megaBrainTheme.mp3',
     volume: M.VOLUMES.tema,
     modo: 'memoria',
+    semFadeEntrada: true,
     laco: { inicio: M.LACO_TEMA.INICIO_S, fim: M.LACO_TEMA.INICIO_S + M.LACO_TEMA.PERIODO_S },
   },
   creditos: { arquivo: 'credits.mp3', volume: M.VOLUMES.creditos, modo: 'fluxo' },
@@ -142,7 +145,7 @@ export class TrilhaFaseFinal {
   }
 
   /**
-   * Toca uma faixa com fade, apagando as outras. Se ela já está tocando, só ajusta o volume
+   * Toca uma faixa com fade (exceto as que têm semFadeEntrada, que entram cheias), apagando as outras. Se ela já está tocando, só ajusta o volume
    * (a música da torre segue de um andar para o outro). `doZero` recomeça do início.
    */
   public tocar(nome: FaixaFaseFinal, fadeS: number = M.FADE_PADRAO_S, doZero: boolean = false): void {
@@ -155,8 +158,13 @@ export class TrilhaFaseFinal {
       const cfg = FAIXAS[nome];
       const t = this.ctx.currentTime;
       e.ganho.gain.cancelScheduledValues(t);
-      e.ganho.gain.setValueAtTime(e.tocando ? e.ganho.gain.value : 0.0001, t);
-      e.ganho.gain.linearRampToValueAtTime(cfg.volume, t + Math.max(0.05, fadeS));
+      if (cfg.semFadeEntrada) {
+        // Música da luta: começa no volume cheio, sem subir aos poucos
+        e.ganho.gain.setValueAtTime(cfg.volume, t);
+      } else {
+        e.ganho.gain.setValueAtTime(e.tocando ? e.ganho.gain.value : 0.0001, t);
+        e.ganho.gain.linearRampToValueAtTime(cfg.volume, t + Math.max(0.05, fadeS));
+      }
 
       if (cfg.modo === 'fluxo' && e.elemento) {
         if (doZero || !e.tocando) e.elemento.currentTime = 0;

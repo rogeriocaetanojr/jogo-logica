@@ -275,50 +275,66 @@ export class BloqueioPuzzle {
     return rotulo;
   }
 
+  /** Comporta sobe e desce (a função abriu e a sala esfriou). */
+  private abrirEFechar(indice: number): void {
+    const alvo = this.portoes[indice];
+    if (!alvo) return;
+    emitirSom(this.cena, 'comporta_ok', alvo.x, 0.8);
+    this.cena.tweens.chain({
+      targets: alvo,
+      tweens: [
+        { y: A.CHAO_Y - 200, duration: 260, ease: 'Quad.easeOut' },
+        { y: A.CHAO_Y - 200, duration: 250 },
+        { y: A.CHAO_Y, duration: 220, ease: 'Quad.easeIn' },
+      ],
+    });
+  }
+
   /**
-   * Comportas com a função errada: as três chamadas rodam uma por vez. Cada uma mostra seu
-   * "abrir_comporta(n)" sobre a comporta que deveria abrir, mas por dentro abre sempre a mesma (`numero`).
-   * A comporta certa recebe "ok"; as outras ficam marcadas como travadas.
+   * Comportas com a chamada errada: roda o código por linha. abrir_comporta(1) e (2) abrem as suas
+   * comportas e recebem "OK". Depois roda a chamada do jogador: se for uma comporta que já abriu,
+   * o rótulo dela vira "JÁ ABERTA"; se não existir, aparece "NÃO EXISTE" na ponta. A comporta 3
+   * continua fechada.
    */
-  public consequenciaComportas(numero: number, aoTerminar: () => void): void {
-    const alvo = this.portoes[numero - 1];
-    if (!alvo) return aoTerminar();
+  public consequenciaComportas(chamada: number, aoTerminar: () => void): void {
     const rotulos: Phaser.GameObjects.Text[] = [];
-    const passo = 1250;
+    const passo = 1000;
+    const sequencia = [1, 2, chamada];
 
-    for (let i = 1; i <= 3; i++) {
-      const inicio = (i - 1) * passo;
-      this.cena.time.delayedCall(inicio, () => {
-        const chamada = this.rotuloComporta(i - 1, `abrir_comporta(${i})`, COR.janelaQuente);
-        rotulos.push(chamada);
-        // A comporta que a função realmente abre sobe e desce
-        this.cena.time.delayedCall(350, () => {
-          emitirSom(this.cena, 'comporta_ok', alvo.x, 0.8);
-          this.cena.tweens.chain({
-            targets: alvo,
-            tweens: [
-              { y: A.CHAO_Y - 200, duration: 260, ease: 'Quad.easeOut' },
-              { y: A.CHAO_Y - 200, duration: 250 },
-              { y: A.CHAO_Y, duration: 220, ease: 'Quad.easeIn' },
-            ],
+    sequencia.forEach((n, k) => {
+      this.cena.time.delayedCall(k * passo, () => {
+        const existe = n >= 1 && n <= this.portoes.length;
+        const repetida = k === 2 && existe;
+        if (repetida) {
+          // A comporta já está marcada: o rótulo dela vira o aviso
+          const antigo = rotulos[n - 1];
+          antigo?.setText(`abrir_comporta(${n})\nJÁ ABERTA`).setColor(COR.vermelho);
+          emitirSom(this.cena, 'comporta_travada', antigo?.x ?? this.portoes[n - 1].x);
+          this.cena.cameras.main.shake(100, 0.002);
+          return;
+        }
+        const indice = existe ? n - 1 : this.portoes.length - 1;
+        const rotulo = this.rotuloComporta(indice, `abrir_comporta(${n})`, COR.janelaQuente);
+        rotulos.push(rotulo);
+        if (existe) {
+          this.cena.time.delayedCall(300, () => {
+            this.abrirEFechar(n - 1);
+            rotulo.setText(`abrir_comporta(${n})\nOK`).setColor(COR.ciano);
+            emitirSom(this.cena, 'terminal_info', rotulo.x);
           });
-        });
-        // Resultado: a comporta pedida abriu ou não
-        this.cena.time.delayedCall(800, () => {
-          const abriu = i === numero;
-          chamada.setText(abriu ? `abrir_comporta(${i})\nOK` : `abrir_comporta(${i})\nTRAVADA`);
-          chamada.setColor(abriu ? COR.ciano : COR.vermelho);
-          emitirSom(this.cena, abriu ? 'terminal_info' : 'comporta_travada', chamada.x);
-          if (!abriu) this.cena.cameras.main.shake(100, 0.002);
-        });
+        } else {
+          this.cena.time.delayedCall(300, () => {
+            rotulo.setText(`abrir_comporta(${n})\nNÃO EXISTE`).setColor(COR.vermelho);
+            emitirSom(this.cena, 'comporta_travada', rotulo.x);
+            this.cena.cameras.main.shake(100, 0.002);
+          });
+        }
       });
-    }
+    });
 
-    this.cena.time.delayedCall(2 * passo + 1250, () => {
-      this.cena.time.delayedCall(700, () => {
-        for (const r of rotulos) this.cena.tweens.add({ targets: r, alpha: 0, duration: 250, onComplete: () => r.destroy() });
-        this.cena.time.delayedCall(300, aoTerminar);
-      });
+    this.cena.time.delayedCall(sequencia.length * passo + 600, () => {
+      for (const r of rotulos) this.cena.tweens.add({ targets: r, alpha: 0, duration: 250, onComplete: () => r.destroy() });
+      this.cena.time.delayedCall(300, aoTerminar);
     });
   }
 

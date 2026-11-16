@@ -164,13 +164,19 @@ function avaliarLacos(texto: string): ResultadoPuzzle {
  * ANDAR 5 — FUNÇÕES
  * ========================================================================= */
 
+/** Comporta cuja chamada falta no código (as chamadas 1 e 2 já estão lá). */
+export const COMPORTA_FALTANTE = 3;
+
 function avaliarFuncoes(texto: string): ResultadoPuzzle {
-  const t = texto.replace(/ /g, '');
-  if (['numero', 'comporta[numero]', 'destravar(comporta[numero])'].includes(t)) return { status: 'certo' };
-  const fixo = t.match(/^(?:destravar\()?(?:comporta\[)?([1-3])\]?\)?$/);
-  if (fixo) return { status: 'errado', erro: 'fixo', dados: { comporta: Number(fixo[1]) } };
-  if (t.includes('abrir_comporta')) {
-    return { status: 'formato', mensagem: '[?] As chamadas lá embaixo estão certas. O problema está dentro da função.' };
+  const t = texto.replace(/\s/g, '').replace(/;$/, '').toLowerCase();
+  const m = t.match(/^abrir_comporta\((-?\d+)\)$/);
+  if (m) {
+    const n = Number(m[1]);
+    if (n === COMPORTA_FALTANTE) return { status: 'certo' };
+    return { status: 'errado', erro: n >= 1 && n < COMPORTA_FALTANTE ? 'repetida' : 'inexistente', dados: { comporta: n } };
   }
-  return { status: 'formato', mensagem: '[?] Digite o que vai entre os colchetes de comporta[ ].' };
+  if (t.startsWith('abrir_comporta')) {
+    return { status: 'formato', mensagem: '[?] A chamada leva o número da comporta entre parênteses: nome( número ).' };
+  }
+  return { status: 'formato', mensagem: '[?] Escreva a chamada completa: o nome da função e, entre parênteses, o número da comporta.' };
 }

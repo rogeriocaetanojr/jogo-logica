@@ -355,8 +355,9 @@ export const BOSS_FASE_FINAL = {
       AVISO_MS: 500,
       ALVOS_A: [120, 400, 690],
       ALVOS_B: [260, 540, 860],
-      ENTRE_MS: 240,
-      VOO_MS: 1150,
+      /** Anéis mais lentos (voo de 1,7 s, antes 1,15 s) e mais espaçados, para dar tempo de desviar. */
+      ENTRE_MS: 300,
+      VOO_MS: 1700,
       RAIO_EXPLOSAO: 48,
       EXPLOSAO_MS: 320,
     },

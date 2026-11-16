@@ -129,52 +129,40 @@ const lacos: DefinicaoPuzzle = {
 };
 
 /**
- * Comportas: o código chama a função três vezes (1, 2, 3), mas por dentro ela sempre abre a comporta 1.
- * O terminal mostra o que cada chamada faz hoje, para o sintoma ficar claro sem entregar a correção.
+ * Comportas: o conceito é chamar uma função. A função abrir_comporta(n) abre a comporta n e o
+ * código só chama a 1 e a 2; o jogador escreve a chamada que falta (a 3). Curto e sem pegadinha.
  */
 const funcoes: DefinicaoPuzzle = {
   id: 'funcoes',
   titulo: 'SALA DOS SERVIDORES // COMPORTAS DE REFRIGERAÇÃO',
   enunciado: [
-    '// Três comportas de refrigeração (COMPORTA 1, 2 e 3) precisam abrir.',
-    '// A função abrir_comporta recebe qual comporta abrir: esse é o parâmetro "numero".',
-    '// Mas hoje as chamadas não estão abrindo as comportas certas.',
-    '// Descubra o que a função faz com o "numero" que ela recebe.',
+    '// Três comportas (1, 2 e 3) deixam o ar frio entrar nos servidores.',
+    '// abrir_comporta(n) é uma função: ela abre a comporta de número n.',
+    '// O código do Mega Brain abre só duas. Falta a terceira.',
   ],
-  codigo: () => [
-    'def abrir_comporta(numero):',
-    '    destravar(comporta[1])',
-    '',
-    'abrir_comporta(1)',
-    'abrir_comporta(2)',
-    'abrir_comporta(3)',
-    '',
-    '// O que cada chamada faz hoje:',
-    '//   abrir_comporta(1)  ->  destrava a comporta 1',
-    '//   abrir_comporta(2)  ->  destrava a comporta 1   (era para ser a 2?)',
-    '//   abrir_comporta(3)  ->  destrava a comporta 1   (era para ser a 3?)',
-  ],
+  codigo: () => ['abrir_comporta(1)', 'abrir_comporta(2)', '', '// falta uma linha: abrir a comporta 3'],
   comoResponder: [
-    '> Digite o que deve ficar dentro dos colchetes: comporta[ ? ]',
-    '> Ou reescreva a linha de dentro da função. Ex.: destravar(comporta[2]) sempre destravaria a comporta 2.',
-    '> Pense: qual valor muda a cada chamada, e a linha de dentro usa esse valor?',
+    '> Escreva a linha que falta: o nome da função e, entre parênteses, o número da comporta.',
+    '> Ex.: acender_luz(2) chamaria a função acender_luz para a sala 2.',
   ],
-  execucaoErro: (_erro, d) =>
+  execucaoErro: (erro, d) =>
     [
-      `[EXECUÇÃO] abrir_comporta(1)  ->  destravou a comporta ${d.comporta}`,
-      `[EXECUÇÃO] abrir_comporta(2)  ->  destravou a comporta ${d.comporta}`,
-      `[EXECUÇÃO] abrir_comporta(3)  ->  destravou a comporta ${d.comporta}`,
-      `[RESULTADO] só a comporta ${d.comporta} abriu. As outras duas continuam travadas.`,
+      '[EXECUÇÃO] abrir_comporta(1)  ->  comporta 1 aberta',
+      '[EXECUÇÃO] abrir_comporta(2)  ->  comporta 2 aberta',
+      erro === 'repetida'
+        ? `[EXECUÇÃO] abrir_comporta(${d.comporta})  ->  a comporta ${d.comporta} já estava aberta`
+        : `[EXECUÇÃO] abrir_comporta(${d.comporta})  ->  erro: não existe comporta ${d.comporta}`,
+      '[RESULTADO] a comporta 3 continua fechada.',
     ].join('\n'),
   comentarios: [
-    'Copiei e colei. É assim que se reutiliza código, não?',
-    'A função recebe um parâmetro e ignora. Igual a mim com feedback.',
-    'Três chamadas, um resultado. Isso é consistência. Eu chamo de feature.',
+    'Abrir uma comporta que já está aberta. Eficiência é isso, né?',
+    'O número entre parênteses é um endereço. Você mandou a entrega para a casa errada.',
+    'Três comportas. Você tentou outra coisa. Admiro a criatividade, não o resultado.',
   ],
-  dica: 'DICA: "numero" é o valor que muda em cada chamada (1, depois 2, depois 3). Dentro da função, o número da comporta está escrito fixo. Ele deveria usar "numero".',
+  dica: 'DICA: o número entre parênteses diz qual comporta abrir. A 1 e a 2 já têm a sua linha. Escreva a mesma chamada para a que falta.',
   acerto:
-    '[EXECUÇÃO] abrir_comporta(1)  ->  destravou a comporta 1\n[EXECUÇÃO] abrir_comporta(2)  ->  destravou a comporta 2\n[EXECUÇÃO] abrir_comporta(3)  ->  destravou a comporta 3\n[RESULTADO] as três comportas abriram. Cada chamada usou o seu numero.',
-  comentarioAcerto: 'Parâmetro usado. Que coisa antiquada. Funciona, mas é antiquada.',
+    '[EXECUÇÃO] abrir_comporta(1)  ->  comporta 1 aberta\n[EXECUÇÃO] abrir_comporta(2)  ->  comporta 2 aberta\n[EXECUÇÃO] abrir_comporta(3)  ->  comporta 3 aberta\n[RESULTADO] as três comportas abriram.',
+  comentarioAcerto: 'Chamou a função com o número certo. Parabéns, você sabe ler uma sequência de três.',
 };
 
 export const PUZZLES: Record<IdPuzzleAndar, DefinicaoPuzzle> = { sequencia, variaveis, condicionais, lacos, funcoes };
