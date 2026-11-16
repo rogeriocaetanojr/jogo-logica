@@ -2,6 +2,8 @@ import Phaser from 'phaser';
 import { FPS_ANDAR, QUADROS_ANDAR } from '../compartilhado/animacoesPersonagens';
 import { CenaBase } from '../compartilhado/CenaBase';
 import { GerenciadorEstado, type TipoPersonagem } from '../nucleo/GerenciadorEstado';
+import { MusicaHub, lerMudoSalvo } from './MusicaHub';
+import { SonsSelecao } from './SonsSelecao';
 
 interface DadosCenaSelecao {
   proximaCena?: string;
@@ -18,6 +20,7 @@ export class CenaSelecaoPersonagem extends CenaBase {
   private dadosProximaCena?: unknown;
   private personagemFocado: TipoPersonagem = 'alvares';
   private isTransicaoAtiva: boolean = false;
+  private sons?: SonsSelecao;
 
   // Sprites e Efeitos das Cápsulas
   private spriteAlvares!: Phaser.GameObjects.Sprite;
@@ -106,6 +109,13 @@ export class CenaSelecaoPersonagem extends CenaBase {
 
     // 7. Efeito CRT scanlines global
     this.criarEfeitoCRT(width, height, 0.035);
+
+    // 8. Música do Hub e sons de troca e escolha (seguem o mudo salvo do jogo)
+    this.sound.mute = lerMudoSalvo();
+    this.sons = new SonsSelecao(this);
+    const musica = new MusicaHub();
+    musica.iniciar();
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => musica.parar());
   }
 
   private criarCenarioFundo(width: number, height: number): void {
@@ -393,6 +403,8 @@ export class CenaSelecaoPersonagem extends CenaBase {
    * Atualiza os efeitos visuais, feixes de luz e estado das plaquinhas conforme o operador focado.
    */
   private aplicarFocoPersonagem(escolha: TipoPersonagem, animar: boolean): void {
+    // Bipe só quando o foco muda de verdade (apertar a mesma seta de novo não toca)
+    if (animar && escolha !== this.personagemFocado && !this.isTransicaoAtiva) this.sons?.trocar(escolha === 'reis');
     this.personagemFocado = escolha;
     const isAlvares = escolha === 'alvares';
 
@@ -611,6 +623,7 @@ export class CenaSelecaoPersonagem extends CenaBase {
   private confirmarEscolha(escolha: TipoPersonagem): void {
     if (this.isTransicaoAtiva) return;
     this.isTransicaoAtiva = true;
+    this.sons?.escolher();
 
     // 1. Salva a escolha no estado global persistente
     GerenciadorEstado.definirPersonagem(escolha);
