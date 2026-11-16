@@ -3,6 +3,9 @@ import { CenaBase } from '../../compartilhado/CenaBase';
 import type { ResultadoComando } from '../../compartilhado/tipos';
 import { GerenciadorEstado, type TipoPersonagem } from '../../nucleo/GerenciadorEstado';
 import { interpretarComandoTutorial } from './InterpretadorTutorial';
+import { SomTutorial } from './SomTutorial';
+import { MusicaTutorial } from './MusicaTutorial';
+import { lerMudoSalvo } from '../../hub/MusicaHub';
 
 export class CenaTutorial extends CenaBase {
   private platforms!: Phaser.Physics.Arcade.StaticGroup;
@@ -30,11 +33,7 @@ export class CenaTutorial extends CenaBase {
   private ventExhaust?: Phaser.Physics.Arcade.Sprite;
   private lastVentTime: number = 0;
 
-  // Totem 2: Terminal do Elevador de Carga (Desafio 3 - Concatenação de Strings)
-  private totemElevator!: Phaser.GameObjects.Image;
-  private promptTextElevator!: Phaser.GameObjects.Text;
-  private beaconElevator!: Phaser.GameObjects.Arc;
-  private isElevatorLowered: boolean = false;
+  // Elevador de carga: já fica embaixo, como passarela até o muro (o terminal dele saiu)
   private elevatorPlatform!: Phaser.Physics.Arcade.Sprite;
   private elevatorShaftCables?: Phaser.GameObjects.Graphics;
   private cableShockHazard?: Phaser.Physics.Arcade.Sprite;
@@ -45,8 +44,14 @@ export class CenaTutorial extends CenaBase {
   private currentInteractingTotem:
     | 'power'
     | 'bridge'
-    | 'elevator'
     | null = null;
+
+  // Som: efeitos, musiquinha e o que precisa para os passos e o pouso
+  private som!: SomTutorial;
+  private musica!: MusicaTutorial;
+  private estavaNoChao = true;
+  private yMaisAlto: number | null = null;
+  private andado = 0;
 
   // Estado de Choque do Cabo Caído (Desafio 3)
   private isShocked: boolean = false;
@@ -91,7 +96,6 @@ export class CenaTutorial extends CenaBase {
 
     this.isPowerOn = false;
     this.isBridgeExpanded = false;
-    this.isElevatorLowered = false;
     this.isDemoEndTriggered = false;
     this.isTransicionandoHub = false;
     this.isShocked = false;
@@ -135,6 +139,13 @@ export class CenaTutorial extends CenaBase {
     this.configurarControles();
     this.configurarTerminal();
 
+    // Som e musiquinha (seguem o mudo salvo do jogo)
+    this.sound.mute = lerMudoSalvo();
+    this.som = new SomTutorial(this);
+    this.som.definirTerminal(() => this.terminal.estaAberto);
+    this.musica = new MusicaTutorial(this);
+    this.musica.iniciar(this.isPowerOn);
+
     if (this.isBootingSequence) {
       this.player.setVelocity(0, 0);
       const gameContainer = document.getElementById('game-container');
@@ -166,7 +177,6 @@ export class CenaTutorial extends CenaBase {
     if (this.comunicador && this.comunicador.estaAtivo) {
       this.promptTextPower.setVisible(false);
       this.promptTextBridge.setVisible(false);
-      this.promptTextElevator.setVisible(false);
       this.player.setVelocityX(0);
       return;
     }
@@ -204,20 +214,11 @@ export class CenaTutorial extends CenaBase {
       isNearBridgeTotem && !this.terminal.estaAberto && !this.isBridgeExpanded
     );
 
-    const distElevatorX = Math.abs(this.player.x - this.totemElevator.x);
-    const distElevatorY = Math.abs(this.player.y - this.totemElevator.y);
-    const isNearElevatorTotem = distElevatorX < 85 && distElevatorY < 95;
-    this.promptTextElevator.setVisible(
-      isNearElevatorTotem && !this.terminal.estaAberto && !this.isElevatorLowered
-    );
-
     // Identifica com qual totem o jogador está interagindo
     if (isNearPowerTotem && !this.isPowerOn && this.desafioAtual >= 1) {
       this.currentInteractingTotem = 'power';
     } else if (isNearBridgeTotem && !this.isBridgeExpanded) {
       this.currentInteractingTotem = 'bridge';
-    } else if (isNearElevatorTotem && !this.isElevatorLowered) {
-      this.currentInteractingTotem = 'elevator';
     } else {
       this.currentInteractingTotem = null;
     }
@@ -277,7 +278,9 @@ export class CenaTutorial extends CenaBase {
 
     if (isJumpDown && isGrounded) {
       this.player.setVelocityY(-this.jumpForce);
+      this.som.pulo();
     }
+    this.somDeMovimento(isGrounded, isLeftDown || isRightDown);
 
     // Pulo variável: cortar velocidade vertical se o jogador soltar o botão durante a subida
     const cutThreshold = -160;
@@ -293,6 +296,29 @@ export class CenaTutorial extends CenaBase {
     } else {
       this.player.anims.play(`${this.tipoPersonagem}_idle`, true);
     }
+  }
+
+  /** Passos a cada passada no chão e baque ao pousar (mais forte quanto maior a queda). */
+  private somDeMovimento(noChao: boolean, andando: boolean): void {
+    const corpo = this.player.body as Phaser.Physics.Arcade.Body;
+    const y = corpo.bottom;
+    if (!noChao) {
+      this.yMaisAlto = this.yMaisAlto === null ? y : Math.min(this.yMaisAlto, y);
+      this.andado = 40;
+    } else {
+      if (!this.estavaNoChao && this.yMaisAlto !== null && y - this.yMaisAlto > 24) {
+        this.som.pouso(Math.min(1, (y - this.yMaisAlto) / 300));
+      }
+      this.yMaisAlto = null;
+      if (andando && !corpo.blocked.left && !corpo.blocked.right) {
+        this.andado += Math.abs(corpo.velocity.x) * (this.game.loop.delta / 1000);
+        if (this.andado >= 64) {
+          this.andado = 0;
+          this.som.passo();
+        }
+      }
+    }
+    this.estavaNoChao = noChao;
   }
 
   private criarCenario(): void {
@@ -591,6 +617,7 @@ export class CenaTutorial extends CenaBase {
   private tratarQuedaAbismo(): void {
     if (this.isFallingInScrap) return;
     this.isFallingInScrap = true;
+    this.som.queda();
 
     this.player.setVelocity(-180, -260);
     this.cameras.main.flash(200, 255, 50, 50);
@@ -628,6 +655,7 @@ export class CenaTutorial extends CenaBase {
 
     // Impulso vertical com rajada pneumática (trampolim de ar que arremessa de volta)
     this.player.setVelocityY(-560);
+    this.som.empuxo();
     this.cameras.main.shake(100, 0.003);
 
     const ventAlert = this.add
@@ -1295,6 +1323,7 @@ export class CenaTutorial extends CenaBase {
   private expandirEsteira(): void {
     if (this.isBridgeExpanded) return;
     this.isBridgeExpanded = true;
+    this.som.esteira();
 
     if (this.beaconBridge) {
       this.tweens.killTweensOf(this.beaconBridge);
@@ -1414,8 +1443,8 @@ export class CenaTutorial extends CenaBase {
     // Cabos dinâmicos do guincho desenhados via Graphics
     this.elevatorShaftCables = this.add.graphics().setDepth(11);
 
-    // Cabine do elevador como Arcade Sprite dinâmico (começa travada no teto em Y = 120, centro X = 3040)
-    this.elevatorPlatform = this.physics.add.sprite(3040, 120, 'elevator-platform-pattern');
+    // Cabine do elevador como Arcade Sprite: já fica embaixo (Y = 230), alinhada ao mezanino, como passarela
+    this.elevatorPlatform = this.physics.add.sprite(3040, 230, 'elevator-platform-pattern');
     this.elevatorPlatform.setDepth(12);
 
     const body = this.elevatorPlatform.body as Phaser.Physics.Arcade.Body;
@@ -1452,144 +1481,6 @@ export class CenaTutorial extends CenaBase {
     this.elevatorShaftCables.moveTo(3040, 60);
     this.elevatorShaftCables.lineTo(3040, platY - 10);
     this.elevatorShaftCables.strokePath();
-  }
-
-  private gerarXicaraCafeCaindo(): void {
-    if (!this.textures.exists('cyber-coffee-cup')) {
-      const g = this.make.graphics();
-      // Caneca cerâmica branca/cinza
-      g.fillStyle(0xe2e8f0, 1);
-      g.fillRoundedRect(2, 4, 10, 10, 2);
-      // Asa da caneca
-      g.lineStyle(2, 0xe2e8f0, 1);
-      g.strokeCircle(11, 9, 3);
-      // Café quente no topo
-      g.fillStyle(0x3e2723, 1);
-      g.fillRect(3, 4, 8, 3);
-      // Vapor ciano sutil
-      g.fillStyle(0x00e5ff, 0.9);
-      g.fillRect(4, 1, 2, 2);
-      g.fillRect(7, 0, 2, 3);
-
-      g.generateTexture('cyber-coffee-cup', 16, 16);
-      g.destroy();
-    }
-
-    // Spawna a xícara na altura do painel do totem (X = 2860, Y = 180)
-    const cup = this.add.image(2860, 180, 'cyber-coffee-cup').setDepth(25);
-
-    // Queda com rotação rápida até o piso do mezanino (Y = 228)
-    this.tweens.add({
-      targets: cup,
-      y: 228,
-      angle: 210,
-      duration: 450,
-      ease: 'Quad.easeIn',
-      onComplete: () => {
-        const cupX = cup.x;
-        const cupY = cup.y;
-        cup.destroy();
-
-        // Partículas de cerâmica e café quebrando e espirrando
-        for (let i = 0; i < 12; i++) {
-          const isCoffee = i % 2 === 0;
-          const color = isCoffee ? 0x4a2c11 : 0xe2e8f0;
-          const size = isCoffee ? 2.5 : 2;
-          const p = this.add.circle(cupX, cupY, size, color).setDepth(25);
-          const angle = Phaser.Math.FloatBetween(0, Math.PI);
-          const speed = Phaser.Math.FloatBetween(40, 120);
-          const vx = Math.cos(angle) * (i % 2 === 0 ? speed : -speed);
-          const vy = -Math.sin(angle) * (speed * 0.8);
-
-          this.tweens.add({
-            targets: p,
-            x: p.x + vx * 0.4,
-            y: p.y + vy * 0.4 + 12,
-            alpha: 0,
-            scale: 0.3,
-            duration: 550,
-            ease: 'Power2',
-            onComplete: () => p.destroy(),
-          });
-        }
-
-        // Mini texto sonoro/cômico
-        const alert = this.add
-          .text(cupX, cupY - 15, '*CRASH!* [CAFÉ DERRAMADO]', {
-            fontSize: '11px',
-            color: '#f59e0b',
-            fontFamily: 'monospace',
-            fontStyle: 'bold',
-            stroke: '#000000',
-            strokeThickness: 3,
-          })
-          .setOrigin(0.5)
-          .setDepth(26);
-
-        this.tweens.add({
-          targets: alert,
-          y: alert.y - 25,
-          alpha: 0,
-          duration: 900,
-          onComplete: () => alert.destroy(),
-        });
-      },
-    });
-  }
-
-  private descerElevador(): void {
-    if (this.isElevatorLowered) return;
-    this.isElevatorLowered = true;
-
-    // Efeito cômico: spawne uma pequena xícara de café cibernética caindo do painel e se quebrando
-    this.gerarXicaraCafeCaindo();
-
-    // Beacon do totem muda para verde fixo
-    if (this.beaconElevator) {
-      this.tweens.killTweensOf(this.beaconElevator);
-      this.beaconElevator.setFillStyle(0x00ff66);
-      this.beaconElevator.setScale(1);
-      this.beaconElevator.setAlpha(1);
-    }
-    this.promptTextElevator.setVisible(false);
-
-    // Tween descendo a plataforma do elevador suavemente de Y = 120 até Y = 230 (alinhando com o piso do mezanino)
-    const body = this.elevatorPlatform.body as Phaser.Physics.Arcade.Body;
-    this.tweens.add({
-      targets: this.elevatorPlatform,
-      y: 230,
-      duration: 1200,
-      ease: 'Power2',
-      onUpdate: () => {
-        body.updateFromGameObject();
-        this.atualizarCabosElevador();
-      },
-      onComplete: () => {
-        this.elevatorPlatform.y = 230;
-        body.updateFromGameObject();
-        body.checkCollision.up = true;
-        this.atualizarCabosElevador();
-
-        // Tremor sutil de impacto e vapor pneumático
-        this.cameras.main.shake(120, 0.0025);
-
-        for (let i = 0; i < 4; i++) {
-          const steam = this.add.graphics();
-          steam.fillStyle(0x00e5ff, 0.6);
-          steam.fillCircle(2980 + i * 40, 242, 4);
-          steam.setDepth(15);
-          this.tweens.add({
-            targets: steam,
-            y: 260,
-            x: 2980 + i * 40 + (i % 2 === 0 ? -15 : 15),
-            alpha: 0,
-            scale: 2.2,
-            duration: 400,
-            onComplete: () => steam.destroy(),
-          });
-        }
-      },
-    });
   }
 
   private criarApagaoInicial(): void {
@@ -1643,6 +1534,8 @@ export class CenaTutorial extends CenaBase {
   private desativarPortaAco(): void {
     this.isPowerOn = true;
     this.promptTextPower.setVisible(false);
+    this.som.energiaLiga();
+    this.musica.ligarEnergia();
 
     // Luz de status do totem fica verde fixo
     if (this.beaconPower) {
@@ -1675,6 +1568,7 @@ export class CenaTutorial extends CenaBase {
   private tratarChoqueCabo(): void {
     if (this.isShocked || !this.isCableShockActive) return;
     this.isShocked = true;
+    this.som.choque();
 
     this.player.setVelocity(-250, -180);
     this.cameras.main.flash(180, 255, 230, 50);
@@ -1809,36 +1703,6 @@ export class CenaTutorial extends CenaBase {
       .setDepth(110)
       .setVisible(false);
 
-    // ==============================================================
-    // TOTEM 2: TERMINAL DO ELEVADOR DE CARGA (DESAFIO 3 - MEZANINO EM X = 2860, Y = 230)
-    // ==============================================================
-    this.totemElevator = this.add.image(2860, 203, 'totem-crt-vintage');
-    this.totemElevator.setDepth(10);
-
-    // LED de status do elevador (vermelho enquanto no teto, verde após descer)
-    this.beaconElevator = this.add.circle(2860, 174, 2.5, 0xff1744);
-    this.beaconElevator.setDepth(11);
-    this.tweens.add({
-      targets: this.beaconElevator,
-      alpha: { from: 0.25, to: 1 },
-      scale: { from: 0.85, to: 1.25 },
-      yoyo: true,
-      repeat: -1,
-      duration: 450,
-    });
-
-    // Prompt sutil '[E] TERMINAL DO ELEVADOR'
-    this.promptTextElevator = this.add
-      .text(2860, 150, '[E] TERMINAL DO ELEVADOR', {
-        fontSize: '15px',
-        color: '#00e5ff',
-        fontFamily: 'monospace',
-        stroke: '#000000',
-        strokeThickness: 3,
-      })
-      .setOrigin(0.5)
-      .setDepth(110)
-      .setVisible(false);
   }
 
   private criarMuroConstrucao(): void {
@@ -2033,66 +1897,6 @@ export class CenaTutorial extends CenaBase {
       repeat: -1,
       duration: 250,
     });
-
-    // ==============================================================
-    // 5. PLACA METÁLICA ENFERRUJADA DE BLOQUEIO (X = 3180, Y = 420)
-    // ==============================================================
-    // Painel escuro com bordas de advertência amarela
-    const signG = this.add.graphics();
-    signG.fillStyle(0x0a0f17, 0.95);
-    signG.fillRoundedRect(3010, 350, 340, 140, 6);
-    // Moldura externa zebrada / amarela
-    signG.lineStyle(3, 0xfacc15, 1);
-    signG.strokeRoundedRect(3010, 350, 340, 140, 6);
-    signG.lineStyle(1.5, 0x00e5ff, 0.8);
-    signG.strokeRoundedRect(3014, 354, 332, 132, 4);
-    signG.setDepth(16);
-
-    // Textos em destaque na placa
-    this.add
-      .text(3180, 372, '⚠ EM OBRAS // SETOR RESTRITO ⚠', {
-        fontSize: '14px',
-        color: '#facc15',
-        fontFamily: 'Consolas, monospace',
-        fontStyle: 'bold',
-        stroke: '#000000',
-        strokeThickness: 3,
-      })
-      .setOrigin(0.5)
-      .setDepth(17);
-
-    this.add
-      .text(3180, 400, 'Aguarde a construção do jogo!', {
-        fontSize: '13px',
-        color: '#00e5ff',
-        fontFamily: 'Consolas, monospace',
-        fontStyle: 'bold',
-        stroke: '#000000',
-        strokeThickness: 3,
-      })
-      .setOrigin(0.5)
-      .setDepth(17);
-
-    this.add
-      .text(3180, 426, '[FIM DO SETOR DISPONÍVEL NA DEMO]', {
-        fontSize: '10px',
-        color: '#94a3b8',
-        fontFamily: 'monospace',
-      })
-      .setOrigin(0.5)
-      .setDepth(17);
-
-    this.add
-      .text(3180, 458, 'Pressione [E] para acessar o Terminal Central (Hub)', {
-        fontSize: '11px',
-        color: '#00ff66',
-        fontFamily: 'Consolas, monospace',
-        fontStyle: 'bold',
-        stroke: '#000000',
-        strokeThickness: 2,
-      })
-      .setOrigin(0.5)
-      .setDepth(17);
   }
 
   private dispararDialogoFimDemo(): void {
@@ -2106,12 +1910,12 @@ export class CenaTutorial extends CenaBase {
         {
           falante: '> CANAL REBELDE // INTERCEPTAÇÃO: ESTAGIÁRIO_V0.9b',
           texto:
-            'Kernel restaurado, esteira calibrada e chave de segurança recombinada. Excelente trabalho, recruta!',
+            'Kernel restaurado, energia religada e esteira calibrada. Excelente trabalho, recruta!',
         },
         {
           falante: '> CANAL REBELDE // INTERCEPTAÇÃO: ESTAGIÁRIO_V0.9b',
           texto:
-            'O acesso aos setores avançados da Resistência foi liberado no Hub Central. Pressione [E] para acessar o Terminal Central (Hub).',
+            'O acesso aos setores avançados da Resistência foi liberado no Hub Central. Boa sorte lá fora, recruta!',
         },
       ],
       () => {
@@ -2254,7 +2058,12 @@ export class CenaTutorial extends CenaBase {
   }
 
   private tratarAcaoResultado(resultado: ResultadoComando): void {
-    if (!resultado.sucesso) return;
+    if (!resultado.sucesso) {
+      this.som.erro();
+      return;
+    }
+    if (resultado.acao === 'BOOT_SUCCESS') this.som.boot();
+    else if (resultado.acao === 'DISABLE_STEEL_DOOR' || resultado.acao === 'EXPAND_BRIDGE') this.som.acerto();
 
     if (resultado.acao === 'BOOT_SUCCESS') {
       setTimeout(() => {
@@ -2277,17 +2086,12 @@ export class CenaTutorial extends CenaBase {
       setTimeout(() => {
         this.terminal.fechar();
       }, 1000);
-    } else if (resultado.acao === 'LOWER_ELEVATOR') {
-      this.desafioAtual = 4;
-      this.descerElevador();
-      setTimeout(() => {
-        this.terminal.fechar();
-      }, 1200);
     }
   }
 
   private abrirTerminalBoot(): void {
     this.player.setVelocityX(0);
+    this.som.terminalAbrir();
     this.terminal.abrir({
       titulo: 'SISTEMA OPERACIONAL OG // PROTOCOLO DE RECONEXÃO COGNITIVA',
       contexto: { cena: 'boot' },
@@ -2310,9 +2114,10 @@ export class CenaTutorial extends CenaBase {
     });
   }
 
-  private abrirTerminalTotem(tipoTotem: 'power' | 'bridge' | 'elevator'): void {
+  private abrirTerminalTotem(tipoTotem: 'power' | 'bridge'): void {
     if (this.comunicador.estaAtivo) return;
     this.player.setVelocityX(0);
+    this.som.terminalAbrir();
 
     let linhas: string[] = [];
     let titulo = 'SISTEMA OPERACIONAL OG // TERMINAL V1.0';
@@ -2325,7 +2130,7 @@ export class CenaTutorial extends CenaBase {
         '> LIÇÃO 2: VARIÁVEIS E VERDADEIRO/FALSO',
         '> Variável é uma caixa com nome que guarda um valor. O = põe o valor nela.',
         '> Para ligado/desligado, o Python usa True (verdadeiro) e False (falso),',
-        '> com a primeira letra MAIÚSCULA e sem aspas:',
+        '> sem aspas:',
         '>     luz = True     -> acende a luz',
         '',
         '> SUA VEZ: a energia está False. Mude o valor dela para ligar o painel.',
@@ -2343,21 +2148,6 @@ export class CenaTutorial extends CenaBase {
         ">     velocidade = '5'     -> errado: com aspas vira texto, não número",
         '',
         '> SUA VEZ: troque o valor de tamanho_ponte para a esteira alcançar o mezanino.',
-        '> Digite o comando e aperte ENTER:',
-      ];
-    } else if (tipoTotem === 'elevator') {
-      titulo = 'CONSOLE DE LIBERAÇÃO DO ELEVADOR DE CARGA';
-      linhas = [
-        '> A senha do elevador foi quebrada em dois pedaços, em duas variáveis:',
-        ">     parte1 = 'Mega'        parte2 = 'Fail'",
-        '',
-        '> LIÇÃO 4: JUNTAR TEXTOS',
-        '> Texto entre aspas se chama string. O + cola um texto no outro, na ordem:',
-        ">     nome = 'Lixo' + 'Tech'      -> nome guarda 'LixoTech'",
-        '> Também funciona com variáveis:   completo = inicio + fim',
-        '',
-        '> SUA VEZ: guarde em senha os dois pedaços juntos, primeiro parte1 e depois',
-        '> parte2. Use os nomes das variáveis, sem digitar o texto.',
         '> Digite o comando e aperte ENTER:',
       ];
     }

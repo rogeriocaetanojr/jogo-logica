@@ -43,10 +43,6 @@ const ERROS_MEGA_BRAIN = {
       "[SINTAXE INVÁLIDA] Mega Brain: 'Um valor booleano jogado ao vento não move elétrons. Você pretendia atribuir isso a alguma coisa ou só queria exibir seu vocabulário?'",
       "[SINTAXE INVÁLIDA] Mega Brain: 'Variáveis existem por um motivo. Jogar valores soltos no terminal não vai reconfigurar o registrador de energia sozinho.'",
     ],
-    nameErrorMinusculo: [
-      "[NAME ERROR] Mega Brain: 'Em Python, lógica binária de verdade começa com respeito e letra maiúscula. O interpretador nem sabe o que é esse true minúsculo.'",
-      "[NAME ERROR] Mega Brain: 'Você acha que isso aqui é JavaScript? Aqui o booleano afirmativo tem inicial maiúscula.'",
-    ],
     generico: [
       "[SYSTEM FAILURE] Mega Brain: 'O registrador de energia espera um estado lógico afirmativo, não um devaneio aleatório.'",
     ],
@@ -73,20 +69,6 @@ const ERROS_MEGA_BRAIN = {
       "[ERRO DE TIPO] Mega Brain: 'Você mandou um texto com aspas pro motor hidráulico. Engrenagens operam com números inteiros, não com redação.'",
       "[ERRO DE TIPO] Mega Brain: 'Aspas numa variável de comprimento físico? Nem a inteligência artificial mais queimada faria isso.'",
       "[ERRO DE TIPO] Mega Brain: 'Pistões industriais não analisam prosa. Tire essas aspas e envie uma grandeza numérica.'",
-    ],
-  },
-  desafio3: {
-    ordemInvertida: [
-      "[HASH INVÁLIDO] Mega Brain: 'Ordem invertida. O barramento rejeitou a chave 'FailMega'. Quem programa assim?'",
-    ],
-    antiCheat: [
-      "[ANTI-CHEAT DETECTADO] Mega Brain: 'Espertinho, mas o compilador quer concatenação de variáveis, não texto hardcoded. Use os registradores parte1 e parte2!'",
-    ],
-    sintaxeIncompleta: [
-      "[SINTAXE INCOMPLETA] Mega Brain: 'Concatenou bonito, mas salvou onde? O protocolo exige gravar na variável senha.'",
-    ],
-    acessoNegado: [
-      "[ACESSO NEGADO] Mega Brain: 'Barramento travado. O elevador continua sem autorização de descida.'",
     ],
   },
 };
@@ -145,9 +127,7 @@ export function interpretarComandoTutorial(
             ? '  energia = <booleano> - Atribui valor lógico para ligar a energia'
             : contexto?.totem === 'bridge' || contexto?.totem === 'esteira'
               ? '  tamanho_ponte = X    - Define o comprimento da esteira em metros (inteiro)'
-              : contexto?.totem === 'elevator' || contexto?.totem === 'elevador'
-                ? '  senha = texto1 + texto2 - Concatena variáveis de texto (string)'
-                : '  [DICA] Aproxime-se de um totem e pressione [E] para interagir.'),
+              : '  [DICA] Aproxime-se de um totem e pressione [E] para interagir.'),
     };
   }
 
@@ -219,19 +199,8 @@ export function interpretarComandoTutorial(
     };
   }
 
-  // 3. Digitou energia = true (com minúscula ou sem a inicial maiúscula estrita de Python)
-  if (
-    /^energia\s*=\s*true$/i.test(semPontoEVirgula) &&
-    !/^energia\s*=\s*True$/.test(semPontoEVirgula)
-  ) {
-    return {
-      sucesso: false,
-      mensagem: comDica(obterErroNaoRepetido('d1_name_error', ERROS_MEGA_BRAIN.desafio1.nameErrorMinusculo), 'True começa com T maiúsculo: energia = True'),
-    };
-  }
-
-  // 4. Sucesso: sintaxe de atribuição em Python completa energia = True (aceita variações de espaçamento)
-  if (/^energia\s*=\s*True$/.test(semPontoEVirgula)) {
+  // 3. Sucesso: energia = True, sem diferenciar maiúsculas (o tutorial é para quem nunca programou)
+  if (/^energia\s*=\s*true$/i.test(semPontoEVirgula)) {
     return {
       sucesso: true,
       mensagem:
@@ -335,68 +304,6 @@ export function interpretarComandoTutorial(
           "[ERRO DE SINTAXE] Mega Brain: 'Instrução sem pé nem cabeça. Declare a variável com um valor inteiro válido.'",
           'O formato é tamanho_ponte = número, sem aspas.'
         ),
-    };
-  }
-
-  // ==========================================
-  // DESAFIO 3: CONSOLE DO ELEVADOR (CONCATENAÇÃO DE STRINGS)
-  // ==========================================
-  const isTotemElevador = contexto?.totem === 'elevator' || contexto?.totem === 'elevador';
-  const isAlvoElevador =
-    isTotemElevador ||
-    /^\s*senha\s*=/i.test(semPontoEVirgula) ||
-    /^\s*chave(?:_elevador)?\s*=/i.test(semPontoEVirgula) ||
-    /parte1|parte2|megafail|failmega/i.test(semPontoEVirgula);
-
-  if (isAlvoElevador) {
-    // 1. Sucesso estrito: a ÚNICA resposta aceita para avançar é a atribuição com a soma das duas variáveis
-    // Permite apenas variações de espaços em branco ao redor dos operadores
-    if (/^\s*senha\s*=\s*parte1\s*\+\s*parte2\s*$/.test(semPontoEVirgula)) {
-      return {
-        sucesso: true,
-        mensagem:
-          "[ACESSO AUTORIZADO] Mega Brain: 'Chave sincronizada: MegaFail. Liberando travas hidráulicas...'",
-        acao: 'LOWER_ELEVATOR',
-      };
-    }
-
-    // 2. Ordem Invertida: senha = parte2 + parte1 (ou parte2 + parte1, ou chave invertida)
-    if (
-      /^\s*(?:senha\s*=\s*)?parte2\s*\+\s*parte1\s*$/i.test(semPontoEVirgula) ||
-      /^\s*(?:senha\s*=\s*)?['"]fail['"]\s*\+\s*['"]mega['"]\s*$/i.test(semPontoEVirgula) ||
-      /^\s*(?:senha\s*=\s*)?['"]?failmega['"]?\s*$/i.test(semPontoEVirgula)
-    ) {
-      return {
-        sucesso: false,
-        mensagem: comDica(obterErroNaoRepetido('d3_invertida', ERROS_MEGA_BRAIN.desafio3.ordemInvertida), 'A ordem importa: primeiro parte1, depois parte2.'),
-      };
-    }
-
-    // 3. Bloqueio de Hardcode (Anti-cheat): senha = 'MegaFail', senha = "MegaFail", MegaFail, etc.
-    const isHardcoded =
-      /^\s*(?:senha\s*=\s*)?(?:['"]?megafail['"]?|['"]mega['"]\s*\+\s*['"]fail['"])\s*$/i.test(
-        semPontoEVirgula
-      );
-
-    if (isHardcoded) {
-      return {
-        sucesso: false,
-        mensagem: comDica(obterErroNaoRepetido('d3_anticheat', ERROS_MEGA_BRAIN.desafio3.antiCheat), 'Não digite o texto: some as variáveis parte1 e parte2.'),
-      };
-    }
-
-    // 4. Respostas para Valores Soltos ou Operações Incompletas: apenas parte1 + parte2 (sem atribuir a senha)
-    if (/^\s*parte1\s*\+\s*parte2\s*$/i.test(semPontoEVirgula)) {
-      return {
-        sucesso: false,
-        mensagem: comDica(obterErroNaoRepetido('d3_incompleta', ERROS_MEGA_BRAIN.desafio3.sintaxeIncompleta), 'Guarde o resultado na variável: comece com senha = ...'),
-      };
-    }
-
-    // 5. Qualquer comando genérico ou incorreto
-    return {
-      sucesso: false,
-      mensagem: comDica(obterErroNaoRepetido('d3_negado', ERROS_MEGA_BRAIN.desafio3.acessoNegado), 'O formato é senha = primeira_variavel + segunda_variavel'),
     };
   }
 
