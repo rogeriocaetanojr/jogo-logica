@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { emitirSom } from './som/eventosSom';
 import { CENA_FASE_FINAL, COMBATE_FASE_FINAL } from './constantesFaseFinal';
 import type { JogadorFaseFinal } from './JogadorFaseFinal';
 
@@ -37,6 +38,7 @@ export class CombateFaseFinal {
     const c = COMBATE_FASE_FINAL;
     this.coracoes--;
     this.desenhar();
+    emitirSom(this.cena, 'dano', this.jogador.x);
     this.cena.cameras.main.flash(150, 255, 70, 90);
     this.cena.cameras.main.shake(140, 0.004);
     if (this.coracoes <= 0) {
@@ -53,6 +55,7 @@ export class CombateFaseFinal {
     if (this.coracoes <= 0) return;
     this.coracoes--;
     this.desenhar();
+    emitirSom(this.cena, 'queimar', this.jogador.x);
     this.cena.cameras.main.shake(160, 0.006);
     if (this.coracoes <= 0) {
       this.aoMorrer();
@@ -62,7 +65,8 @@ export class CombateFaseFinal {
   }
 
   /** Pisou num inimigo (ou no boss): quique e um instante de imunidade (não leva dano do mesmo contato). */
-  public pisou(quique: number = COMBATE_FASE_FINAL.QUIQUE_PISAO): void {
+  public pisou(quique: number = COMBATE_FASE_FINAL.QUIQUE_PISAO, comSom: boolean = true): void {
+    if (comSom) emitirSom(this.cena, 'pisao', this.jogador.x);
     this.jogador.quicar(quique);
     this.invulneravelAte = Math.max(this.invulneravelAte, this.cena.time.now + 150);
     this.cena.cameras.main.shake(80, 0.003);

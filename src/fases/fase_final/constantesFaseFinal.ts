@@ -414,3 +414,46 @@ export const FINAL_FASE_FINAL = {
     ATUALIZACAO_MS: 2600,
   },
 } as const;
+
+/** Efeitos sonoros sintetizados (etapa 8). */
+export const SOM_FASE_FINAL = {
+  VOLUME_EFEITOS: 0.62,
+  /** Panorâmica máxima de um som na borda da tela (0 a 1). */
+  PAN_MAX: 0.75,
+  /** Distância fora da tela (px) em que um som some de vez. */
+  ALCANCE_PX: 500,
+  /** Um bipe de voz a cada N letras do diálogo. */
+  LETRAS_POR_BIPE: 3,
+  /** Volume base de cada laço contínuo. */
+  LACOS: {
+    chuva: 0.03,
+    lava: 0.11,
+    predio: 0.06,
+    vento: 0.09,
+    serra: 0.07,
+    laser: 0.06,
+    motor: 0.07,
+  } as Record<string, number>,
+  /** Intervalo entre os piados dos passarinhos no amanhecer. */
+  PASSARINHO_MS: [900, 2600],
+} as const;
+
+/** Trilha (MP3 em public/assets/fase_final/musica). */
+export const MUSICA_FASE_FINAL = {
+  VOLUMES: {
+    entrada: 0.3,
+    torre: 0.28,
+    introBoss: 0.42,
+    tema: 0.75,
+    creditos: 0.55,
+  },
+  FADE_PADRAO_S: 1.5,
+  /** Do elevador ao terraço e da introdução para a luta. */
+  FADE_RAPIDO_S: 0.35,
+  /** Música some antes da queda na lava (silêncio dramático). */
+  FADE_QUEDA_S: 2.5,
+  FATOR_ABAFADO: 0.45,
+  FILTRO_ABAFADO_HZ: 1400,
+  /** O tema repete a cada 94,43 s depois de 3 s de introdução (medido na forma de onda). */
+  LACO_TEMA: { INICIO_S: 3.2, PERIODO_S: 94.43034 },
+} as const;

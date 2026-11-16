@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { definirLaco, emitirSom } from '../som/eventosSom';
 import { COR, hexNum, texturaBrilho } from '../ArteFaseFinal';
 import { ANDAR_FASE_FINAL, ESCALA_ARTE } from '../constantesFaseFinal';
 import type { TemaAndar } from './tiposAndar';
@@ -98,10 +99,14 @@ export class ElevadorFaseFinal {
     const intervalo = 380;
 
     this.visor.setColor(COR.janelaQuente);
+    emitirSom(this.cena, 'elevador_partida', this.x);
+    definirLaco(this.cena, 'motor', 0.8);
+    this.cena.time.delayedCall(sequencia.length * intervalo, () => definirLaco(this.cena, 'motor', 0));
     sequencia.forEach((n, i) => {
       this.cena.time.delayedCall(i * intervalo, () => {
         this.visor.setText(String(n));
         if (i === ida.length - 1) {
+          emitirSom(this.cena, 'elevador_ding', this.x);
           this.cena.cameras.main.shake(140, 0.003);
           aoChegar();
         }
@@ -124,11 +129,13 @@ export class ElevadorFaseFinal {
 
   public abrir(duracaoMs: number = E.PORTA_MS, aoTerminar?: () => void): void {
     this.aberto = true;
+    emitirSom(this.cena, 'elevador_porta', this.x);
     this.animarFolhas(0.08, duracaoMs, aoTerminar);
   }
 
   public fechar(duracaoMs: number = E.PORTA_MS, aoTerminar?: () => void): void {
     this.aberto = false;
+    emitirSom(this.cena, 'elevador_porta', this.x);
     this.animarFolhas(1, duracaoMs, aoTerminar);
   }
 

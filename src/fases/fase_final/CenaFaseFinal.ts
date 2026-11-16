@@ -14,6 +14,7 @@ import {
   ESCALA_ARTE,
   EXTERIOR_FASE_FINAL,
   FINAL_FASE_FINAL,
+  MUSICA_FASE_FINAL,
   INTERACAO_FASE_FINAL,
   TRANSICAO_ELEVADOR,
 } from './constantesFaseFinal';
@@ -70,6 +71,10 @@ import { type AparenciaForma, brigaEQueda, cerebroViraCopycat, quedaEMorfose } f
 import { TerracoAmanhecer, joinhaNaLava } from './final/CutsceneFinal';
 import { CreditosFaseFinal } from './final/CreditosFaseFinal';
 import { retratoProtagonista } from './final/TexturasFinal';
+import { SomFaseFinal } from './som/SomFaseFinal';
+import { TrilhaFaseFinal } from './som/TrilhaFaseFinal';
+import { definirLaco, emitirSom } from './som/eventosSom';
+import { lerMudoSalvo, salvarMudo } from '../../hub/MusicaHub';
 
 /** Contexto do terminal do andar antes de saber qual andar é. */
 function contextoAndarVazio(): ContextoPuzzleAndar {
@@ -130,6 +135,7 @@ const E = EXTERIOR_FASE_FINAL;
 const A = ANDAR_FASE_FINAL;
 const B = BOSS_FASE_FINAL;
 const FONTE = 'Consolas, Courier New, monospace';
+const MU = MUSICA_FASE_FINAL;
 
 /**
  * Fase Final: Mega Brain World.
@@ -181,6 +187,12 @@ export class CenaFaseFinal extends CenaBase {
   private promptRebase?: Phaser.GameObjects.Text;
   private reacaoRebase?: Phaser.Time.TimerEvent;
 
+  // Som
+  private som!: SomFaseFinal;
+  private trilha?: TrilhaFaseFinal;
+  private teclaMudo?: Phaser.Input.Keyboard.Key;
+  private promptsVisiveisAntes: number = 0;
+
   // Final
   private amanhecer?: TerracoAmanhecer;
   private creditos?: CreditosFaseFinal;
@@ -219,6 +231,7 @@ export class CenaFaseFinal extends CenaBase {
     this.reacaoRebase = undefined;
     this.amanhecer = undefined;
     this.creditos = undefined;
+    this.promptsVisiveisAntes = 0;
   }
 
   override preload(): void {
@@ -236,6 +249,11 @@ export class CenaFaseFinal extends CenaBase {
     this.terminal.definirInterpretador(interpretarComandoFaseFinal);
     this.avatarMegaBrain = avatarHtml(retratoMegaBrain(), 'MEGA BRAIN');
     this.cameras.main.setBackgroundColor('#05050c');
+    this.som = new SomFaseFinal(this, () => this.terminal.estaAberto);
+    this.trilha = TrilhaFaseFinal.obter(this);
+    this.sound.mute = lerMudoSalvo();
+    this.teclaMudo = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.M);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.aoDesligarCena());
 
     if (this.trecho === 'andar') this.montarAndar();
     else if (this.trecho === 'boss') this.montarBoss();
@@ -243,6 +261,43 @@ export class CenaFaseFinal extends CenaBase {
     else this.montarExterior();
 
     this.criarEfeitoCRT(this.scale.width, this.scale.height, CENA_FASE_FINAL.OPACIDADE_CRT);
+  }
+
+  /* =========================================================================
+   * SOM
+   * ========================================================================= */
+
+  /**
+   * A cena é reiniciada a cada trecho; a trilha só para quando o jogador sai da fase de verdade
+   * (hub, outra fase). O hub tem o próprio controle de mudo, então o do Phaser volta ao normal.
+   */
+  private aoDesligarCena(): void {
+    const plugin = this.scene;
+    const trilha = this.trilha;
+    window.setTimeout(() => {
+      if (plugin.isActive('CenaFaseFinal') || plugin.isPaused('CenaFaseFinal')) return;
+      trilha?.parar(0.4);
+      trilha?.abafar(false);
+      this.sound.mute = false;
+    }, 250);
+  }
+
+  private alternarMudo(): void {
+    const mudo = !this.sound.mute;
+    this.sound.mute = mudo;
+    salvarMudo(mudo);
+    this.mostrarNotificacao(mudo ? HUD_FASE_FINAL.SOM_DESLIGADO : HUD_FASE_FINAL.SOM_LIGADO, 1400, false);
+    if (!mudo) emitirSom(this, 'mudo');
+  }
+
+  /** Plim quando surge um [E] por perto. */
+  private somDosPrompts(): void {
+    const prompts = [this.promptTermo, this.promptTerminal, this.promptElevador, this.promptRebase];
+    let visiveis = prompts.filter((p) => p?.visible).length;
+    visiveis += (this.andar?.npcs ?? []).filter((n) => n.estaPerto(this.jogador.x, this.jogador.y)).length;
+    if (this.valdir?.estaPerto(this.jogador.x, this.jogador.y)) visiveis++;
+    if (visiveis > this.promptsVisiveisAntes) emitirSom(this, 'prompt');
+    this.promptsVisiveisAntes = visiveis;
   }
 
   /* =========================================================================
@@ -319,6 +374,8 @@ export class CenaFaseFinal extends CenaBase {
 
     this.criarValdir();
     this.criarHud(HUD_FASE_FINAL.SETOR, HUD_FASE_FINAL.OBJETIVOS.PORTEIRO);
+    this.trilha?.tocar('entrada', 2.5);
+    definirLaco(this, 'chuva', 1);
     this.promptTermo = this.criarPrompt(
       E.TERMINAL_TERMO.x,
       E.CHAO_Y + INTERACAO_FASE_FINAL.OFFSET_PROMPT_Y - 40,
@@ -372,6 +429,7 @@ export class CenaFaseFinal extends CenaBase {
 
   private abrirTermo(): void {
     this.promptTermo?.setVisible(false);
+    emitirSom(this, 'terminal_abrir');
     this.terminal.abrir({
       titulo: TEXTOS_TERMO.TITULO,
       linhasIniciais: [...TEXTOS_TERMO.ENUNCIADO],
@@ -384,10 +442,12 @@ export class CenaFaseFinal extends CenaBase {
   private aoSubmeterTermo(resultado: ResultadoComando): void {
     switch (resultado.acao) {
       case ACOES_FASE_FINAL.TERMO_RECUSADO:
+        emitirSom(this, 'terminal_erro');
         this.contextoTermo.recusas++;
         this.terminal.imprimirLinha(TEXTOS_TERMO.PERGUNTA, 'info');
         break;
       case ACOES_FASE_FINAL.TERMO_INVALIDO:
+        emitirSom(this, 'terminal_erro');
         this.contextoTermo.invalidos++;
         this.terminal.imprimirLinha(TEXTOS_TERMO.PERGUNTA, 'info');
         break;
@@ -400,6 +460,7 @@ export class CenaFaseFinal extends CenaBase {
   private aceitarTermo(): void {
     if (this.contextoTermo.aceito) return;
     this.contextoTermo.aceito = true;
+    emitirSom(this, 'terminal_acerto');
     // O terminal fica aberto para o jogador ler a resposta; ele fecha com ESC quando quiser
     this.time.delayedCall(600, () => {
       this.terminal.imprimirLinha(TEXTOS_TERMO.FECHAR, 'info');
@@ -414,6 +475,7 @@ export class CenaFaseFinal extends CenaBase {
 
   private entrarNaTorre(): void {
     this.estado = 'transicao';
+    definirLaco(this, 'chuva', 0);
     this.jogador.ficarParado();
     this.cameras.main.fadeOut(500, 0, 0, 0);
     this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
@@ -432,6 +494,9 @@ export class CenaFaseFinal extends CenaBase {
     this.cameras.main.setBounds(0, 0, cfg.largura, A.ALTURA);
 
     this.andar = new AndarFaseFinal(this, cfg);
+    this.trilha?.tocar('torre', 2);
+    this.trilha?.preCarregar();
+    definirLaco(this, 'predio', 1);
     this.contextoPuzzle = {
       ...contextoAndarVazio(),
       id: cfg.puzzle.id,
@@ -464,6 +529,7 @@ export class CenaFaseFinal extends CenaBase {
       elevador.definirAberto(false);
       elevador.folhasNaFrente(true);
       this.time.delayedCall(TRANSICAO_ELEVADOR.FADE_MS + 200, () => {
+        emitirSom(this, 'elevador_ding', elevador.x);
         elevador.abrir(A.ELEVADOR.PORTA_MS, () => {
           elevador.folhasNaFrente(false);
           this.chegarNoAndar();
@@ -479,13 +545,12 @@ export class CenaFaseFinal extends CenaBase {
     const cfg = this.andar.cfg;
     this.estado = 'livre';
     this.tweens.add({ targets: this.textoObjetivo, alpha: 1, duration: 500 });
+    emitirSom(this, 'banner_andar');
     this.mostrarBannerAndar(cfg.numero, cfg.nome, cfg.conceito);
     const anuncio = ANUNCIOS_ANDAR[cfg.numero];
-    if (anuncio) {
-      this.time.delayedCall(TRANSICAO_ELEVADOR.NOME_ANDAR_MS, () => {
-        if (this.estado !== 'livre' || this.terminal.estaAberto) return;
-        this.comunicador.iniciarDialogo([{ falante: FALANTES.MEGA_BRAIN, texto: anuncio, avatar: this.avatarMegaBrain }]);
-      });
+    // O anúncio do Mega Brain entra assim que o elevador abre
+    if (anuncio && !this.terminal.estaAberto) {
+      this.comunicador.iniciarDialogo([{ falante: FALANTES.MEGA_BRAIN, texto: anuncio, avatar: this.avatarMegaBrain }]);
     }
   }
 
@@ -522,6 +587,7 @@ export class CenaFaseFinal extends CenaBase {
       const avisos = TEXTOS_ANDAR.ELEVADOR_TRAVADO;
       this.mostrarNotificacao(avisos[Math.min(this.tentativasElevadorTravado, avisos.length - 1)], 1800);
       this.tentativasElevadorTravado++;
+      emitirSom(this, 'elevador_travado', elevador.x);
       this.cameras.main.shake(120, 0.002);
     }
   }
@@ -530,6 +596,7 @@ export class CenaFaseFinal extends CenaBase {
   private abrirTerminalAndar(): void {
     const def = PUZZLES[this.contextoPuzzle.id];
     this.promptTerminal?.setVisible(false);
+    emitirSom(this, 'terminal_abrir');
     this.terminal.abrir({
       titulo: `ANDAR ${this.numeroAndar} // ${def.titulo}`,
       linhasIniciais: [
@@ -549,6 +616,7 @@ export class CenaFaseFinal extends CenaBase {
 
   private aoSubmeterPuzzle(resultado: ResultadoComando): void {
     if (resultado.acao === ACOES_FASE_FINAL.PUZZLE_RESOLVIDO) {
+      emitirSom(this, 'terminal_acerto');
       this.resolverPuzzleDoAndar();
       return;
     }
@@ -557,6 +625,7 @@ export class CenaFaseFinal extends CenaBase {
     if (ultimo?.status !== 'errado') return;
 
     // Código válido, mas errado: fecha o terminal para o jogador ver o que o código fez
+    emitirSom(this, 'terminal_erro');
     this.contextoPuzzle.erros++;
     this.emConsequencia = true;
     this.time.delayedCall(1300, () => {
@@ -625,6 +694,7 @@ export class CenaFaseFinal extends CenaBase {
     const def = PUZZLES[this.contextoPuzzle.id];
     this.time.delayedCall(1300, () => {
       this.terminal.fecharForcado();
+      emitirSom(this, 'liberar', this.andar?.cfg.puzzle.terminalX);
       this.andar?.resolverPuzzle();
       this.definirObjetivo(TEXTOS_ANDAR.OBJETIVO_ELEVADOR);
       this.mostrarNotificacao(TEXTOS_ANDAR.PUZZLE_RESOLVIDO);
@@ -637,14 +707,28 @@ export class CenaFaseFinal extends CenaBase {
     const andar = this.andar;
     if (!andar) return;
     const elevador = andar.elevadorSaida;
-    const t = TRANSICAO_ELEVADOR;
     this.estado = 'transicao';
     this.promptElevador?.setVisible(false);
+    // Só o elevador do andar 2 já fica aberto (o puzzle é ele): nos outros a porta abre agora
+    if (!elevador.aberto) {
+      elevador.abrir(A.ELEVADOR.PORTA_MS, () => this.time.delayedCall(150, () => this.entrarNoElevador()));
+    } else {
+      this.entrarNoElevador();
+    }
+  }
+
+  /** Jogador para dentro, portas fecham, o visor sobe e a cena reinicia no próximo trecho. */
+  private entrarNoElevador(): void {
+    const andar = this.andar;
+    if (!andar) return;
+    const elevador = andar.elevadorSaida;
+    const t = TRANSICAO_ELEVADOR;
     this.jogador.respawnar({ x: elevador.x, y: this.jogador.y });
     elevador.folhasNaFrente(true);
     elevador.fechar(t.PORTA_FECHA_MS, () => {
       // Do último andar o elevador sobe para o terraço, onde começa o boss
       const ultimo = this.numeroAndar >= TOTAL_ANDARES;
+      if (ultimo) this.trilha?.parar(t.VISOR_MS / 1000);
       const destino: DadosCenaFaseFinal = ultimo
         ? { trecho: 'boss', forma: 1, chegada: 'elevador' }
         : { trecho: 'andar', andar: this.numeroAndar + 1 };
@@ -690,6 +774,9 @@ export class CenaFaseFinal extends CenaBase {
 
     this.tweens.add({ targets: fundo, fillAlpha: 0.88, duration: 250 });
     this.tweens.add({ targets: [visor, legenda], alpha: 1, duration: 250 });
+    emitirSom(this, 'elevador_partida');
+    definirLaco(this, 'motor', 1);
+    this.time.delayedCall(t.VISOR_MS - 200, () => definirLaco(this, 'motor', 0));
     const passo = t.VISOR_MS / 3;
     this.time.delayedCall(passo, () => visor.setText('▲'));
     this.time.delayedCall(passo * 2, () => {
@@ -770,6 +857,10 @@ export class CenaFaseFinal extends CenaBase {
     this.checkpoint = { id: `forma${forma}`, ponto: { ...pontoInicial } };
     this.legenda = new LegendaMegaBrain(this);
     if (cfg.tipo === 'terraco') this.clima = new ClimaFaseFinal(this, B.CHAO_Y);
+    definirLaco(this, cfg.tipo === 'terraco' ? 'chuva' : nucleo ? 'lava' : 'predio', cfg.tipo === 'interior' ? 0.7 : 1);
+    // Do elevador para o terraço entra a introdução da luta; nas outras chegadas o tema segue tocando
+    if (this.chegadaBoss === 'elevador') this.trilha?.tocar('introBoss', MU.FADE_RAPIDO_S, true);
+    else this.trilha?.tocar('tema', MU.FADE_PADRAO_S);
     this.cameras.main.fadeIn(TRANSICAO_ELEVADOR.FADE_MS, 0, 0, 0);
     this.estado = 'chegada';
 
@@ -800,6 +891,7 @@ export class CenaFaseFinal extends CenaBase {
         break;
       case 'elevador':
         this.mostrarNotificacao(TEXTOS_BOSS.CHEGADA_TERRACO, 2000);
+        emitirSom(this, 'elevador_ding', 110);
         boss.sprite.setAlpha(0);
         this.time.delayedCall(1200, () => cerebroViraCopycat(this, boss.sprite, () => this.apresentarForma()));
         break;
@@ -835,6 +927,7 @@ export class CenaFaseFinal extends CenaBase {
   private comecarLuta(): void {
     if (!this.boss || this.estado !== 'chegada') return;
     this.estado = 'livre';
+    this.trilha?.tocar('tema', MU.FADE_RAPIDO_S);
     this.tweens.add({ targets: this.textoObjetivo, alpha: 1, duration: 500 });
     this.hudBoss?.mostrar();
     this.boss.iniciar();
@@ -847,7 +940,9 @@ export class CenaFaseFinal extends CenaBase {
     if (!boss || !combate) return;
     const r = boss.update(delta, this.jogador, combate.podeLevarDano);
     if (r.golpe) {
-      combate.pisou(B.QUIQUE_GOLPE);
+      emitirSom(this, 'boss_golpe', boss.sprite.x);
+      if (boss.vida <= 0) this.time.delayedCall(200, () => emitirSom(this, 'boss_derrotado', boss.sprite.x));
+      combate.pisou(B.QUIQUE_GOLPE, false);
       this.hudBoss?.atualizar(boss.vida);
       this.cameras.main.flash(120, 255, 255, 255);
       this.cameras.main.shake(180, 0.008);
@@ -857,7 +952,8 @@ export class CenaFaseFinal extends CenaBase {
         if (!this.congelado) this.physics.world.resume();
       });
     } else if (r.quique) {
-      combate.pisou(B.QUIQUE_SEM_JANELA);
+      emitirSom(this, 'boss_quique', boss.sprite.x);
+      combate.pisou(B.QUIQUE_SEM_JANELA, false);
     } else if (r.danoDeX !== undefined) {
       combate.ferir(r.danoDeX);
     }
@@ -903,6 +999,7 @@ export class CenaFaseFinal extends CenaBase {
     const anim = `${texAndar.terminal(tema)}-pisca`;
     if (this.anims.exists(anim)) this.terminalRebase.play(anim);
     this.tweens.add({ targets: this.terminalRebase, y: topo, duration: 900, ease: 'Back.easeOut' });
+    emitirSom(this, 'rebase_terminal', x);
     this.cameras.main.shake(500, 0.004);
     this.promptRebase = this.criarPrompt(x, topo - 140, TEXTOS_BOSS.PROMPT_REBASE, '#ffd36b');
   }
@@ -920,6 +1017,7 @@ export class CenaFaseFinal extends CenaBase {
 
   private abrirRebase(): void {
     this.promptRebase?.setVisible(false);
+    emitirSom(this, 'terminal_abrir');
     this.terminal.abrir({
       titulo: TEXTOS_REBASE.TITULO,
       linhasIniciais: [
@@ -946,10 +1044,13 @@ export class CenaFaseFinal extends CenaBase {
     }
     if (!(boss instanceof FormaCerebro)) return;
     if (resultado.acao === ACOES_FASE_FINAL.REBASE_RESOLVIDO) {
+      emitirSom(this, 'rebase_certo');
       this.derrubarMegaBrain(boss);
       return;
     }
+    if (ultimo.status === 'alterado' && ultimo.acao === 'pick') emitirSom(this, 'rebase_pick');
     if (ultimo.status === 'alterado' && ultimo.acao === 'drop') {
+      emitirSom(this, 'rebase_errado');
       const reacoes: Record<string, number> = {
         a1f3: QUADROS_BOSS.ROSTO.VERGONHA,
         '7c2e': QUADROS_BOSS.ROSTO.RISADA,
@@ -965,6 +1066,8 @@ export class CenaFaseFinal extends CenaBase {
   private derrubarMegaBrain(boss: FormaCerebro): void {
     this.faseNucleo = 'queda';
     this.reacaoRebase?.remove();
+    // Silêncio dramático: a música some e sobram a lava e o desmoronamento
+    this.trilha?.parar(MU.FADE_QUEDA_S);
     this.time.delayedCall(1600, () => {
       this.terminal.fecharForcado();
       this.estado = 'transicao';
@@ -986,6 +1089,8 @@ export class CenaFaseFinal extends CenaBase {
       B.NUCLEO.LAVA_Y,
       (depois) => this.comunicador.iniciarDialogo(TEXTOS_FINAL.VOLTO.map((texto) => ({ falante, texto, avatar })), depois),
       () => {
+        emitirSom(this, 'fade_branco');
+        definirLaco(this, 'lava', 0);
         this.cameras.main.fadeOut(FINAL_FASE_FINAL.FADE_BRANCO_MS, 255, 255, 255);
         this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => this.irPara({ trecho: 'final' }));
       }
@@ -1013,6 +1118,8 @@ export class CenaFaseFinal extends CenaBase {
     const personagem = this.jogador.tipoPersonagem;
     const avatarJogador = avatarHtml(retratoProtagonista(this, personagem), personagem.toUpperCase());
     const avatarValdir = avatarHtml(retratoValdir(), 'VALDIR');
+    this.trilha?.parar(0.3);
+    definirLaco(this, 'vento', 1);
     this.amanhecer = new TerracoAmanhecer(this);
     this.amanhecer.iniciar({
       falarJogador: (depois) =>
@@ -1031,6 +1138,8 @@ export class CenaFaseFinal extends CenaBase {
         ),
       virarJogador: (deFrente, olharEsquerda) => this.jogador.pose(deFrente ? 0 : 2, olharEsquerda),
       comecarCreditos: () => {
+        this.trilha?.tocar('creditos', 2.5, true);
+        definirLaco(this, 'vento', 0.5);
         this.creditos = new CreditosFaseFinal(this, linhasCreditos(personagem, this.mortes), () => this.retornarAoHub());
       },
     });
@@ -1053,6 +1162,7 @@ export class CenaFaseFinal extends CenaBase {
   private morrerNoBoss(): void {
     if (this.estado !== 'livre') return;
     this.estado = 'transicao';
+    emitirSom(this, 'morte');
     this.mortes++;
     this.jogador.congelar();
     this.jogador.sprite.setTint(0xff2a3d);
@@ -1070,6 +1180,11 @@ export class CenaFaseFinal extends CenaBase {
   override update(tempo: number, delta: number): void {
     super.update(tempo, delta);
     if (!this.jogador) return;
+
+    if (this.teclaMudo && Phaser.Input.Keyboard.JustDown(this.teclaMudo) && !this.terminal.estaAberto) this.alternarMudo();
+    this.som.atualizar(delta, this.comunicador.estaAtivo);
+    // Só o terminal abafa a música (para ler o código); nos diálogos ela segue normal
+    this.trilha?.abafar(this.terminal.estaAberto);
 
     this.exterior?.update(tempo, delta);
     this.clima?.update(tempo, delta);
@@ -1101,6 +1216,7 @@ export class CenaFaseFinal extends CenaBase {
     if (this.congelado) this.descongelar();
 
     this.jogador.update(tempo, delta);
+    this.somDosPrompts();
     if (this.trecho === 'boss') {
       this.atualizarBoss(delta);
       const apertouE = this.jogador.interagirApertado();
@@ -1133,10 +1249,12 @@ export class CenaFaseFinal extends CenaBase {
 
   private salvarCheckpoint(id: string, ponto: Ponto, nome: string): void {
     this.checkpoint = { id, ponto: { ...ponto } };
-    this.mostrarNotificacao(nome, 1800);
+    emitirSom(this, 'checkpoint');
+    this.mostrarNotificacao(nome, 1800, false);
   }
 
   private cair(): void {
+    emitirSom(this, 'queda_buraco');
     this.mortes++;
     this.jogador.respawnar(this.checkpoint.ponto);
     this.cameras.main.flash(200, 255, 255, 255);
@@ -1151,6 +1269,7 @@ export class CenaFaseFinal extends CenaBase {
   private morrerNoAndar(): void {
     if (this.estado !== 'livre') return;
     this.estado = 'transicao';
+    emitirSom(this, 'morte');
     this.mortes++;
     this.jogador.congelar();
     this.jogador.sprite.setTint(0xff2a3d);
@@ -1196,8 +1315,9 @@ export class CenaFaseFinal extends CenaBase {
     });
   }
 
-  private mostrarNotificacao(texto: string, duracaoMs: number = 2400): void {
+  private mostrarNotificacao(texto: string, duracaoMs: number = 2400, comSom: boolean = true): void {
     const t = this.textoNotificacao;
+    if (comSom) emitirSom(this, 'notificacao');
     this.tweens.killTweensOf(t);
     t.setText(texto).setAlpha(1);
     this.tweens.add({ targets: t, alpha: 0, delay: duracaoMs, duration: 500 });

@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { emitirSom } from '../som/eventosSom';
 import { COR, hexNum, texturaBrilho } from '../ArteFaseFinal';
 import { BOSS_FASE_FINAL } from '../constantesFaseFinal';
 import { TEXTOS_BOSS } from '../DialogosFaseFinal';
@@ -111,6 +112,7 @@ export function cerebroViraCopycat(cena: Phaser.Scene, copia: Phaser.GameObjects
   const linhas = cena.add.graphics().setDepth(20.5);
 
   // Fase 1: o holograma liga (cresce, pisca e treme)
+  emitirSom(cena, 'holograma', cx);
   clarao(cena, hexNum(COR.vermelho), 0.15, 300);
   cena.tweens.add({ targets: cerebro, scale: ESCALA, duration: 600, ease: 'Back.easeOut' });
   cena.tweens.add({ targets: halo, scale: 2.4, duration: 600, ease: 'Quad.easeOut' });
@@ -160,6 +162,8 @@ export function cerebroViraCopycat(cena: Phaser.Scene, copia: Phaser.GameObjects
     const origem = amostrarPixels(cena, TEX_BOSS.CEREBRO, { x: 0, y: 0, w: 48, h: 42 }, 1);
     const destino = amostrarPixels(cena, copia.texture.key, { x: 0, y: 0, w: 128, h: 128 }, 3);
     cerebro.destroy();
+    emitirSom(cena, 'glitch', cx);
+    emitirSom(cena, 'pixels_juntam', cx);
     clarao(cena, 0xffffff, 0.2, 200);
     estouro(cena, cx, cy, 70, hexNum(COR.vermelho), 0x05050c, 21);
 
@@ -212,6 +216,7 @@ export function cerebroViraCopycat(cena: Phaser.Scene, copia: Phaser.GameObjects
       onComplete: () => {
         // Fase 4: firma como sprite de verdade
         copia.setAlpha(1);
+        emitirSom(cena, 'recompilar', copia.x);
         fantasmas(cena, copia, 400);
         clarao(cena, 0xffffff, 0.25, 250);
         cena.cameras.main.shake(200, 0.006);
@@ -262,6 +267,7 @@ export function quedaEMorfose(
     .setOrigin(0.5, anterior.origemY)
     .setScale(anterior.escala)
     .setDepth(nova.depth);
+  cena.time.delayedCall(150, () => emitirSom(cena, 'queda_longa', xQueda));
   cena.tweens.add({
     targets: velha,
     y: chao,
@@ -270,6 +276,8 @@ export function quedaEMorfose(
     ease: 'Quad.easeIn',
     onComplete: () => {
       cena.cameras.main.shake(260, 0.01);
+      emitirSom(cena, 'pouso_pesado', xQueda);
+      emitirSom(cena, 'glitch', xQueda);
       estouro(cena, xQueda, chao - 12, 60, 0xffd36b);
       particulas.detritos(xQueda, chao - 4, 14, [0x3f4462, 0x2b2e44, 0xffd36b], chao);
       fumaca(cena, xQueda - 50, chao - 10, 1.2, 0x6b6f8c, 700);
@@ -300,6 +308,7 @@ export function quedaEMorfose(
       cena.time.delayedCall(B.GLITCH_MS, () => {
         velha.destroy();
         nova.setVisible(true);
+        emitirSom(cena, 'recompilar', xQueda);
         fantasmas(cena, nova, 300);
         clarao(cena, 0xffffff, 0.18, 200);
         // Salto até a posição de início da forma
@@ -415,6 +424,7 @@ export function brigaEQueda(
     } else {
       estouro(cena, cx + dx * 0.6, cy + dy * 0.6, 34, 0xffffff);
     }
+    emitirSom(cena, 'soco', cx + dx);
     // Explosãozinha e faíscas em volta da nuvem
     explosao(cena, particulas, cx + ex * 0.7, cy + ey * 0.5, 0.45, B.CHAO_Y);
     particulas.faiscas(cx + dx * 0.4, cy + dy * 0.4, Math.atan2(dy, dx), 0.6, 8);
@@ -441,6 +451,7 @@ export function brigaEQueda(
     onComplete: () => {
       // Fase 2: o chão racha embaixo da nuvem
       onomatopeia(cena, cx, B.CHAO_Y - 170, TEXTOS_BOSS.RACHOU, COR.branco, -6);
+      emitirSom(cena, 'chao_racha', cx);
       cena.tweens.addCounter({
         from: 0,
         to: 1,
@@ -455,6 +466,8 @@ export function brigaEQueda(
         onComplete: () => {
           // Fase 3: o piso quebra e a nuvem despenca pelo buraco
           arena.quebrarChao();
+          emitirSom(cena, 'chao_quebra', cx);
+          emitirSom(cena, 'queda_longa', cx);
           rachaduras.clear();
           explosao(cena, particulas, cx, B.CHAO_Y - 10, 1.2, B.CHAO_Y + 200);
           clarao(cena, 0xffffff, 0.25, 250);

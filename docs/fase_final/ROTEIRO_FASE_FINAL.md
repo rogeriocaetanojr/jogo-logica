@@ -387,3 +387,17 @@ Implemente uma etapa por vez. Cada etapa tem critérios de aceite; teste antes d
   - **Na lava:** o cérebro afunda com o rosto de joinha na tela. Depois sobe uma mão robótica fazendo joinha, o Mega Brain diz "Eu volto." / "Na próxima atualização." e a mão afunda devagar. Fade branco.
   - **Terraço ao amanhecer:** céu claro, sol nascendo atrás do letreiro apagado e torto, e o buraco da primeira briga remendado com cones. O protagonista começa de costas olhando o sol, vira e fala (Alvares ou Reis). O Valdir sai da porta, bate o ponto ("BIP!", 06:00), diz "Acabou? Ótimo. Hora extra eu não faço." e uma segunda fala que muda conforme o protagonista.
   - **Créditos:** rolam sobre o amanhecer escurecido, e [ESPAÇO] acelera. Mostram a equipe, as piadas de quarta parede (sem mencionar IA), o elenco e as mortes da tentativa. Terminam no "FIM", seguido de um aviso de "atualização disponível: Mega Brain 2.0" que se adia sozinho. Depois disso, [E] ou [ENTER] volta ao hub.
+- **Som e trilha (etapa 8):** fica em `src/fases/fase_final/som/`.
+  - **Trilha:** os MP3 ficam em `public/assets/fase_final/musica/`, sempre um por trecho:
+    - `megaBrainEntrance` no exterior, até entrar no prédio;
+    - `megaBrainTower` nos andares, continuando de um andar para o outro em vez de recomeçar;
+    - `megaBrainBossfightIntro` no terraço, da chegada até o Copycat começar a se mexer;
+    - `megaBrainTheme` da luta até o `drop 9b40`, contínuo entre as formas e nas revanches. Depois do `drop 9b40` a música some e ficam só a lava e o desmoronamento.
+    - `credits` nos créditos.
+  - **Tema da luta:** o original tinha 30 min repetindo o mesmo trecho. Foi cortado em 3 s de introdução e um laço de 94,43 s (período medido na forma de onda), que toca sem emenda com `loopStart`/`loopEnd`.
+  - **Terminal ou diálogo aberto:** a trilha abaixa e fica abafada.
+  - **Efeitos:** todos sintetizados com Web Audio, cerca de 100 sons. Cada som sai do lado da tela onde acontece, e os impactos grandes têm eco de sala.
+    - **Laços de ambiente:** chuva, lava, zumbido do prédio, vento do amanhecer, serra, laser e motor do elevador.
+    - **Diálogos:** a voz tem um timbre por personagem.
+    - **Mixagem:** os volumes foram calibrados medindo o pico de cada som na saída, e um limitador evita estouro quando vários sons tocam juntos.
+  - **[M]:** liga e desliga todo o som. A escolha fica salva e é a mesma do hub e da Fase 1.

@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { type NomeLacoFaseFinal, type NomeSomFaseFinal, definirLaco, emitirSom } from '../som/eventosSom';
 import { COR, hexNum } from '../ArteFaseFinal';
 import { balaoFala } from '../BalaoFala';
 import { BOSS_FASE_FINAL, COMBATE_FASE_FINAL } from '../constantesFaseFinal';
@@ -103,6 +104,7 @@ export abstract class FormaBoss {
   }
 
   public falar(texto: string, duracaoMs: number = 1800): void {
+    this.som('boss_fala');
     const p = this.pontoDeFala();
     balaoFala(this.cena, p.x, p.y, texto, duracaoMs);
   }
@@ -179,6 +181,15 @@ export abstract class FormaBoss {
     const fase = Math.floor(this.tempoMs / 70) % 3;
     if (fase === 0) this.sprite.setTint(0xffffff).setTintMode(Phaser.TintModes.FILL);
     else this.sprite.setTint(hexNum(fase === 1 ? COR.ciano : COR.magenta)).setTintMode(Phaser.TintModes.MULTIPLY);
+  }
+
+  /** Efeito sonoro na posição do chefe (ou em `x`). */
+  protected som(nome: NomeSomFaseFinal, x?: number, intensidade: number = 1): void {
+    emitirSom(this.cena, nome, x ?? this.sprite.x, intensidade);
+  }
+
+  protected laco(nome: NomeLacoFaseFinal, volume: number): void {
+    definirLaco(this.cena, nome, volume);
   }
 
   public destruir(): void {

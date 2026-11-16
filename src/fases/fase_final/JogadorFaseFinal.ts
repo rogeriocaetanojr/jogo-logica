@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { emitirSom } from './som/eventosSom';
 import { GerenciadorEstado, type TipoPersonagem } from '../../nucleo/GerenciadorEstado';
 import { FEEL_FASE_FINAL, JOGADOR_FASE_FINAL } from './constantesFaseFinal';
 
@@ -25,6 +26,7 @@ export class JogadorFaseFinal {
   public readonly sprite: Phaser.Physics.Arcade.Sprite;
   public readonly tipoPersonagem: TipoPersonagem;
 
+  private readonly cena: Phaser.Scene;
   private readonly visual: Phaser.GameObjects.Sprite;
   private readonly graficoPoeira: Phaser.GameObjects.Graphics;
   private poeira: Poeira[] = [];
@@ -46,6 +48,7 @@ export class JogadorFaseFinal {
   private controleTravadoAte: number = 0;
 
   constructor(cena: Phaser.Scene, spawn: Ponto) {
+    this.cena = cena;
     this.tipoPersonagem = GerenciadorEstado.obterInstancia().obterPersonagem();
 
     this.sprite = cena.physics.add.sprite(spawn.x, spawn.y, this.tipoPersonagem, 0);
@@ -141,6 +144,7 @@ export class JogadorFaseFinal {
       this.esticarX = 1 + f.ATERRISSAGEM.x * impacto;
       this.esticarY = 1 - f.ATERRISSAGEM.y * impacto;
       this.soltarPoeira(Math.ceil(2 + impacto * 4), 1 + impacto);
+      emitirSom(this.cena, 'aterrissar', this.sprite.x, 0.4 + impacto * 0.6);
     }
     this.estavaNoChao = noChao;
 
@@ -179,6 +183,7 @@ export class JogadorFaseFinal {
       this.esticarX = f.PULO.x;
       this.esticarY = f.PULO.y;
       this.soltarPoeira(3, 0.8);
+      emitirSom(this.cena, 'pulo', this.sprite.x);
     }
 
     // Pulo variável: soltar durante a subida aumenta a gravidade e encurta o pulo em curva

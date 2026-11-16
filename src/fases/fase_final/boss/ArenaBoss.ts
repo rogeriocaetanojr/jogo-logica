@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { emitirSom } from '../som/eventosSom';
 import { COR, hexNum, texturaBrilho } from '../ArteFaseFinal';
 import { ANDAR_FASE_FINAL, BOSS_FASE_FINAL, ESCALA_ARTE } from '../constantesFaseFinal';
 import { TEX_EXTERIOR, gerarTexturasExterior } from '../exterior/TexturasExterior';
@@ -401,6 +402,9 @@ export class ArenaBoss {
 
   /** drop 9b40: a placa vira DROP, a plataforma se desmancha, o pistão afunda e as correntes caem. */
   public derrubarPlataformaBoss(): void {
+    const meio = (N.PLATAFORMA_BOSS.x0 + N.PLATAFORMA_BOSS.x1) / 2;
+    emitirSom(this.cena, 'placa_drop', meio);
+    this.cena.time.delayedCall(500, () => emitirSom(this.cena, 'plataforma_cai', meio));
     const cena = this.cena;
     const pb = N.PLATAFORMA_BOSS;
     if (this.zonaPlataformaBoss) (this.zonaPlataformaBoss.body as Phaser.Physics.Arcade.StaticBody).enable = false;

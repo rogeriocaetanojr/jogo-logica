@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import type { NomeSomFaseFinal } from '../som/eventosSom';
 import { COR, hexNum, texturaBrilho } from '../ArteFaseFinal';
 import { BOSS_FASE_FINAL, ESCALA_ARTE } from '../constantesFaseFinal';
 import { FALAS_BOSS } from '../DialogosFaseFinal';
@@ -124,6 +125,13 @@ export class FormaCerebro extends FormaBoss {
   }
 
   private iniciarPasso(passo: PassoCerebro): void {
+    const sons: Partial<Record<PassoCerebro, NomeSomFaseFinal>> = {
+      avisoLeque: 'leque_aviso',
+      avisoChuva: 'chuva_aviso',
+      olhoAbrindo: 'olho_abrindo',
+    };
+    const som = sons[passo];
+    if (som) this.som(som, passo === 'olhoAbrindo' ? this.posicaoOlho(this.olhoAtual).x : K.X);
     this.passo = passo;
     this.relogioMs = 0;
   }
@@ -233,6 +241,7 @@ export class FormaCerebro extends FormaBoss {
       this.emojis.push({ img, vx: Math.cos(a) * K.LEQUE.VELOCIDADE, vy: Math.sin(a) * K.LEQUE.VELOCIDADE });
     }
     estouro(this.cena, x, y, 34, 0xffd84a, 0x05050c, 18.9);
+    this.som('leque_onda', x);
     this.cena.cameras.main.shake(90, 0.003);
   }
 
@@ -274,7 +283,10 @@ export class FormaCerebro extends FormaBoss {
         restantes.push(a);
         continue;
       }
-      if (antes < 0) fumaca(this.cena, a.deX, a.deY, 0.5, hexNum(COR.magenta), 400);
+      if (antes < 0) {
+        fumaca(this.cena, a.deX, a.deY, 0.5, hexNum(COR.magenta), 400);
+        this.som('anel_lanca', a.deX, 0.7);
+      }
       if (a.t >= K.CHUVA.VOO_MS) {
         a.img.destroy();
         this.explosoes.push({ x: a.alvoX, y: a.chaoY, t: 0 });
@@ -426,6 +438,7 @@ export class FormaCerebro extends FormaBoss {
     const o = this.posicaoOlho(this.olhoAtual);
     this.olhos[this.olhoAtual].setFrame(QO.FERIDO);
     this.rosto.setFrame(QR.TONTO);
+    this.som('olho_ferido', o.x);
     this.limparProjeteis();
     estouro(this.cena, o.x, o.y, 50, hexNum(COR.ciano));
     this.particulas.faiscas(o.x, o.y, -Math.PI / 2, Math.PI, 20);
@@ -484,6 +497,7 @@ export class FormaCerebro extends FormaBoss {
         }
         if (!respingou && this.centroY + 90 >= N.LAVA_Y) {
           respingou = true;
+          this.som('splash_lava', K.X);
           cena.cameras.main.shake(900, 0.012);
           clarao(cena, 0xff7a1a, 0.35, 500);
           for (let i = 0; i < 4; i++) {

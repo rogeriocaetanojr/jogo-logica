@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import type { NomeSomFaseFinal } from '../som/eventosSom';
 import { COR, hexNum } from '../ArteFaseFinal';
 import { BOSS_FASE_FINAL, ESCALA_ARTE } from '../constantesFaseFinal';
 import { FALAS_BOSS } from '../DialogosFaseFinal';
@@ -76,6 +77,15 @@ export class FormaTita extends FormaBoss {
   private iniciarPasso(passo: PassoTita, duracaoMs: number = 0): void {
     this.passo = passo;
     this.relogioMs = duracaoMs;
+    const sons: Partial<Record<PassoTita, NomeSomFaseFinal>> = {
+      avisoInvestida: 'tita_preparo',
+      investida: 'tita_investida',
+      mira: 'tita_mira',
+      saltoSobe: 'tita_salto',
+      travado: 'tita_travado',
+    };
+    const som = sons[passo];
+    if (som) this.som(som);
   }
 
   private get boca(): { x: number; y: number } {
@@ -128,6 +138,7 @@ export class FormaTita extends FormaBoss {
         const limite = this.direcaoInvestida < 0 ? T.MARGEM_PAREDE : B.LARGURA - T.MARGEM_PAREDE;
         if ((this.direcaoInvestida < 0 && this.x <= limite) || (this.direcaoInvestida > 0 && this.x >= limite)) {
           this.x = limite;
+          this.som('tita_parede');
           this.cena.cameras.main.shake(220, 0.009);
           const parede = this.direcaoInvestida < 0 ? 4 : B.LARGURA - 4;
           estouro(this.cena, parede, B.CHAO_Y - 90, 48, 0xffffff);
@@ -156,6 +167,7 @@ export class FormaTita extends FormaBoss {
           const ang = Math.atan2(this.miraY - b.y, this.miraX - b.x);
           this.tiros.push({ x: b.x, y: b.y, vx: Math.cos(ang) * T.VELOCIDADE_TIRO, vy: Math.sin(ang) * T.VELOCIDADE_TIRO });
           this.tirosDados++;
+          this.som('tita_tiro');
           this.cena.cameras.main.shake(80, 0.003);
           estouro(this.cena, b.x, b.y, 22, 0xffd0d6, 0x05050c, 20);
           fumaca(this.cena, b.x, b.y, 0.5, 0x8a8698, 400);
@@ -194,6 +206,7 @@ export class FormaTita extends FormaBoss {
         if (k >= 1) {
           this.altura = 0;
           this.ondas.push({ x: this.x - 60, direcao: -1 }, { x: this.x + 60, direcao: 1 });
+          this.som('tita_pisao');
           this.cena.cameras.main.shake(300, 0.012);
           estouro(this.cena, this.x, B.CHAO_Y - 10, 56, 0xffd36b);
           this.particulas.detritos(this.x, B.CHAO_Y - 4, 14, [0x3f2c52, 0x6d769c, 0xffd36b], B.CHAO_Y);

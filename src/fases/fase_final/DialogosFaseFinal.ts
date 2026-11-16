@@ -24,6 +24,8 @@ export const SLOGANS_MEGA_BRAIN = [
 ] as const;
 
 export const HUD_FASE_FINAL = {
+  SOM_DESLIGADO: 'SOM DESLIGADO // [M] PARA LIGAR',
+  SOM_LIGADO: 'SOM LIGADO // [M] PARA DESLIGAR',
   SETOR: 'FASE FINAL // MEGA BRAIN TOWER',
   PULAR_PAN: '[QUALQUER TECLA] PULAR',
   OBJETIVOS: {
@@ -429,7 +431,7 @@ export const TEXTOS_FINAL = {
   VOLTO: ['Eu volto.', 'Na próxima atualização.'],
   FALANTE_JOGADOR: {
     alvares: '> ALVARES // PROGRAMADOR',
-    reis: '> REIS // PROGRAMADOR (MODO DIFÍCIL)',
+    reis: '> REIS // PROGRAMADOR',
   } as Record<ProtagonistaFinal, string>,
   FALA_JOGADOR: {
     alvares: 'Pronto. Agora alguém precisa escrever a documentação.',
@@ -469,7 +471,7 @@ export function linhasCreditos(protagonista: ProtagonistaFinal, mortes: number):
         : `${mortes} mortes nesta tentativa. O Mega Brain anotou todas.`;
   return [
     l('titulo', 'BRAIN REBASE'),
-    l('subtitulo', 'Fase Final // Mega Brain World'),
+    l('subtitulo', 'Vencendo o Mega Brain World'),
     l('espaco'),
     l('secao', 'EQUIPE FEJOLEROUS'),
     l('nome', 'Davi Pinheiro'),

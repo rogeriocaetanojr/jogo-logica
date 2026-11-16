@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
+import { emitirSom } from '../som/eventosSom';
 import { COR, hexNum, texturaBrilho } from '../ArteFaseFinal';
-import { BOSS_FASE_FINAL, ESCALA_ARTE, FINAL_FASE_FINAL } from '../constantesFaseFinal';
+import { BOSS_FASE_FINAL, ESCALA_ARTE, FINAL_FASE_FINAL, SOM_FASE_FINAL } from '../constantesFaseFinal';
 import { TEXTOS_FINAL } from '../DialogosFaseFinal';
 import { TEX_EXTERIOR } from '../exterior/TexturasExterior';
 import { VAO_QUEDA } from '../boss/configArenas';
@@ -34,6 +35,7 @@ export function joinhaNaLava(
   });
   fumaca(cena, x, lavaY - 10, 1.2, 0x3a2a2a, 700);
   cena.cameras.main.shake(260, 0.004);
+  emitirSom(cena, 'joinha_sobe', x);
 
   cena.tweens.add({
     targets: mao,
@@ -42,8 +44,10 @@ export function joinhaNaLava(
     ease: 'Back.easeOut',
     onComplete: () => {
       brilhoNoPolegar(cena, x + 12, lavaY - J.ALTURA_VISIVEL + 4);
+      emitirSom(cena, 'joinha_brilho', x);
       cena.time.delayedCall(J.PAUSA_ANTES_FALA_MS, () =>
         falar(() => {
+          emitirSom(cena, 'joinha_afunda', x);
           cena.tweens.add({
             targets: mao,
             y: lavaY + 20,
@@ -114,6 +118,7 @@ export class TerracoAmanhecer {
   private readonly relogio: Phaser.GameObjects.Sprite;
   private readonly valdir: Phaser.GameObjects.Sprite;
   private tempoMs: number = 0;
+  private proximoPiadoMs: number = 1500;
 
   constructor(cena: Phaser.Scene) {
     this.cena = cena;
@@ -214,6 +219,7 @@ export class TerracoAmanhecer {
       this.andar(v, V.PONTO_X, () => {
         // Bate o ponto
         this.relogio.setFrame(1);
+        emitirSom(this.cena, 'ponto_bip', V.RELOGIO_X);
         this.textoFlutuante(V.RELOGIO_X, B.CHAO_Y - 108, TEXTOS_FINAL.BIP, '#5aff8a', 22);
         this.textoFlutuante(V.RELOGIO_X + 60, B.CHAO_Y - 140, TEXTOS_FINAL.PONTO, '#eef0ff', 13);
         cena.time.delayedCall(900, () =>
@@ -272,6 +278,13 @@ export class TerracoAmanhecer {
 
   public update(delta: number): void {
     this.tempoMs += delta;
+    this.proximoPiadoMs -= delta;
+    if (this.proximoPiadoMs <= 0) {
+      const [min, max] = SOM_FASE_FINAL.PASSARINHO_MS;
+      this.proximoPiadoMs = min + Math.random() * (max - min);
+      const p = this.passaros[Math.floor(Math.random() * this.passaros.length)];
+      emitirSom(this.cena, 'passarinho', p ? Phaser.Math.Clamp(p.x, 0, B.LARGURA) : undefined, 0.8);
+    }
     const dt = delta / 1000;
     for (const n of this.nuvens) {
       n.x += 6 * dt;

@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import type { NomeSomFaseFinal } from '../som/eventosSom';
 import { COR, hexNum, texturaBrilho } from '../ArteFaseFinal';
 import { BOSS_FASE_FINAL, ESCALA_ARTE } from '../constantesFaseFinal';
 import { FALAS_BOSS, FALAS_EXTRAS_BOSS } from '../DialogosFaseFinal';
@@ -111,6 +112,13 @@ export class FormaCaveira extends FormaBoss {
   }
 
   private iniciarPasso(passo: PassoCaveira): void {
+    const sons: Partial<Record<PassoCaveira, NomeSomFaseFinal>> = {
+      aviso: 'braco_aviso',
+      giraDesce: 'caveira_gira',
+      sobe: 'caveira_sobe',
+    };
+    const som = sons[passo];
+    if (som) this.som(som);
     this.passo = passo;
     this.relogioMs = 0;
     if (passo === 'sobe') this.sobeDeY = this.y;
@@ -211,6 +219,7 @@ export class FormaCaveira extends FormaBoss {
         this.y = K.Y_FLUTUA + (Y_NO_CHAO - K.Y_FLUTUA) * k;
         giro = 360 * k;
         if (this.relogioMs >= K.GIRA_DESCE_MS) {
+          this.som('caveira_pouso');
           this.cena.cameras.main.shake(260, 0.01);
           estouro(this.cena, this.x, B.CHAO_Y - 10, 60, hexNum(COR.janelaQuente));
           this.particulas.detritos(this.x, B.CHAO_Y - 4, 12, [0x3f4462, 0x2a2434, hexNum(COR.janelaQuente)], B.CHAO_Y);
@@ -288,6 +297,8 @@ export class FormaCaveira extends FormaBoss {
           b.y = this.retornoDe.y + (chaoY - this.retornoDe.y) * k;
           if (this.relogioMs >= K.SERRA.DESCE_MS) {
             this.serraNoChao = true;
+            this.som('serra_pousa', b.x);
+            this.laco('serra', 1);
             estouro(this.cena, b.x, B.CHAO_Y - 10, 34, 0xffffff);
             this.particulas.faiscas(b.x, B.CHAO_Y - 4, -Math.PI / 2, Math.PI * 0.6, 16, B.CHAO_Y);
             this.cena.cameras.main.shake(140, 0.006);
@@ -342,6 +353,8 @@ export class FormaCaveira extends FormaBoss {
         } else {
           if (!this.laserDisparou) {
             this.laserDisparou = true;
+            this.som('laser_disparo');
+            this.laco('laser', 1);
             clarao(this.cena, hexNum(COR.vermelho), 0.28, 350);
             this.cena.cameras.main.shake(K.LASER.DISPARO_MS, 0.007);
             for (const cx of this.colunasLaser()) estouro(this.cena, cx, B.CHAO_Y - 8, 30, 0xffd0d6);
@@ -362,6 +375,7 @@ export class FormaCaveira extends FormaBoss {
           bomba.t += delta;
           if (antes < 0 && bomba.t >= 0) {
             // Disparo: clarão na boca, coice e fumaça
+            this.som('canhao_tiro', b.x);
             b.sprite.setFrame(1);
             this.cena.time.delayedCall(90, () => b.sprite.setFrame(0));
             b.y -= 8;
@@ -403,6 +417,7 @@ export class FormaCaveira extends FormaBoss {
           b.y += (150 - b.y) * Math.min(1, dt * 6);
           if (this.relogioMs >= g.MIRA_MS - g.TRAVA_MS) {
             this.garraFase = 'trava';
+            this.som('garra_trava', b.x);
           }
         } else if (this.garraFase === 'trava') {
           b.sprite.setFrame(0);
@@ -414,6 +429,7 @@ export class FormaCaveira extends FormaBoss {
             b.y = B.CHAO_Y - 30;
             this.garraFase = 'chao';
             this.relogioMs = 0;
+            this.som('garra_impacto', b.x);
             this.cena.cameras.main.shake(220, 0.012);
             clarao(this.cena, 0xffffff, 0.14, 160);
             estouro(this.cena, b.x, B.CHAO_Y - 12, 50, hexNum(COR.janelaQuente));
@@ -441,6 +457,8 @@ export class FormaCaveira extends FormaBoss {
 
   private voltarBraco(): void {
     const b = this.bracoDaVez;
+    this.laco('serra', 0);
+    this.laco('laser', 0);
     this.laserDisparou = false;
     this.acumuladorFaiscaMs = 0;
     b.sprite.setAngle(0);

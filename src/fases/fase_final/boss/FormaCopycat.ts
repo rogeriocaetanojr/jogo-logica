@@ -207,6 +207,8 @@ export class FormaCopycat extends FormaBoss {
     return this.passo === 'atordoado';
   }
 
+  private readonly estadosVapor: string[] = [];
+
   protected aoIniciar(): void {
     this.passo = 'perseguindo';
     this.rastro = [];
@@ -232,6 +234,15 @@ export class FormaCopycat extends FormaBoss {
   protected atualizarAtaque(delta: number, jogador: JogadorFaseFinal): void {
     const dt = delta / 1000;
     this.gravar(jogador);
+    // Saídas de vapor: chiado no aviso, estouro no jato
+    this.saidas.forEach((s, i) => {
+      const agora = s.estado(this.tempoMs);
+      if (agora !== this.estadosVapor[i]) {
+        if (agora === 'aviso') this.som('vapor_aviso', s.x);
+        if (agora === 'jato') this.som('vapor_jato', s.x);
+        this.estadosVapor[i] = agora;
+      }
+    });
     switch (this.passo) {
       case 'perseguindo':
         this.perseguir(dt, jogador);
@@ -248,6 +259,8 @@ export class FormaCopycat extends FormaBoss {
           this.relogioMs = C.ATORDOADO_MS;
           this.sprite.setAngle(0);
           this.cena.cameras.main.shake(90, 0.003);
+          this.som('pouso_pesado', this.x, 0.5);
+          this.som('atordoado');
         }
         break;
       case 'atordoado':
@@ -322,6 +335,7 @@ export class FormaCopycat extends FormaBoss {
       this.passo = 'arremessado';
       this.relogioMs = 0;
       this.sprite.setFrame(3);
+      this.som('copycat_arremessado');
       this.falar(FALAS_EXTRAS_BOSS.COPYCAT_VAPOR, 1400);
       return;
     }

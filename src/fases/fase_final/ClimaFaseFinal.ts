@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { emitirSom } from './som/eventosSom';
 import { CHUVA_FASE_FINAL, RAIOS_FASE_FINAL } from './constantesFaseFinal';
 
 interface Gota {
@@ -125,6 +126,8 @@ export class ClimaFaseFinal {
     this.clarao.setAlpha(r.FLASH_ALFA);
     this.cena.tweens.add({ targets: this.clarao, alpha: 0, duration: r.FLASH_MS, ease: 'Quad.easeOut' });
     desenharRaio(this.raioCeu, xTela, -10, xTela + 60, 260, 0xe8f0ff, 2);
+    // O trovão chega um pouco depois do clarão, como na vida real
+    this.cena.time.delayedCall(250 + Math.random() * 500, () => emitirSom(this.cena, 'trovao', undefined, 0.75));
     this.raioVisivelAte = this.tempoAtual + r.RAIO_VISIVEL_MS;
   }
 

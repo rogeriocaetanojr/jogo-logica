@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { emitirSom } from '../som/eventosSom';
 import { COR, hexNum, texturaBrilho } from '../ArteFaseFinal';
 import { CENA_FASE_FINAL } from '../constantesFaseFinal';
 import { TEX_BOSS } from './TexturasBoss';
@@ -179,6 +180,7 @@ export function fumaca(cena: Phaser.Scene, x: number, y: number, escala: number,
 
 /** Explosão: clarão aditivo, bola de fogo, anel de choque, faíscas, detritos e fumaça. */
 export function explosao(cena: Phaser.Scene, particulas: Particulas, x: number, y: number, escala: number, chao: number): void {
+  emitirSom(cena, 'explosao', x, Math.min(1.2, 0.25 + escala * 0.7));
   const brilho = texturaBrilho(cena);
   const fogo = cena.add
     .image(x, y, brilho)

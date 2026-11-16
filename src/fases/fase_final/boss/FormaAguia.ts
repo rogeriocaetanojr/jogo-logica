@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import type { NomeSomFaseFinal } from '../som/eventosSom';
 import { COR, hexNum } from '../ArteFaseFinal';
 import { BOSS_FASE_FINAL, ESCALA_ARTE } from '../constantesFaseFinal';
 import { FALAS_BOSS, FALAS_EXTRAS_BOSS } from '../DialogosFaseFinal';
@@ -78,6 +79,14 @@ export class FormaAguia extends FormaBoss {
   }
 
   private iniciarPasso(passo: PassoAguia): void {
+    const sons: Partial<Record<PassoAguia, NomeSomFaseFinal>> = {
+      avisoRasante: 'aguia_grito',
+      rasante: 'aguia_rasante',
+      avisoMergulho: 'aguia_grito',
+      mergulho: 'aguia_mergulho',
+    };
+    const som = sons[passo];
+    if (som) this.som(som);
     this.passo = passo;
     this.relogioMs = 0;
   }
@@ -182,6 +191,7 @@ export class FormaAguia extends FormaBoss {
         this.y += G.VELOCIDADE_MERGULHO * dt;
         if (this.y + 75 >= B.CHAO_Y) {
           this.y = Y_PRESA;
+          this.som('aguia_impacto');
           this.cena.cameras.main.shake(280, 0.012);
           estouro(this.cena, this.x, B.CHAO_Y - 10, 56, 0xffd36b);
           this.particulas.detritos(this.x, B.CHAO_Y - 4, 14, [0x12233a, 0x3b4060, 0xffd36b], B.CHAO_Y);
@@ -224,10 +234,18 @@ export class FormaAguia extends FormaBoss {
 
   /** Bate as asas (quadros 0 e 1). */
   private bater(): void {
+    const volta = Math.floor(this.tempoMs / (75 * QA.BATER.length));
+    if (volta !== this.ultimaBatida) {
+      this.ultimaBatida = volta;
+      this.som('aguia_asa', this.x, 0.6);
+    }
     this.sprite.setFrame(QA.BATER[Math.floor(this.tempoMs / 75) % QA.BATER.length]);
   }
 
+  private ultimaBatida: number = -1;
+
   private dispararPena(indice: number): void {
+    this.som('aguia_pena');
     const alvoBase = G.ALVOS_PENAS[indice % G.ALVOS_PENAS.length];
     const alvoX = this.canto === 0 ? alvoBase : B.LARGURA - alvoBase;
     const ang = Math.atan2(B.CHAO_Y - this.y, alvoX - this.x);

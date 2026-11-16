@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { emitirSom } from '../som/eventosSom';
 import { FINAL_FASE_FINAL } from '../constantesFaseFinal';
 import { type LinhaCredito, TEXTOS_FINAL } from '../DialogosFaseFinal';
 
@@ -148,10 +149,12 @@ export class CreditosFaseFinal {
     );
     caixa.add([fundo, titulo, texto, instalar, lembrar]);
     cena.tweens.add({ targets: caixa, x, alpha: 1, duration: 350, ease: 'Back.easeOut' });
+    emitirSom(cena, 'atualizacao');
 
     // "Clica" sozinho em lembrar mais tarde
     cena.time.delayedCall(C.ATUALIZACAO_MS, () => {
       lembrar.setColor('#05050c').setBackgroundColor('#ffd36b');
+      emitirSom(cena, 'clique');
       cena.time.delayedCall(450, () => {
         instalar.setVisible(false);
         lembrar.setVisible(false);

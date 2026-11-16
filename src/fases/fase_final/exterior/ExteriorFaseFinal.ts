@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { emitirSom } from '../som/eventosSom';
 import { COR, hexNum, texturaBrilho } from '../ArteFaseFinal';
 import { desenharRaio } from '../ClimaFaseFinal';
 import { ESCALA_ARTE, EXTERIOR_FASE_FINAL, PAN_TORRE_FASE_FINAL } from '../constantesFaseFinal';
@@ -210,7 +211,7 @@ export class ExteriorFaseFinal {
       targets: cam,
       tweens: [
         { scrollY: 0, duration: p.ESPERA_INICIAL_MS },
-        { scrollY: p.SCROLL_Y_TOPO, duration: p.SUBIDA_MS, ease: 'Sine.easeInOut' },
+        { scrollY: p.SCROLL_Y_TOPO, duration: p.SUBIDA_MS, ease: 'Sine.easeInOut', onStart: () => emitirSom(this.cena, 'pan_whoosh') },
         {
           scrollY: p.SCROLL_Y_TOPO,
           duration: p.PAUSA_TOPO_MS,
@@ -237,6 +238,7 @@ export class ExteriorFaseFinal {
     const topo = E.TORRE.TOPO_Y;
     desenharRaio(this.raioTorre, centroTorre - 260, PAN_TORRE_FASE_FINAL.SCROLL_Y_TOPO - 10, centroTorre + 2, topo + 2, 0xeef4ff, 3);
     this.cena.cameras.main.flash(260, 214, 228, 255);
+    emitirSom(this.cena, 'trovao');
     this.brilhoLogo.setScale(4.2);
     this.cena.tweens.add({ targets: this.brilhoLogo, scale: 3.2, duration: 600, ease: 'Quad.easeOut' });
     this.cena.time.delayedCall(260, () => this.raioTorre.clear());
@@ -263,6 +265,7 @@ export class ExteriorFaseFinal {
     const d = E.PORTA.ABERTURA_MS;
     this.totemTermo.stop();
     this.totemTermo.setFrame(2);
+    emitirSom(this.cena, 'porta_torre', E.PORTA.x);
     this.cena.tweens.add({ targets: this.folhaEsquerda, x: E.PORTA.x - E.PORTA.LARGURA_FOLHA + 6, duration: d, ease: 'Cubic.easeInOut' });
     this.cena.tweens.add({ targets: this.folhaDireita, x: E.PORTA.x + E.PORTA.LARGURA_FOLHA - 6, duration: d, ease: 'Cubic.easeInOut' });
     this.cena.tweens.add({ targets: this.brilhoSaguao, alpha: 0.45, duration: d });

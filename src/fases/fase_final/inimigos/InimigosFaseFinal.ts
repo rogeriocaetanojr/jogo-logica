@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { emitirSom } from '../som/eventosSom';
 import { COR, hexNum } from '../ArteFaseFinal';
 import type { ConfigInimigo } from '../andares/tiposAndar';
 import { balaoFala } from '../BalaoFala';
@@ -169,6 +170,7 @@ class DroneCaptcha implements Inimigo {
         if (embaixo && this.recargaMs === 0) {
           this.estado = 'aviso';
           this.relogioMs = 0;
+          emitirSom(this.cena, 'drone_alerta', this.x);
           balaoFala(this.cena, this.x, this.y - 30, FALAS_INIMIGOS.DRONE_AVISO, d.AVISO_MS + 200);
         }
         break;
@@ -178,6 +180,7 @@ class DroneCaptcha implements Inimigo {
         if (this.relogioMs >= d.AVISO_MS) {
           this.visual.clearTint();
           this.estado = 'mergulho';
+          emitirSom(this.cena, 'drone_mergulho', this.x);
         }
         break;
       case 'mergulho':
@@ -185,6 +188,7 @@ class DroneCaptcha implements Inimigo {
         if (this.y >= this.yChao) {
           this.estado = 'chao';
           this.relogioMs = 0;
+          emitirSom(this.cena, 'drone_pouso', this.x);
           this.cena.cameras.main.shake(90, 0.002);
         }
         break;
@@ -238,8 +242,11 @@ class TorretaFirewall implements Inimigo {
   private readonly direcao: -1 | 1;
   private readonly alcance: number;
   private relogioMs = 0;
+  private readonly cena: Phaser.Scene;
+  private faseAntes: string = 'espera';
 
   constructor(cena: Phaser.Scene, cfg: ConfigInimigo, solidos: Phaser.Physics.Arcade.StaticGroup) {
+    this.cena = cena;
     this.solidos = solidos;
     this.x = cfg.x;
     this.direcao = cfg.direcao ?? -1;
@@ -278,6 +285,11 @@ class TorretaFirewall implements Inimigo {
     g.clear();
     const fim = this.boca + this.direcao * this.alcance;
     const fase = this.fase;
+    if (fase !== this.faseAntes) {
+      if (fase === 'aviso') emitirSom(this.cena, 'torreta_mira', this.x, 0.8);
+      if (fase === 'disparo') emitirSom(this.cena, 'torreta_tiro', this.x);
+      this.faseAntes = fase;
+    }
     this.visual.setFrame(fase === 'espera' ? 0 : 1);
     if (fase === 'aviso') {
       // Mira acendendo: linha fina piscando
@@ -323,7 +335,11 @@ class Alucinacao implements Inimigo {
   private readonly visual: Phaser.GameObjects.Sprite;
   private relogioMs = 0;
 
+  private readonly cena: Phaser.Scene;
+  private solidoAntes: boolean = true;
+
   constructor(cena: Phaser.Scene, cfg: ConfigInimigo) {
+    this.cena = cena;
     this.x = cfg.x;
     this.visual = cena.add.sprite(cfg.x, A.CHAO_Y, TEX_INIMIGOS.ALUCINACAO, 0).setOrigin(0.5, 1).setScale(ESCALA_ARTE).setDepth(PROF);
     this.visual.play(ANIM_INIMIGOS.ALUCINACAO_GLITCH);
@@ -336,6 +352,10 @@ class Alucinacao implements Inimigo {
   update(delta: number): void {
     const a = I.ALUCINACAO;
     this.relogioMs = (this.relogioMs + delta) % (a.FASE_MS * 2);
+    if (this.solido !== this.solidoAntes) {
+      emitirSom(this.cena, this.solido ? 'alucinacao_volta' : 'alucinacao_some', this.x, 0.7);
+      this.solidoAntes = this.solido;
+    }
     const restante = a.FASE_MS - (this.relogioMs % a.FASE_MS);
     const avisando = restante < a.PISCA_ANTES_MS && Math.floor(restante / 70) % 2 === 0;
     let alfa = this.solido ? 0.95 : 0.2;

@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { emitirSom } from '../som/eventosSom';
 import { COR, hexNum, texturaBrilho } from '../ArteFaseFinal';
 import { ANDAR_FASE_FINAL, ESCALA_ARTE } from '../constantesFaseFinal';
 import type { ConfigBloqueio } from './tiposAndar';
@@ -158,6 +159,7 @@ export class BloqueioPuzzle {
         { y: A.CHAO_Y, duration: 200, ease: 'Bounce.easeOut' },
       ],
       onComplete: () => {
+        emitirSom(this.cena, 'catraca_erro', this.cfg.x);
         this.cena.cameras.main.shake(180, 0.006);
         this.cena.time.delayedCall(400, aoTerminar);
       },
@@ -184,7 +186,9 @@ export class BloqueioPuzzle {
       });
     });
     const ultimo = drones[2];
+    emitirSom(this.cena, 'drone_mergulho', x, 0.6);
     this.cena.time.delayedCall(2500, () => {
+      emitirSom(this.cena, 'drone_tchau', ultimo.x);
       this.cena.tweens.add({ targets: ultimo, angle: 20, duration: 140, yoyo: true, repeat: 3 });
       aoTerminar(ultimo);
       this.cena.time.delayedCall(1500, () => {
@@ -225,12 +229,14 @@ export class BloqueioPuzzle {
           .setAngle(i < 5 ? 0 : ((i * 37) % 13) - 6)
           .setAlpha(0);
         this.cena.tweens.add({ targets: placa, y: py, alpha: 1, duration: 120 });
+        emitirSom(this.cena, 'ponte_placa', px, 0.7);
         temporarias.push(placa);
       });
     }
 
     const fim = visiveis * intervalo + 1300;
     this.cena.time.delayedCall(fim, () => {
+      emitirSom(this.cena, 'ponte_cai', this.cfg.x + largura * 2.5);
       this.cena.cameras.main.shake(260, 0.005);
       temporarias.forEach((placa, i) => {
         this.cena.tweens.add({
@@ -287,6 +293,7 @@ export class BloqueioPuzzle {
         rotulos.push(chamada);
         // A comporta que a função realmente abre sobe e desce
         this.cena.time.delayedCall(350, () => {
+          emitirSom(this.cena, 'comporta_ok', alvo.x, 0.8);
           this.cena.tweens.chain({
             targets: alvo,
             tweens: [
@@ -301,6 +308,7 @@ export class BloqueioPuzzle {
           const abriu = i === numero;
           chamada.setText(abriu ? `abrir_comporta(${i})\nOK` : `abrir_comporta(${i})\nTRAVADA`);
           chamada.setColor(abriu ? COR.ciano : COR.vermelho);
+          emitirSom(this.cena, abriu ? 'terminal_info' : 'comporta_travada', chamada.x);
           if (!abriu) this.cena.cameras.main.shake(100, 0.002);
         });
       });
