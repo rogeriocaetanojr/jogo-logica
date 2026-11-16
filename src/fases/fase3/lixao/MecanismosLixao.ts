@@ -1263,11 +1263,17 @@ export class MecanismosLixao {
       if (el.sentido !== 0) {
         const alvo = el.sentido > 0 ? el.yBaixo : el.yAlto;
         const origem = el.sentido > 0 ? el.yAlto : el.yBaixo;
-        const falta = Math.abs(alvo - y);
+        // Falta com sinal: negativo quer dizer que já passou do ponto de chegada
+        const faltaComSinal = (alvo - y) * el.sentido;
+        const falta = Math.max(0, faltaComSinal);
         const andou = Math.abs(y - origem);
         const fator = Math.min(1, (andou + 8) / M.ELEVADOR_RAMPA, falta / M.ELEVADOR_RAMPA);
         const velocidade = Math.max(M.ELEVADOR_VELOCIDADE_MIN, M.ELEVADOR_VELOCIDADE * fator);
-        if (falta <= velocidade * dt) {
+        // A física anda em passos fixos (1/fps), não no tempo do quadro: em telas de 120 Hz ou mais o
+        // elevador andava mais num passo do que o previsto, passava do ponto e subia (ou descia) sem parar
+        const mundo = this.cena.physics.world;
+        const passo = mundo.fixedStep ? 1 / mundo.fps : dt;
+        if (faltaComSinal <= velocidade * passo) {
           // Chegou: encaixa na ponta com um tranco leve
           b.reset(el.x + el.w / 2, alvo + 10);
           el.sentido = 0;
