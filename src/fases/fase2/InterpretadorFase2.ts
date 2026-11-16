@@ -1,7 +1,7 @@
 import type { ContextoInterpretador, ResultadoComando } from '../../compartilhado/tipos';
 import { textoAjudaTerminal } from './porto/AjudaConteudo';
 import type { IdAjuda } from './porto/AjudaConteudo';
-import { DICAS_BOIA } from './porto/DialogosPorto';
+import { DICAS_BOIA } from './porto/DicasBoia';
 import { ITENS_LOJA, ModeloCarretas, ModeloFila, ModeloLoja, ModeloPilha, ModeloValvulas } from './porto/DesafiosPorto';
 import { FICHAS, linhasGabarito } from './porto/FichaDesafio';
 import type { NomePilha } from './porto/DesafiosPorto';
@@ -137,11 +137,11 @@ function interpretarPilha(bruto: string, simples: string, modelo: ModeloPilha): 
       if (!erro) linhas.push(`> pilha${m[1].toUpperCase()}.push(conteiner)  ->  contêiner no topo de ${m[1].toUpperCase()}`);
     } else if (/^pilha_?[abc](\.pop\(.+\)|\.remove\(|\[|\.insert\(|\.get\()/.test(c) || /^del/.test(c)) {
       erroTopo = true;
-      erro = 'SÓ O TOPO! O guindaste travou: numa pilha só dá para mexer no contêiner de CIMA.';
+      erro = 'SÓ O TOPO! Numa pilha só dá para pegar o contêiner de CIMA: pilhaA.pop()';
     } else if (/^pilha_?[abc]\.(pop|push)/.test(c)) {
-      erro = 'Sintaxe estranha. Exemplos: pilhaA.pop()  ou  pilhaB.push(conteiner)';
+      erro = 'Não entendi. Tente: pilhaB.push(pilhaA.pop())';
     } else {
-      erro = `Comando não reconhecido: "${cmd}". Digite ajuda para ver os comandos do guindaste.`;
+      erro = `Não entendi "${cmd}". Tente: pilhaB.push(pilhaA.pop())`;
     }
 
     if (erro) {
@@ -182,12 +182,12 @@ function interpretarFila(bruto: string, simples: string, modelo: ModeloFila): Re
       erro = modelo.enqueue();
       if (!erro) linhas.push(`> fila.enqueue(navio)  ->  ${navio} foi para o FIM da fila. Bloqueado!`);
     } else if (/^fila\.pop\(\)$/.test(c)) {
-      erro = 'pop() tira o ÚLTIMO da fila — isso é comportamento de PILHA! Na fila, quem sai é o da FRENTE: fila.dequeue()';
+      erro = 'Na fila quem sai é o da FRENTE: fila.dequeue()';
     } else if (/^fila(\.(dequeue|pop|remove|insert|popleft)\(.+\)|\[)/.test(c)) {
       erroMeio = true;
       erro = 'FOOOOOM! Os navios buzinam e voltam ao lugar: só o navio da FRENTE pode atracar.';
     } else {
-      erro = `Comando não reconhecido: "${cmd}". Use fila.dequeue() ou fila.enqueue(navio).`;
+      erro = `Não entendi "${cmd}". Tente: fila.dequeue()`;
     }
     if (erro) {
       return resposta(
@@ -235,7 +235,7 @@ ${deboche('vetor')}` };
       } else if ((m = c.match(/^valvulas?\[([^\]]*)\]/))) {
         return { sucesso: false, mensagem: `[TypeError] O índice precisa ser um número inteiro: valvula[${m[1]}] não serve.\n${deboche('vetor')}` };
       } else {
-        return { sucesso: false, mensagem: `Comando não reconhecido: "${cmd}". Exemplo: valvula[3].abrir()` };
+        return { sucesso: false, mensagem: `Não entendi "${cmd}". Tente: valvula[2].abrir()` };
       }
     }
   }
@@ -298,9 +298,9 @@ function interpretarOrdenacao(bruto: string, simples: string, modelo: ModeloCarr
       a = Number(m[4]);
       b = Number(m[5]);
     } else if (/^(se|if)/.test(c)) {
-      return resposta(false, ['Condição não entendida. Escreva assim: se pressao[0] > pressao[1]: trocar(0, 1)', 'Operadores aceitos: >, <, >=, <= e ==.']);
+      return resposta(false, ['Não entendi. Tente: trocar(0, 1)']);
     } else {
-      return resposta(false, [`Comando não reconhecido: "${cmd}". Exemplo: trocar(0, 1)`, deboche('ordenacao')]);
+      return resposta(false, [`Não entendi "${cmd}". Tente: trocar(0, 1)`, deboche('ordenacao')]);
     }
     const erro = modelo.trocar(a, b);
     if (erro) {

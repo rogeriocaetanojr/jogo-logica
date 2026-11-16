@@ -15,6 +15,8 @@ const CHAO = 3620;
 const PASSO = 370;
 const PISO_ARENA = 520;
 const SHELF_ALTURA = 16;
+/** Abertura no piso da arena do miniboss, por onde se entra vindo da prateleira 8. */
+const ENTRADA_ARENA: [number, number] = [520, 700];
 const VEL_PNEU = 190;
 /** Raio do pneu na tela (arte de 11 px a 4x). */
 const RAIO_PNEU = 22;
@@ -172,11 +174,16 @@ export class Area4Deposito extends AreaPorto {
       p.px(0, 0, 320, 1, '#8A6A5A');
       p.faixaAdvertencia(0, 6, 320, 2);
     });
-    cena.add.image(0, PISO_ARENA, 'pb-a4-piso-arena').setOrigin(0, 0).setScale(ESCALA).setDepth(PROF.plataformas);
-    // Piso sólido com uma abertura de mão única (x 520 a 700) por onde se entra
-    cena.solido(0, PISO_ARENA, 520, 32);
-    cena.solido(700, PISO_ARENA, 580, 32);
-    cena.solido(520, PISO_ARENA, 180, 32, true);
+    // O piso tem uma abertura (x 520 a 700) por onde se entra, pulando da prateleira 8: o desenho deixa o vão
+    // livre e uma grade de mão única marca a passagem, com setas e luz amarela
+    const [vaoX0, vaoX1] = ENTRADA_ARENA;
+    cena.add.image(0, PISO_ARENA, 'pb-a4-piso-arena').setOrigin(0, 0).setScale(ESCALA).setCrop(0, 0, vaoX0 / ESCALA, 8).setDepth(PROF.plataformas);
+    // setCrop não move a imagem: com x = 0, o recorte a partir de vaoX1 aparece exatamente em vaoX1
+    cena.add.image(0, PISO_ARENA, 'pb-a4-piso-arena').setOrigin(0, 0).setScale(ESCALA).setCrop(vaoX1 / ESCALA, 0, (1280 - vaoX1) / ESCALA, 8).setDepth(PROF.plataformas);
+    cena.solido(0, PISO_ARENA, vaoX0, 32);
+    cena.solido(vaoX1, PISO_ARENA, 1280 - vaoX1, 32);
+    cena.solido(vaoX0, PISO_ARENA, vaoX1 - vaoX0, 32, true);
+    this.criarEntradaDaArena();
     texturaPortao(cena, 'pb-a4-saida', 'TERMINAL');
     this.portaSaida = cena.imagem('pb-a4-saida', 1180, PISO_ARENA, PROF.estruturas);
     this.portaSaida.setFrame(cena.estado.minibossDerrotado ? 1 : 0);
@@ -198,6 +205,49 @@ export class Area4Deposito extends AreaPorto {
 
   override iniciar(): void {
     this.cena.falar(FALAS.depositoEntrada, undefined, 'a4-entrada');
+  }
+
+  /** Grade de mão única no vão do piso, setas pulsando para cima e a placa "ARENA" na prateleira de baixo. */
+  private criarEntradaDaArena(): void {
+    const cena = this.cena;
+    const [x0, x1] = ENTRADA_ARENA;
+    const w = (x1 - x0) / ESCALA;
+    texturaPixel(cena, 'pb-a4-grade-entrada', w, 6, (p) => {
+      p.px(0, 0, w, 6, '#141012');
+      p.px(0, 0, w, 1, '#C8A23A');
+      for (let x = 2; x < w - 1; x += 3) p.px(x, 1, 1, 5, '#6A5A3A');
+      p.faixaAdvertencia(0, 4, w, 2, '#C8A23A');
+    });
+    cena.add.image(x0, PISO_ARENA + 2, 'pb-a4-grade-entrada').setOrigin(0, 0).setScale(ESCALA).setDepth(PROF.plataformas + 1);
+
+    // Luz amarela vinda de cima, para o vão chamar atenção mesmo na fumaça
+    const luz = cena.add.graphics().setDepth(PROF.estruturas - 1).setBlendMode(Phaser.BlendModes.ADD);
+    luz.fillStyle(0xffd36b, 0.14);
+    luz.fillTriangle(x0, PISO_ARENA, x1, PISO_ARENA, x1 + 30, PISO_ARENA + 150);
+    luz.fillTriangle(x0, PISO_ARENA, x0 - 30, PISO_ARENA + 150, x1 + 30, PISO_ARENA + 150);
+    cena.tweens.add({ targets: luz, alpha: 0.45, duration: 900, yoyo: true, repeat: -1 });
+
+    // Setas para cima subindo do vão
+    texturaPixel(cena, 'pb-a4-seta-entrada', 9, 9, (p) => {
+      p.px(4, 0, 1, 1, '#FFD36B');
+      p.px(3, 1, 3, 1, '#FFD36B');
+      p.px(2, 2, 5, 1, '#FFD36B');
+      p.px(1, 3, 7, 1, '#FFD36B');
+      p.px(3, 4, 3, 5, '#FFD36B');
+    });
+    const cx = (x0 + x1) / 2;
+    for (let i = 0; i < 3; i++) {
+      const seta = cena.add.image(cx + (i - 1) * 56, PISO_ARENA + 90, 'pb-a4-seta-entrada').setScale(ESCALA).setDepth(PROF.estruturas + 1).setAlpha(0);
+      cena.tweens.add({ targets: seta, y: PISO_ARENA + 20, alpha: { from: 0.9, to: 0 }, duration: 1100, delay: i * 260, repeat: -1 });
+    }
+
+    // Placa na prateleira 8, logo abaixo do vão
+    texturaPixel(cena, 'pb-a4-placa-arena', 44, 11, (p) => {
+      p.px(0, 0, 44, 11, '#1A1414');
+      p.px(1, 1, 42, 9, '#C8A23A');
+      p.textoCentro('ARENA', 22, 3, '#1A1414');
+    });
+    cena.add.image(cx, yPrateleira(8) - 70, 'pb-a4-placa-arena').setScale(ESCALA).setDepth(PROF.estruturas + 2);
   }
 
   private construirFundo(): void {
@@ -287,8 +337,7 @@ export class Area4Deposito extends AreaPorto {
 
   private abrirPainel(): void {
     this.cena.abrirDesafio('vetor', this.modelo, 'PAINEL DE SPRINKLERS // DEPÓSITO DE PNEUS // DESAFIO 3: VETORES E ÍNDICES', [
-      '8 válvulas: valvula[0] até valvula[7], uma para cada prateleira. As placas vão de 1 a 8.',
-      'Sensores de calor cegos pela fumaça: leia as placas das prateleiras em chamas.',
+      'Prateleiras com placas de 1 a 8. As válvulas vão de valvula[0] a valvula[7].',
     ]);
   }
 
@@ -386,7 +435,7 @@ export class Area4Deposito extends AreaPorto {
     // Quanto mais alto, mais densa a fumaça (o miniboss derrotado baixa para leve)
     if (!cena.estado.minibossDerrotado) {
       const k = Phaser.Math.Clamp((CHAO - j.y) / (CHAO - PISO_ARENA), 0, 1);
-      cena.fumaca.densidadeAlvo = j.y < PISO_ARENA ? 0.58 : 0.6 + k * 0.36;
+      cena.fumaca.densidadeAlvo = j.y < PISO_ARENA ? 0.4 : 0.3 + k * 0.2;
     }
     this.chefe?.atualizar(tempo, delta);
 

@@ -575,8 +575,10 @@ export class Fumace extends Inimigo {
   }
 
   override tocarJogador(): void {
+    // Abaixado, a fumaça passa por cima e não machuca
+    if (this.cena.jogador.protegidoDaFumaca) return;
     if (this.cena.jogador.receberDano(this.danoContato, this.x)) {
-      this.cena.efeitos.textoFlutuante(this.cena.jogador.x, this.cena.jogador.y - 70, 'COF! COF! FIQUE ABAIXADO!', '#C8C2B4', 12);
+      this.cena.efeitos.textoFlutuante(this.cena.jogador.x, this.cena.jogador.y - 70, 'COF! COF! FIQUE ABAIXADO [S]!', '#C8C2B4', 12);
     }
   }
 }

@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import type { CenaFase2 } from '../CenaFase2';
 import { COR, ESCALA, folhaPixel, hash3, larguraTexto, texturaPixel } from './ArtePorto';
 import { PROF } from './EfeitosPorto';
+import { IndicadorTecla } from './IndicadorTecla';
 import { ALTURA_CONTEINER, LARGURA_CONTEINER } from './GuindastePorto';
 
 /**
@@ -137,6 +138,7 @@ export class Kraken {
   private readonly piso: number;
   private tentaculos: Tentaculo[] = [];
   private escudos: Escudo[] = [];
+  private readonly indicador: IndicadorTecla;
   private nucleoExpostoAte = 0;
   private acertosNucleo = 0;
   private proximoCiclo = 0;
@@ -158,6 +160,7 @@ export class Kraken {
     eventos: { aoMudarEtapa: (etapa: number) => void; aoDerrotar: () => void; aoAnunciar: (texto: string) => void }
   ) {
     this.cena = cena;
+    this.indicador = new IndicadorTecla(cena);
     this.centroX = centroX;
     this.piso = piso;
     this.tomadas = tomadas;
@@ -513,6 +516,7 @@ export class Kraken {
       }
     }
     for (const t of this.tentaculos) this.desenharTentaculo(t, tempo);
+    this.atualizarIndicador();
 
     if (this.etapa === 2) {
       // Escudos piscando: só o do topo
@@ -565,9 +569,33 @@ export class Kraken {
     }
   }
 
+  /** Onde o patch acerta agora: conector do tentáculo preso, núcleo exposto ou escudo do topo. */
+  private atualizarIndicador(): void {
+    if (this.etapa === 1) {
+      const preso = this.tentaculos.find((t) => t.estado === 'preso' && t.acertos < 3);
+      if (preso) {
+        const ponta = this.pontaTentaculo(preso);
+        this.indicador.mostrar(ponta.x + 70, ponta.y - 30, '[J] PATCH');
+        return;
+      }
+    } else if (this.etapa === 2) {
+      if (this.nucleo.visible) {
+        this.indicador.mostrar(this.nucleo.x, this.nucleo.y - 70, '[J] PATCH');
+        return;
+      }
+      const topo = this.escudos[this.escudos.length - 1];
+      if (topo) {
+        this.indicador.mostrar(topo.img.x + 90, topo.img.y, '[J] PATCH');
+        return;
+      }
+    }
+    this.indicador.esconder();
+  }
+
   private derrotar(): void {
     this.derrotado = true;
     this.ativo = false;
+    this.indicador.destruir();
     this.tomadaPedida = -1;
     this.cena.hud.esconderChefe();
     for (const t of this.tentaculos) {

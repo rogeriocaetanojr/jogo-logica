@@ -13,7 +13,7 @@ import {
 } from '../porto/CenariosPorto';
 import { FALAS, GRAVACOES_PORTUS } from '../porto/DialogosPorto';
 import { PROF } from '../porto/EfeitosPorto';
-import { Gaivirus, JanelaPopup, SiriScript } from '../porto/InimigosPorto';
+import { Gaivirus, SiriScript } from '../porto/InimigosPorto';
 import {
   texturaCaminhao,
   texturaCarroQueimado,
@@ -85,6 +85,8 @@ export class Area1Portaria extends AreaPorto {
     });
     cena.gatilho(2920, 3000, () => cena.registrarCheckpoint(2960, CHAO - 48, 'CHECKPOINT: PISTA LIBERADA'));
     cena.gatilho(1380, 1460, () => cena.falar(FALAS.oleo, undefined, 'a1-oleo'));
+    // Primeiro vírus voando logo à frente: lembrete curto de que dá para atirar
+    cena.gatilho(1080, 1160, () => cena.hud.aviso('[J] PISTOLA DE PATCH: CONSERTA OS VÍRUS', COR.virus, 2800));
 
     // Foco 2 (opcional): carro queimado
     texturaCarroQueimado(cena);
@@ -98,10 +100,6 @@ export class Area1Portaria extends AreaPorto {
     ini.adicionar(new Gaivirus(cena, 4380, 290));
     ini.adicionar(new SiriScript(cena, 1720, CHAO - 30, 1560, 1880));
     ini.adicionar(new SiriScript(cena, 3330, CHAO - 30, 3150, 3560));
-    cena.gatilho(3900, 3960, () => {
-      ini.adicionar(new JanelaPopup(cena, cena.jogador.x + 300, 330));
-      cena.hud.aviso('ANÚNCIO DO MEGABRAIN! ACERTE O [X] COM O PATCH', COR.virus);
-    });
 
     // Gravação 1 do PORTUS
     cena.criarGravacaoPortus(1, 4250, CHAO, GRAVACOES_PORTUS[0]);

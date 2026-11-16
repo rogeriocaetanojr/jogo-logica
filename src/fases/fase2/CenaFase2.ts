@@ -696,7 +696,7 @@ export class CenaFase2 extends CenaBase {
     j.noOleo = this.zonasOleo.some((r) => j.x >= r.x && j.x <= r.right && pes >= r.y - 6 && pes <= r.bottom + 4);
 
     // Fumaça sufocante: em pé, o operador tosse e perde vida; agachado, respira
-    if (this.fumaca.densidadeAtual > 0.86 && !j.agachado && !this.fumaca.filtroAtivo && tempo - this.ultimoDanoFumaca > 3500) {
+    if (this.fumaca.densidadeAtual > 0.86 && !j.protegidoDaFumaca && !this.fumaca.filtroAtivo && tempo - this.ultimoDanoFumaca > 3500) {
       this.ultimoDanoFumaca = tempo;
       if (j.receberDano(1, j.x, 0)) this.efeitos.textoFlutuante(j.x, j.y - 80, 'COF! COF! AGACHE [S]!', '#C8C2B4', 13);
     }

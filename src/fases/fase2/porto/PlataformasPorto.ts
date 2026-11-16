@@ -57,10 +57,15 @@ export class PlataformaMovel {
     this.body.reset(x, y);
   }
 
-  /** Define a velocidade necessária para alcançar o alvo no próximo passo da física. */
+  /**
+   * Define a velocidade necessária para alcançar o alvo no próximo passo da física.
+   * A física anda em passos fixos (1/fps), não no tempo do quadro: usar o tempo do quadro fazia a
+   * plataforma passar do alvo a cada passo e vibrar (visível em telas de 120 Hz ou mais).
+   */
   aplicar(delta: number): void {
     if (!this.body.enable) return;
-    const dt = Math.max(0.001, delta / 1000);
+    const mundo = this.zona.scene.physics.world;
+    const dt = mundo.fixedStep ? 1 / mundo.fps : Math.max(0.001, delta / 1000);
     const vx = (this.alvoX - this.body.center.x) / dt;
     const vy = (this.alvoY - this.body.center.y) / dt;
     this.body.setVelocity(Phaser.Math.Clamp(vx, -1600, 1600), Phaser.Math.Clamp(vy, -1600, 1600));

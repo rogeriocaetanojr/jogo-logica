@@ -18,9 +18,10 @@ export type EventoPilha = { tipo: 'pop'; pilha: NomePilha; conteiner: CodigoCont
 export class ModeloPilha {
   public readonly limite = 4;
   public pilhas: Record<NomePilha, CodigoConteiner[]> = {
-    A: ['ESP', 'VRM', 'AZL', 'AMA', 'VRD'],
-    B: ['AMA', 'VRM'],
-    C: ['AZL'],
+    // Só dois contêineres em cima do ESP: tirar os dois do topo e pegar o ESP
+    A: ['ESP', 'AZL', 'AMA'],
+    B: ['VRM'],
+    C: [],
   };
   public garra: CodigoConteiner | null = null;
   public concluido = false;
@@ -78,7 +79,7 @@ export type EventoFila =
   | { tipo: 'intruso'; navio: string };
 
 export class ModeloFila {
-  public fila: string[] = ['CARGUEIRO', 'PETROLEIRO', 'PESQUEIRO', 'BALSA', 'GRANELEIRO', 'REBOCADOR'];
+  public fila: string[] = ['CARGUEIRO', 'PESQUEIRO', 'REBOCADOR'];
   public intruso: string | null = null;
   public concluido = false;
   public eventos: EventoFila[] = [];
@@ -115,10 +116,10 @@ export class ModeloFila {
     return null;
   }
 
-  /** O script do MegaBrain manda navios-vírus furarem a fila após a 1ª e a 3ª atracação. */
+  /** O script do MegaBrain manda um navio-vírus furar a fila depois da 1ª atracação. */
   private verificarIntruso(): void {
     if (this.intruso || this.concluido) return;
-    const gatilhos = [1, 3];
+    const gatilhos = [1];
     if (this.intrusosCriados < gatilhos.length && this.atracacoes >= gatilhos[this.intrusosCriados]) {
       this.intrusosCriados++;
       this.intruso = `NAVIO-VIRUS-${this.intrusosCriados}`;
@@ -180,7 +181,8 @@ export class ModeloValvulas {
 export type EventoCarreta = { tipo: 'troca'; i: number; piorou: boolean };
 
 export class ModeloCarretas {
-  public pressao: number[] = [42, 17, 88, 23, 65, 50];
+  // Só dois pares fora de ordem: trocar(0, 1) e depois trocar(1, 2)
+  public pressao: number[] = [42, 17, 23, 50, 65, 88];
   public eventos: EventoCarreta[] = [];
   public trocas = 0;
 

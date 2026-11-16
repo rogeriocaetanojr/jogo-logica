@@ -44,12 +44,7 @@ export const GRAVACOES_PORTUS: string[] = [
 ];
 
 /** Dicas da BOIA para cada desafio (texto do documento de design). */
-export const DICAS_BOIA: string[] = [
-  'Pilha é igual pilha de pratos: o último que você coloca é o primeiro que você tira.',
-  'Fila é a fila do caixa: quem chegou primeiro é atendido primeiro. É o contrário da pilha!',
-  'Para o computador, a primeira gaveta é a gaveta zero.',
-  'Compare duas de cada vez. Se a da esquerda for maior, troque. Repita até tudo ficar em ordem.',
-];
+export { DICAS_BOIA } from './DicasBoia';
 
 export const FALAS = {
   abertura: [
@@ -79,8 +74,8 @@ export const FALAS = {
     ['boia', 'Leia o padrão dos guindastes para subir pelas pilhas antes que elas mudem. E fique de olho nas sombras no chão: contêiner caindo!'],
   ] as Array<[Falante, string]>,
   desafio1Intro: [
-    ['boia', 'Achei! O contêiner de ESPUMA está no FUNDO da pilha A. O guindaste só pega o contêiner do topo e só coloca no topo de outra pilha.'],
-    ['boia', 'E por causa do vento, cada pilha aguenta no máximo 4 contêineres. Use o painel do guindaste [E].'],
+    ['boia', 'Achei! O contêiner de ESPUMA está no FUNDO da pilha A. O guindaste só pega o contêiner do topo.'],
+    ['boia', 'Tire os dois de cima, guarde em outra pilha e pegue a espuma. Use o painel do guindaste [E].'],
   ] as Array<[Falante, string]>,
   desafio1Fim: [
     ['boia', 'Canhão de Espuma na mão! Aperte [K] para disparar: segure [W] para mirar alto e [S] para mirar baixo.'],
@@ -126,7 +121,7 @@ export const FALAS = {
     ['boia', 'Espuma no óleo vira plataforma e corta o caminho do fogo por alguns segundos. Barris bugados explodem se encostarem nas chamas.'],
   ] as Array<[Falante, string]>,
   desafio4Intro: [
-    ['boia', 'O portão de saída está travado. Para abrir, as 6 carretas precisam ser ligadas ao dreno em ordem CRESCENTE de pressão.'],
+    ['boia', 'O portão de saída está travado. Para abrir, as carretas precisam ficar em ordem CRESCENTE de pressão.'],
     ['boia', 'O guindaste só troca duas carretas VIZINHAS de lugar. O fogo avança devagar enquanto você pensa, e cada troca certa empurra ele para trás com um jato de espuma.'],
   ] as Array<[Falante, string]>,
   desafio4Fim: [['boia', 'Pressões em ordem, dreno aberto! O portão liberou. A torre do servidor está no meio da baía, é agora ou nunca.']] as Array<[Falante, string]>,

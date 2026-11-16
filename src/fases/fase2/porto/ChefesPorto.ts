@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import type { CenaFase2 } from '../CenaFase2';
 import { COR, ESCALA, folhaPixel, hash3 } from './ArtePorto';
 import { PROF } from './EfeitosPorto';
+import { IndicadorTecla } from './IndicadorTecla';
 
 /* =========================================================================
  * MINIBOSS — BORRACHÃO.EXE
@@ -65,9 +66,11 @@ export class Borrachao {
   private acertosNoCiclo = 0;
   private proximoCuspe = 0;
   private aoDerrotar: () => void;
+  private readonly indicador: IndicadorTecla;
 
   constructor(cena: CenaFase2, x: number, chao: number, x0: number, x1: number, aoDerrotar: () => void) {
     this.cena = cena;
+    this.indicador = new IndicadorTecla(cena);
     this.x = x;
     this.chao = chao;
     this.x0 = x0;
@@ -130,6 +133,9 @@ export class Borrachao {
     this.chamas.setPosition(this.sprite.x, this.sprite.y - 116);
     this.brilho.setPosition(this.sprite.x, this.sprite.y - 80);
     this.olho.setPosition(this.sprite.x, this.sprite.y - 64).setVisible(this.estado === 'frio' || Math.floor(tempo / 200) % 2 === 0);
+    // Rolando: a espuma esfria; frio: patch no olho verde
+    if (this.estado === 'frio') this.indicador.mostrar(this.sprite.x + 70, this.sprite.y - 64, '[J] PATCH');
+    else this.indicador.mostrar(this.sprite.x, this.sprite.y - 230, '[K] ESPUMA');
   }
 
   private reacender(): void {
@@ -184,6 +190,7 @@ export class Borrachao {
   private derrotar(): void {
     this.derrotado = true;
     this.ativo = false;
+    this.indicador.destruir();
     this.cena.hud.esconderChefe();
     for (let i = 0; i < 6; i++) {
       this.cena.time.delayedCall(i * 180, () => this.cena.efeitos.explosao(this.x + (Math.random() - 0.5) * 140, this.chao - Math.random() * 130, 1.4));

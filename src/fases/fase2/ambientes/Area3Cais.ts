@@ -307,8 +307,7 @@ export class Area3Cais extends AreaPorto {
 
   private abrirPainel(): void {
     this.cena.abrirDesafio('fila', this.modelo, 'PORTÃO DO CAIS // CAIS DA FILA // DESAFIO 2: FILA', [
-      'Só o navio da FRENTE atraca; navios novos entram no FIM da fila.',
-      'Um script do MegaBrain faz navios-vírus furarem a fila: bloqueie-os mandando para o fim!',
+      'Só o navio da FRENTE atraca. Quem chega entra no FIM.',
     ]);
   }
 

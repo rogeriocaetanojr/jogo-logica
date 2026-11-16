@@ -8,10 +8,10 @@ const ALTURA = 180;
 
 /** Densidade base de cada nível de fumaça do documento (leve, densa e sufocante; média no cais). */
 export const DENSIDADE_NIVEL: Record<NivelFumaca, number> = {
-  leve: 0.22,
-  media: 0.5,
-  densa: 0.72,
-  sufocante: 0.92,
+  leve: 0.18,
+  media: 0.36,
+  densa: 0.52,
+  sufocante: 0.8,
 };
 
 /**
@@ -62,12 +62,13 @@ export class FumacaPorto {
 
   /** Raio de visão em pixels de arte. */
   calcularRaio(agachado: boolean, indice: number): number {
-    let raio = 150 - this.densidade * 122;
-    raio *= 1 + ((100 - indice) / 100) * 0.55;
-    if (agachado) raio *= 1.4;
+    // Círculo de visão generoso: a fumaça escurece as bordas, mas o jogador sempre enxerga o que está perto
+    let raio = 178 - this.densidade * 92;
+    raio *= 1 + ((100 - indice) / 100) * 0.4;
+    if (agachado) raio *= 1.3;
     if (this.filtroAtivo) raio *= 2;
     raio *= 1 - 0.5 * this.reducaoFumace;
-    return Math.max(16, raio);
+    return Math.max(60, raio);
   }
 
   /**
@@ -80,7 +81,8 @@ export class FumacaPorto {
     const raioAlvo = this.calcularRaio(agachado, indice);
     this.raioSuave += (raioAlvo - this.raioSuave) * Math.min(1, (delta / 1000) * 5);
 
-    const opacidade = Math.min(0.95, this.densidade * 1.08);
+    // A escuridão nunca passa de 65%: dá para ver o cenário inteiro mesmo na fumaça mais densa
+    const opacidade = Math.min(0.65, this.densidade * 0.8);
     if (opacidade < 0.02) {
       this.imagem.setVisible(false);
       return;

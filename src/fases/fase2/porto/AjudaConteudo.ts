@@ -63,9 +63,7 @@ export const AJUDA: SecaoAjuda[] = [
     id: 'pilha',
     titulo: 'Desafio 1: Pilha',
     aba: 'Pilha',
-    conceito:
-      'Uma pilha é como uma pilha de pratos: o último que entra é o primeiro que sai (LIFO). Você só mexe no TOPO. ' +
-      'Objetivo: tirar o contêiner ESP do fundo da pilhaA. Cada pilha aguenta no máximo 4 contêineres.',
+    conceito: 'Pilha de pratos: só se mexe no de CIMA. Objetivo: pegar o contêiner ESP, embaixo na pilhaA.',
     itens: [
       { codigo: 'pilhaA.pop()', explicacao: 'tira o contêiner do topo da pilha A e o segura na garra' },
       { codigo: 'pilhaB.push(conteiner)', explicacao: 'solta o contêiner da garra no topo da pilha B' },
@@ -74,36 +72,30 @@ export const AJUDA: SecaoAjuda[] = [
       ...COMANDOS_TERMINAL,
     ],
     cuidados: [
-      'A garra segura um contêiner por vez: depois de pop(), faça push() antes de tirar outro.',
-      'Pilha cheia (4) recusa push(). Escolha outra pilha.',
-      'Mexer no meio (pilhaA[2], remove, insert) trava o guindaste: numa pilha só existe o topo.',
+      'A garra segura um contêiner por vez: depois de pop(), faça push().',
+      'Mexer no meio (pilhaA[1], remove, insert) trava o guindaste: só existe o topo.',
     ],
   },
   {
     id: 'fila',
     titulo: 'Desafio 2: Fila',
     aba: 'Fila',
-    conceito:
-      'Uma fila é como a fila do caixa: quem chega primeiro é atendido primeiro (FIFO), o contrário da pilha. ' +
-      'Objetivo: fazer o REBOCADOR atracar. Ele é o último da fila, então os navios da frente precisam atracar antes.',
+    conceito: 'Fila do caixa: quem chega primeiro sai primeiro. Objetivo: fazer o REBOCADOR (o último) atracar.',
     itens: [
       { codigo: 'fila.dequeue()', explicacao: 'o navio da FRENTE da fila atraca e sai dela' },
       { codigo: 'fila.enqueue(navio)', explicacao: 'o navio-vírus que apareceu ao lado do portão vai para o FIM da fila' },
       ...COMANDOS_TERMINAL,
     ],
     cuidados: [
-      'Quando surgir um NAVIO-VIRUS, use enqueue(navio) antes de dequeue(). Se der dequeue() primeiro, ele fura a fila e solta vírus no cais.',
-      'fila.pop() é de pilha: tira o último. Na fila, quem sai é o da frente.',
-      'enqueue só funciona quando há um navio novo esperando.',
+      'Apareceu um NAVIO-VIRUS? Use enqueue(navio) antes de dequeue(), senão ele fura a fila.',
+      'fila.pop() é de pilha. Na fila, quem sai é o da frente: dequeue().',
     ],
   },
   {
     id: 'vetor',
     titulo: 'Desafio 3: Vetores e índices',
     aba: 'Vetores',
-    conceito:
-      'Um vetor guarda itens em posições numeradas, e a contagem começa no ZERO. Aqui há 8 válvulas, de valvula[0] a valvula[7]. ' +
-      'Objetivo: abrir só as válvulas das prateleiras em chamas. A placa da prateleira é o índice mais 1.',
+    conceito: 'Posições numeradas que começam no ZERO: valvula[0] a valvula[7]. Objetivo: abrir as válvulas das prateleiras em chamas (placa menos 1).',
     itens: [
       { codigo: 'valvula[3].abrir()', explicacao: 'abre a válvula de índice 3, que molha a prateleira de placa 4' },
       { codigo: 'valvula[0].abrir(); valvula[5].abrir()', explicacao: 'abre duas válvulas na mesma linha' },
@@ -120,9 +112,7 @@ export const AJUDA: SecaoAjuda[] = [
     id: 'ordenacao',
     titulo: 'Desafio 4: Ordenação',
     aba: 'Ordenação',
-    conceito:
-      'Ordenar é colocar os valores em sequência. A técnica mais simples: compare duas carretas vizinhas e, se a da esquerda for maior, troque. Repita até não precisar mais trocar. ' +
-      'Objetivo: deixar as 6 carretas em ordem CRESCENTE de pressão.',
+    conceito: 'Se a carreta da esquerda for maior que a vizinha, troque as duas. Objetivo: deixar todas em ordem crescente.',
     itens: [
       { codigo: 'trocar(0, 1)', explicacao: 'troca de lugar as carretas das posições 0 e 1' },
       { codigo: 'se pressao[0] > pressao[1]: trocar(0, 1)', explicacao: 'só troca se a condição for verdadeira; se for falsa, nada acontece' },
@@ -132,7 +122,6 @@ export const AJUDA: SecaoAjuda[] = [
     cuidados: [
       'Só dá para trocar carretas VIZINHAS: trocar(0, 2) é recusado.',
       'Trocar quando a da esquerda já é menor PIORA a ordem, e o fogo avança.',
-      'Posições vão de 0 a 5. Os operadores aceitos na condição são >, <, >=, <= e ==.',
     ],
   },
   {

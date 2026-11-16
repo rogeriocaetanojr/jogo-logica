@@ -312,7 +312,7 @@ export function texturaPainelChegadas(cena: Phaser.Scene): string {
     p.px(1, 1, 80, 38, '#0E1012');
     p.px(1, 1, 80, 7, '#2B5C9A');
     p.textoCentro('CHEGADAS', 41, 2, '#F2EEE2');
-    const navios = ['CARGUEIRO', 'PETROLEIRO', 'PESQUEIRO', 'BALSA', 'GRANELEIRO'];
+    const navios = ['CARGUEIRO', 'PESQUEIRO', 'REBOCADOR'];
     navios.forEach((n, i) => {
       p.texto(n, 3, 10 + i * 6, '#C8C2B4');
       if (q === 0 || i % 2 === 1) p.texto('ATRASADO', 47, 10 + i * 6, '#FF4A3A');

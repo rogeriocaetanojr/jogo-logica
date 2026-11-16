@@ -8,7 +8,7 @@ import { DICAS_BOIA, FALAS, GRAVACOES_PORTUS } from '../porto/DialogosPorto';
 import { PROF } from '../porto/EfeitosPorto';
 import { ALTURA_CONTEINER, GuindastePortico, LARGURA_CONTEINER, PilhaFisica } from '../porto/GuindastePorto';
 import type { BlocoConteiner } from '../porto/GuindastePorto';
-import { EmpilhadeiraZumbi, Gaivirus, GarraGuindaste, JanelaPopup } from '../porto/InimigosPorto';
+import { EmpilhadeiraZumbi, Gaivirus, GarraGuindaste } from '../porto/InimigosPorto';
 import { texturaConteinerAberto, texturaPlaca, texturaPortao } from '../porto/ObjetosPorto';
 import { ESPUMA_MAXIMA } from '../porto/TiposPorto';
 import { AreaPorto } from './AreaBase';
@@ -110,9 +110,8 @@ export class Area2Patio extends AreaPorto {
       for (const nome of ['A', 'B', 'C'] as NomePilha[]) for (const c of this.modelo.pilhas[nome]) this.pilhas[nome].criar(c);
     } else {
       // Desafio já resolvido (área reiniciada): pilhas na configuração final
-      this.pilhas.A.criar('VRM');
-      for (const c of ['AMA', 'VRM', 'AZL', 'VRD']) this.pilhas.B.criar(c);
-      for (const c of ['AZL', 'AMA']) this.pilhas.C.criar(c);
+      for (const c of ['VRM', 'AMA']) this.pilhas.B.criar(c);
+      this.pilhas.C.criar('AZL');
     }
     for (const nome of ['A', 'B', 'C'] as NomePilha[]) {
       texturaPixel(cena, `pb-a2-rotulo-${nome}`, 31, 7, (p) => {
@@ -149,7 +148,6 @@ export class Area2Patio extends AreaPorto {
     this.pilhaEstatica(4950, ['VRM', 'AZL', 'AMA']);
     cena.fogo.criar({ id: 'a2-f2', x: 4950, y: CHAO - 3 * ALTURA_CONTEINER, tamanho: 'p', largura: 2, vida: 2, soEspuma: true });
     this.pilhaEstatica(4700, ['VRD']);
-    cena.gatilho(4150, 4220, () => cena.inimigos.adicionar(new JanelaPopup(cena, cena.jogador.x + 320, 330)));
     cena.inimigos.adicionar(new GarraGuindaste(cena, 4700, 110, CHAO, 4560, 5250));
     cena.inimigos.adicionar(new EmpilhadeiraZumbi(cena, 5150, CHAO - 40, 5050, 5500));
     cena.inimigos.adicionar(new Gaivirus(cena, 5000, 250));
@@ -215,8 +213,7 @@ export class Area2Patio extends AreaPorto {
   private abrirPainel(): void {
     const cena = this.cena;
     cena.abrirDesafio('pilha', this.modelo, 'PAINEL DO GUINDASTE // PÁTIO DAS PILHAS // DESAFIO 1: PILHA', [
-      'O guindaste só pega o contêiner do TOPO e só coloca no TOPO de outra pilha.',
-      'Limite de 4 contêineres por pilha por causa do vento (a pilhaA está com 5!).',
+      'O guindaste só pega o contêiner do TOPO.',
     ]);
   }
 

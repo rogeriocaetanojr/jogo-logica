@@ -301,8 +301,7 @@ export class Area5Terminal extends AreaPorto {
 
   private abrirPainel(): void {
     this.cena.abrirDesafio('ordenacao', this.modelo, 'DRENO DAS CARRETAS // TERMINAL DE COMBUSTÍVEL // DESAFIO 4: ORDENAÇÃO', [
-      'Só dá para trocar carretas VIZINHAS de lugar (como no bubble sort).',
-      'Troca certa empurra o fogo para trás. Troca que piora a ordem: vapor e o fogo avança!',
+      'Só dá para trocar carretas VIZINHAS.',
     ]);
   }
 

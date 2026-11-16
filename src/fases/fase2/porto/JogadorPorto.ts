@@ -23,6 +23,11 @@ const VELOCIDADE_AGACHADO = 110;
 const FORCA_PULO = 650;
 const GRAVIDADE_EXTRA = 400;
 const QUEDA_MAXIMA = 900;
+/** Na água: velocidade de subida nadando, de afundar, aceleração do nado e impulso para sair dela. */
+const VELOCIDADE_NADO = 240;
+const VELOCIDADE_AFUNDAR = 130;
+const ACELERACAO_NADO = 1500;
+const IMPULSO_SAIDA_AGUA = -560;
 
 /**
  * Operador controlado pelo jogador (Alvares ou Reis).
@@ -39,6 +44,8 @@ export class JogadorPorto {
   public olhandoDireita = true;
   public agachado = false;
   public naAgua = false;
+  /** Está segurando a tecla de agachar (vale mesmo no ar ou num quadro em que o pé largou o chão). */
+  public segurandoAgachar = false;
   public aguaLimpa = false;
   public noOleo = false;
   public cobertoDeOleoAte = 0;
@@ -53,6 +60,7 @@ export class JogadorPorto {
   private ultimoTiro = 0;
   private ultimaEspuma = 0;
   private ultimaBracada = 0;
+  private impulsoAguaAte = 0;
   private tempoCorrida = 0;
 
   constructor(cena: CenaFase2, x: number, y: number, tipo: TipoPersonagem) {
@@ -87,6 +95,11 @@ export class JogadorPorto {
   /** Posição aproximada da lanterna do capacete (centro da visão na fumaça). */
   get cabeca(): { x: number; y: number } {
     return { x: this.corpo.x, y: this.corpo.y - (this.agachado ? 4 : 30) };
+  }
+
+  /** Agachado (ou segurando agachar) a fumaça passa por cima: sem tosse e sem dano dos Fumacês. */
+  get protegidoDaFumaca(): boolean {
+    return this.agachado || this.segurandoAgachar;
   }
 
   get noChao(): boolean {
@@ -128,6 +141,7 @@ export class JogadorPorto {
     const controleLivre = agora >= this.controleTravadoAte;
     const oleado = agora < this.cobertoDeOleoAte;
 
+    this.segurandoAgachar = controles.agachar && !this.naAgua;
     // Agachar: só no chão e fora da água
     this.agachado = controleLivre && controles.agachar && noChao && !this.naAgua;
 
@@ -158,19 +172,36 @@ export class JogadorPorto {
       }
     }
 
-    // Física na água: flutuação e braçadas
+    // Física na água: flutuação e braçadas. Segurar o pulo nada para cima; com a cabeça fora da água,
+    // apertar o pulo dá um impulso para sair (o limite de velocidade não corta mais esse impulso).
     if (this.naAgua) {
       this.body.setGravityY(-470);
-      this.body.setMaxVelocityY(140);
+      this.body.setMaxVelocityY(QUEDA_MAXIMA);
+      const dt = delta / 1000;
       const superficie = this.cena.agua?.nivelEm(this.x) ?? this.y;
       const cabecaFora = this.y - 30 < superficie + 6;
-      if (controles.puloApertado && agora - this.ultimaBracada > 220) {
+      let vy = this.body.velocity.y;
+      const pediuBracada = controles.puloApertado && agora - this.ultimaBracada > 220;
+      // Segurando o pulo com a cabeça fora da água, ele também impulsiona para fora (sem precisar soltar e apertar)
+      const pulouParaFora = cabecaFora && controles.pulo && agora - this.ultimaBracada > 500;
+      if (pediuBracada || pulouParaFora) {
         this.ultimaBracada = agora;
-        this.body.setMaxVelocityY(QUEDA_MAXIMA);
-        this.body.setVelocityY(cabecaFora ? -560 : -300);
         this.cena.som.tocar('bracada');
         this.cena.efeitos.respingo(this.x, superficie);
+        if (cabecaFora) {
+          vy = IMPULSO_SAIDA_AGUA;
+          this.impulsoAguaAte = agora + 300;
+        } else {
+          vy = Math.min(vy, -VELOCIDADE_NADO);
+        }
+      } else if (controles.pulo && agora >= this.impulsoAguaAte) {
+        // Segurando o pulo: sobe nadando, sem precisar apertar várias vezes
+        vy = Math.max(vy - ACELERACAO_NADO * dt, -VELOCIDADE_NADO);
+      } else if (agora >= this.impulsoAguaAte) {
+        // Sem nadar, afunda devagar
+        vy = Math.min(vy, VELOCIDADE_AFUNDAR);
       }
+      this.body.setVelocityY(vy);
     } else {
       this.body.setGravityY(GRAVIDADE_EXTRA);
       this.body.setMaxVelocityY(QUEDA_MAXIMA);
