@@ -1,11 +1,12 @@
 import type { ContextoInterpretador, ResultadoComando } from '../../compartilhado/tipos';
 import { ErroSintaxeFase1 } from './LexerFase1';
-import { analisarPrograma, type Instrucao, type Valor } from './ParserFase1';
+import { analisarPrograma, type Instrucao } from './ParserFase1';
 import {
   ErroExecucaoFase1,
   chamadaForaDeCondicao,
   coletarNomes,
   contemMisturaSemParenteses,
+  executarComVariaveis,
   executarPrograma,
   formatarValor,
   type Ambiente,
@@ -37,6 +38,10 @@ import type { FeedbackErroFase1, ParametrosEscadaVento } from './tiposFase1';
  * em todas as situações possíveis e compara o comportamento com o esperado.
  * Assim aceita qualquer forma correta (ordem trocada, De Morgan, == True, variáveis auxiliares)
  * e, quando erra, diz o que está errado com um contraexemplo concreto.
+ *
+ * Cada totem mostra um código curto com uma lacuna (___). O jogador digita só o que vai na
+ * lacuna (ou a linha inteira, se preferir); o interpretador encaixa a resposta no modelo e
+ * valida o programa completo.
  */
 
 const G = ERROS_GERAIS_FASE1;
@@ -52,6 +57,8 @@ interface RegraTotem {
   /** Dicas sob medida quando o jogador usa um destes nomes como variável. */
   dicasNomes?: Readonly<Record<string, string>>;
   validar: (programa: Instrucao[]) => ResultadoComando;
+  /** Códigos com a lacuna ___ onde entra a resposta curta do jogador (tentados em ordem). */
+  modelos: readonly string[];
   /** Resultado de sucesso devolvido pela senha-mestra de testes. */
   respostaMestra: ResultadoComando;
 }
@@ -271,318 +278,206 @@ function criarValidadorBooleano(cfg: ConfigValidadorBooleano): (programa: Instru
 }
 
 // =============================================================================
-// TOTEM 1: "O Teste de Alcoolemia da Sentinela" (not / and)
+// TOTEM 1: escudo da sentinela (valor True / False)
 // =============================================================================
 
 const SUCESSO_TOTEM_1: ResultadoComando = {
   sucesso: true,
-  mensagem:
-    '[SENTINELA A-01: ESCUDO DESATIVADO]\n' +
-    'Lógica validada com sucesso! A rotina concluiu que você não oferece perigo e recolheu a barreira de vento.\n' +
-    'O corredor celestial está aberto.',
+  mensagem: '[ESCUDO DESLIGADO] escudo = False. A sentinela baixou a guarda. Pode passar!',
   acao: 'DESATIVAR_ESCUDO_SENTINELA',
 };
+
+const DICA_FALSE = 'Para desligar, use False (com F maiúsculo).';
+
+function validarTotem1(programa: Instrucao[]): ResultadoComando {
+  const { variaveis } = executarComVariaveis(programa, {});
+  const escudo = variaveis.escudo;
+  if (escudo === false) return SUCESSO_TOTEM_1;
+  if (escudo === undefined) {
+    return falha('NADA ACONTECEU', sortearSemRepetir(G.SEM_CHAMADA), `Escreva: escudo = False`);
+  }
+  if (escudo === true) {
+    return falha('ESCUDO LIGADO', sortearSemRepetir(TEXTOS_TOTEM_1_ALCOOLEMIA.MENSAGENS_ERRO), `True deixa ligado. ${DICA_FALSE}`);
+  }
+  return falha('VALOR ERRADO', sortearSemRepetir(TEXTOS_TOTEM_1_ALCOOLEMIA.MENSAGENS_ERRO), `O escudo só entende True ou False. ${DICA_FALSE}`);
+}
 
 const REGRA_TOTEM_1: RegraTotem = {
   respostaMestra: SUCESSO_TOTEM_1,
   textos: TEXTOS_TOTEM_1_ALCOOLEMIA,
-  variaveis: ['alarme_ligado', 'jogador_armado'],
-  funcoes: ['desativar_escudo'],
-  validar: criarValidadorBooleano({
-    textos: TEXTOS_TOTEM_1_ALCOOLEMIA,
-    variaveis: ['alarme_ligado', 'jogador_armado'],
-    funcao: 'desativar_escudo',
-    esperado: (a) => !a.alarme_ligado && !a.jogador_armado,
-    descrever: (chamou) => (chamou ? 'o escudo é desligado' : 'o escudo continua ligado'),
-    diagnosticarPrecedencia: false,
-    sucesso: SUCESSO_TOTEM_1,
-  }),
+  modelos: ['escudo = ___', '___'],
+  variaveis: [],
+  funcoes: [],
+  dicasNomes: {
+    escudo: 'Para guardar um valor use um = só: escudo = False',
+    desligado: DICA_FALSE,
+    desligar: DICA_FALSE,
+    falso: DICA_FALSE,
+    off: DICA_FALSE,
+    ligado: DICA_FALSE,
+    nao: DICA_FALSE,
+    no: DICA_FALSE,
+  },
+  validar: validarTotem1,
 };
 
 // =============================================================================
-// TOTEM 2: "A Balança Hipócrita de Nuvens" (if / elif / else)
+// TOTEM 2: elevador (número)
 // =============================================================================
 
 const SUCESSO_TOTEM_2: ResultadoComando = {
   sucesso: true,
-  mensagem:
-    '[VÁLVULA DE PRESSÃO CALIBRADA // ELEVADOR DE NUVEM]\n' +
-    'Condicionais de altitude compiladas com perfeição!\n' +
-    `O elevador estabilizou exatamente na altitude ${TOTEM_2_BALANCA.ALTITUDE_ALVO}.`,
+  mensagem: `[ELEVADOR PROGRAMADO] altura = ${TOTEM_2_BALANCA.ALTITUDE_ALVO}. Subindo!`,
   acao: 'ESTABILIZAR_ELEVADOR',
 };
 
-const FUNCOES_TOTEM_2 = ['aumentar_pressao', 'aliviar_pressao', 'estabilizar'] as const;
-
-/**
- * Executa o programa em várias altitudes (incluindo as fronteiras do alvo) e exige
- * exatamente uma chamada certa em cada uma.
- */
 function validarTotem2(programa: Instrucao[]): ResultadoComando {
   const alvo = TOTEM_2_BALANCA.ALTITUDE_ALVO;
-  const textos = TEXTOS_TOTEM_2_BALANCA;
-  const especificos = textos.ERROS_ESPECIFICOS ?? {};
-  const chamadasEstaticas = coletarNomes(programa).chamadas;
-
-  if (chamadasEstaticas.length === 0) {
-    return falha(
-      'NADA ACONTECEU',
-      sortearSemRepetir(G.SEM_CHAMADA),
-      'Seu código não chama nenhuma das funções da plataforma.'
-    );
+  const { variaveis } = executarComVariaveis(programa, {});
+  const altura = variaveis.altura;
+  const erros = TEXTOS_TOTEM_2_BALANCA.MENSAGENS_ERRO;
+  if (altura === alvo) return SUCESSO_TOTEM_2;
+  if (altura === undefined) {
+    return falha('NADA ACONTECEU', sortearSemRepetir(G.SEM_CHAMADA), `Escreva o número da placa: altura = ${alvo}`);
   }
-  if (chamadasEstaticas.some((c) => c.quantidadeArgumentos > 0)) {
-    return falha(
-      'ARGUMENTOS ERRADOS',
-      sortearSemRepetir(G.ARGUMENTOS_INDEVIDOS),
-      'As funções da plataforma não recebem nada: deixe os parênteses vazios.'
-    );
+  if (typeof altura === 'string') {
+    return falha('TEXTO NO LUGAR DE NÚMERO', sortearSemRepetir(erros), `Número vai sem aspas: ${alvo}, não "${altura}".`);
   }
-
-  for (const altitude of TOTEM_2_BALANCA.ALTITUDES_TESTE) {
-    const esperado = altitude < alvo ? 'aumentar_pressao' : altitude > alvo ? 'aliviar_pressao' : 'estabilizar';
-    const chamadas = executarPrograma(programa, { altitude_atual: altitude, altitude_alvo: alvo });
-
-    if (chamadas.length === 0) {
-      return falha(
-        'NADA ACONTECEU',
-        especificos.NADA_ACONTECE ?? sortearSemRepetir(textos.MENSAGENS_ERRO),
-        `Com altitude_atual = ${altitude}, nenhuma função é chamada. ` +
-          'Seu código precisa cobrir os três casos: abaixo, acima e exatamente no alvo.'
-      );
-    }
-    if (chamadas.length > 1) {
-      return falha(
-        'CHAMADAS DEMAIS',
-        sortearSemRepetir(G.CHAMADAS_DEMAIS),
-        `Com altitude_atual = ${altitude}, seu código chamou ${chamadas.map((c) => `${c.nome}()`).join(' e ')}. ` +
-          'Só pode uma por vez: use elif/else para que os casos não se sobreponham.'
-      );
-    }
-    if (chamadas[0].nome !== esperado) {
-      return falha(
-        'FALHA NA LÓGICA',
-        altitude === alvo && especificos.FRONTEIRA
-          ? especificos.FRONTEIRA
-          : sortearSemRepetir(textos.MENSAGENS_ERRO),
-        `Com altitude_atual = ${altitude}, seu código chamou ${chamadas[0].nome}(), mas o certo é ${esperado}().`
-      );
-    }
+  if (typeof altura !== 'number') {
+    return falha('VALOR ERRADO', sortearSemRepetir(erros), `A altura é um número. A placa diz ${alvo}.`);
   }
-
-  return SUCESSO_TOTEM_2;
+  const onde = altura > alvo ? 'alto demais' : 'baixo demais';
+  return falha('ALTURA ERRADA', sortearSemRepetir(erros), `Com altura = ${altura} o elevador para ${onde}. A placa diz ${alvo}.`);
 }
 
 const REGRA_TOTEM_2: RegraTotem = {
   respostaMestra: SUCESSO_TOTEM_2,
   textos: TEXTOS_TOTEM_2_BALANCA,
-  variaveis: ['altitude_atual', 'altitude_alvo'],
-  funcoes: FUNCOES_TOTEM_2,
+  modelos: ['altura = ___', '___'],
+  variaveis: [],
+  funcoes: [],
+  dicasNomes: { altura: `Para guardar um valor use um = só: altura = ${TOTEM_2_BALANCA.ALTITUDE_ALVO}` },
   validar: validarTotem2,
 };
 
 // =============================================================================
-// TOTEM 3: "O Portão com Crise Existencial" (precedência: (A or B) and C)
+// TOTEM 3: portão (or)
 // =============================================================================
 
 const SUCESSO_TOTEM_3: ResultadoComando = {
   sucesso: true,
-  mensagem:
-    '[PORTÃO MILENAR // TRANCAS RECOLHIDAS]\n' +
-    'Expressão booleana avaliada como Verdadeira com precedência correta!\n' +
-    'As trancas de mármore desceram ao solo. Passagem para o Bloco 3 liberada.',
+  mensagem: '[PORTÃO ABERTO] sol or vento = True. Basta um, e hoje tem sol!',
   acao: 'ABRIR_PORTAO_EXISTENCIAL',
 };
 
 const REGRA_TOTEM_3: RegraTotem = {
   respostaMestra: SUCESSO_TOTEM_3,
   textos: TEXTOS_TOTEM_3_PORTAO,
-  variaveis: ['energia_sol', 'energia_vento', 'placa_pressionada'],
+  // "or" sozinho, a expressão inteira ou a linha inteira com "abrir ="
+  modelos: [
+    'abrir = sol ___ vento; if abrir: abrir_portao()',
+    'abrir = ___; if abrir: abrir_portao()',
+    '___; if abrir: abrir_portao()',
+  ],
+  variaveis: ['sol', 'vento'],
   funcoes: ['abrir_portao'],
+  dicasNomes: {
+    ou: 'Em Python, "ou" se escreve or.',
+    e: 'Em Python, "e" se escreve and.',
+  },
   validar: criarValidadorBooleano({
     textos: TEXTOS_TOTEM_3_PORTAO,
-    variaveis: ['energia_sol', 'energia_vento', 'placa_pressionada'],
+    variaveis: ['sol', 'vento'],
     funcao: 'abrir_portao',
-    esperado: (a) => Boolean((a.energia_sol || a.energia_vento) && a.placa_pressionada),
-    descrever: (chamou) => (chamou ? 'o portão abre' : 'o portão continua trancado'),
-    diagnosticarPrecedencia: true,
+    esperado: (a) => Boolean(a.sol || a.vento),
+    descrever: (abre) => (abre ? 'o portão abre' : 'o portão fica fechado'),
+    diagnosticarPrecedencia: false,
     sucesso: SUCESSO_TOTEM_3,
   }),
 };
 
 // =============================================================================
-// TOTEM 4: "O Sequenciador de Rajadas" (função com parâmetros)
+// TOTEM 4: turbinas (chamar uma função com um valor)
 // =============================================================================
 
-const FUNCAO_RAJADAS = 'sincronizar_rajadas';
-const PARAMETROS_RAJADAS = ['ordem', 'intervalo', 'forca'] as const;
-type ParametroRajadas = (typeof PARAMETROS_RAJADAS)[number];
+const FUNCAO_TURBINAS = 'ligar_turbinas';
+const TURBINAS = 3;
 
-function ehParametroRajadas(nome: string): nome is ParametroRajadas {
-  return (PARAMETROS_RAJADAS as readonly string[]).includes(nome);
-}
-
-/**
- * Confere a chamada de sincronizar_rajadas (posicional ou com nomes) e a faixa de cada valor.
- * Valores bem escritos mas fora da faixa devolvem uma simulação para o jogador ver o problema.
- */
 function validarTotem4(programa: Instrucao[]): ResultadoComando {
-  const s = TOTEM_4_SEQUENCIADOR;
-  const textos = TEXTOS_TOTEM_4_SEQUENCIADOR;
-  const especificos = textos.ERROS_ESPECIFICOS ?? {};
-  const assinatura = `${FUNCAO_RAJADAS}(ordem, intervalo, forca)`;
-
-  const chamadas = executarPrograma(programa, {}).filter((c) => c.nome === FUNCAO_RAJADAS);
-  if (chamadas.length === 0) {
-    return falha('NADA ACONTECEU', sortearSemRepetir(G.SEM_CHAMADA), `Seu código nunca chama ${assinatura}.`);
+  const erros = TEXTOS_TOTEM_4_SEQUENCIADOR.MENSAGENS_ERRO;
+  const chamadas = executarComVariaveis(programa, {}).chamadas.filter((c) => c.nome === FUNCAO_TURBINAS);
+  const dica = `Escreva: ${FUNCAO_TURBINAS}(${TURBINAS})`;
+  if (chamadas.length === 0) return falha('NADA ACONTECEU', sortearSemRepetir(G.SEM_CHAMADA), dica);
+  const argumentos = chamadas[0].argumentos;
+  if (argumentos.length !== 1) {
+    return falha('PARÊNTESES', sortearSemRepetir(erros), `Coloque um número só dentro dos parênteses. ${dica}`);
   }
-  if (chamadas.length > 1) {
-    return falha(
-      'CHAMADAS DEMAIS',
-      sortearSemRepetir(G.CHAMADAS_DEMAIS),
-      `Chame ${FUNCAO_RAJADAS}(...) uma vez só, com os três valores.`
-    );
+  const valor = argumentos[0].valor;
+  if (typeof valor === 'string') {
+    return falha('TEXTO NO LUGAR DE NÚMERO', sortearSemRepetir(erros), `Número vai sem aspas: ${TURBINAS}, não "${valor}".`);
   }
-
-  const { argumentos } = chamadas[0];
-  const erroArgumentos = (dica: string) => falha('ARGUMENTOS ERRADOS', sortearSemRepetir(G.ARGUMENTOS_INDEVIDOS), dica);
-
-  if (argumentos.length === 4 && argumentos.every((a) => a.nome === undefined) && argumentos.slice(1).every((a) => typeof a.valor === 'number')) {
-    return erroArgumentos('Parece que você usou vírgula no número decimal. Em Python é ponto: 1.5, não 1,5.');
+  if (valor !== TURBINAS) {
+    const quantas = typeof valor === 'number' && valor < TURBINAS ? `Só ${valor} ligaram.` : `Só existem ${TURBINAS} turbinas.`;
+    return falha('TURBINAS ERRADAS', sortearSemRepetir(erros), `${quantas} ${dica}`);
   }
-  if (argumentos.length !== PARAMETROS_RAJADAS.length) {
-    return erroArgumentos(`A função recebe 3 valores: ${assinatura}. Você passou ${argumentos.length}.`);
-  }
-
-  const valores: Partial<Record<ParametroRajadas, Valor>> = {};
-  let viuNomeado = false;
-  for (const [indice, argumento] of argumentos.entries()) {
-    if (argumento.nome === undefined && viuNomeado) {
-      return erroArgumentos('Em Python, os valores sem nome vêm antes dos valores com nome (ex.: forca=450).');
-    }
-    viuNomeado ||= argumento.nome !== undefined;
-
-    const nome = argumento.nome ?? PARAMETROS_RAJADAS[indice];
-    if (!ehParametroRajadas(nome)) {
-      return erroArgumentos(`O parâmetro '${nome}' não existe.${sugestao(nome, PARAMETROS_RAJADAS)} Os nomes são: ordem, intervalo, forca.`);
-    }
-    if (valores[nome] !== undefined) {
-      return erroArgumentos(`O parâmetro '${nome}' foi passado duas vezes.`);
-    }
-    valores[nome] = argumento.valor;
-  }
-
-  const { ordem, intervalo, forca } = valores;
-  if (typeof ordem !== 'string') {
-    return falha('TIPOS MISTURADOS', sortearSemRepetir(G.TIPO), `ordem é um texto: escreva entre aspas, ex.: "${s.ORDEM_CORRETA}".`);
-  }
-  if (typeof intervalo !== 'number' || typeof forca !== 'number') {
-    return falha('TIPOS MISTURADOS', sortearSemRepetir(G.TIPO), 'intervalo e forca precisam ser números, ex.: 1.5 e 450.');
-  }
-
-  const ordemNormalizada = ordem.trim().toLowerCase();
-  const simulacao: ParametrosEscadaVento = { ordem: ordemNormalizada, intervalo, forca };
-
-  if (ordemNormalizada !== s.ORDEM_CORRETA) {
-    const efeito =
-      ordemNormalizada === 'decrescente'
-        ? 'a escada liga de cima para baixo e o primeiro degrau some antes de você chegar'
-        : 'as três turbinas ligam juntas';
-    return falha(
-      'ORDEM INCORRETA',
-      especificos.ORDEM ?? sortearSemRepetir(textos.MENSAGENS_ERRO),
-      `Com ordem "${ordem}", ${efeito}. A ordem exigida está no status. Veja a simulação.`,
-      simulacao
-    );
-  }
-  if (intervalo < s.INTERVALO_MIN || intervalo > s.INTERVALO_MAX) {
-    const curto = intervalo < s.INTERVALO_MIN;
-    return falha(
-      'INTERVALO FORA DA FAIXA',
-      (curto ? especificos.INTERVALO_CURTO : especificos.INTERVALO_LONGO) ?? sortearSemRepetir(textos.MENSAGENS_ERRO),
-      `intervalo = ${intervalo}s ${curto ? 'é rápido demais: a coluna desliga antes de você pular' : 'é lento demais: você cai esperando a próxima coluna'}. ` +
-        `A faixa é de ${s.INTERVALO_MIN} a ${s.INTERVALO_MAX} segundos. Veja a simulação.`,
-      simulacao
-    );
-  }
-  if (forca < s.FORCA_MIN || forca > s.FORCA_MAX) {
-    const fraca = forca < s.FORCA_MIN;
-    return falha(
-      'FORÇA FORA DA FAIXA',
-      (fraca ? especificos.FORCA_BAIXA : especificos.FORCA_ALTA) ?? sortearSemRepetir(textos.MENSAGENS_ERRO),
-      `forca = ${forca} ${fraca ? 'não te levanta até o próximo degrau' : 'te arremessa longe demais'}. ` +
-        `A faixa é de ${s.FORCA_MIN} a ${s.FORCA_MAX}. Veja a simulação.`,
-      simulacao
-    );
-  }
-
-  return sucessoRajadas(simulacao);
+  return sucessoTurbinas();
 }
 
-function sucessoRajadas(parametros: ParametrosEscadaVento): ResultadoComando {
+/** A escada liga com a calibragem padrão de fábrica (de baixo para cima). */
+function sucessoTurbinas(): ResultadoComando {
+  const parametros: ParametrosEscadaVento = {
+    ordem: TOTEM_4_SEQUENCIADOR.ORDEM_CORRETA,
+    intervalo: TOTEM_4_SEQUENCIADOR.PERIODO_PADRAO_MS / 1000,
+    forca: TOTEM_4_SEQUENCIADOR.FORCA_PADRAO,
+  };
   return {
     sucesso: true,
-    mensagem:
-      '[GERADOR TRIPLO // SEQUENCIADOR DE RAJADAS ATIVADO]\n' +
-      `Sincronização compilada: ordem="${parametros.ordem}", intervalo=${parametros.intervalo}s, forca=${parametros.forca}px!\n` +
-      'As três correntes de ar disparam em escada ascendente perfeita. Voe, passarinho!',
+    mensagem: `[TURBINAS LIGADAS] ${FUNCAO_TURBINAS}(${TURBINAS}). A escada de vento está no ar. Voe, passarinho!`,
     acao: 'ATIVAR_ESCADA_RAJADAS',
     valor: JSON.stringify(parametros),
   };
 }
 
-const DICA_PARAMETRO = (nome: string) =>
-  `'${nome}' é o nome do parâmetro. No lugar dele, passe o valor (ou escreva ${nome}=valor).`;
-const DICA_ASPAS = (nome: string) => `Texto vai entre aspas: "${nome}".`;
-
 const REGRA_TOTEM_4: RegraTotem = {
-  respostaMestra: sucessoRajadas({
-    ordem: TOTEM_4_SEQUENCIADOR.ORDEM_CORRETA,
-    intervalo: TOTEM_4_SEQUENCIADOR.PERIODO_PADRAO_MS / 1000,
-    forca: TOTEM_4_SEQUENCIADOR.FORCA_PADRAO,
-  }),
+  respostaMestra: sucessoTurbinas(),
   textos: TEXTOS_TOTEM_4_SEQUENCIADOR,
+  modelos: [`${FUNCAO_TURBINAS}(___)`],
   variaveis: [],
-  funcoes: [FUNCAO_RAJADAS],
+  funcoes: [FUNCAO_TURBINAS],
   dicasNomes: {
-    ordem: DICA_PARAMETRO('ordem'),
-    intervalo: DICA_PARAMETRO('intervalo'),
-    forca: DICA_PARAMETRO('forca'),
-    crescente: DICA_ASPAS('crescente'),
-    decrescente: DICA_ASPAS('decrescente'),
+    tres: `Use o número: ${TURBINAS}.`,
+    três: `Use o número: ${TURBINAS}.`,
+    turbinas: `Coloque o número de turbinas: ${TURBINAS}.`,
   },
   validar: validarTotem4,
 };
 
 // =============================================================================
-// TOTEM 5: núcleo do Helio (revisão final: not / and com sensores do boss)
+// TOTEM 5: núcleo do Helio (if)
 // =============================================================================
 
 const SUCESSO_TOTEM_5: ResultadoComando = {
   sucesso: true,
-  mensagem:
-    '[NÚCLEO DOS VENTOS // DESLIGADO]\n' +
-    'Condição validada: atordoado e sem escudo. O Helio foi desligado.\n' +
-    'O portal do santuário está aberto.',
+  mensagem: '[NÚCLEO DESLIGADO] Se está tonto, desliga. Era só isso. O portal do santuário está aberto.',
   acao: 'DESLIGAR_HELIO',
 };
-
-const DICA_PREFIXO_HELIO = (nome: string) => `Os sensores são do Helio: escreva helio.${nome}.`;
 
 const REGRA_TOTEM_5: RegraTotem = {
   respostaMestra: SUCESSO_TOTEM_5,
   textos: TEXTOS_TOTEM_5_HELIO,
-  variaveis: ['helio.atordoado', 'helio.escudo'],
+  modelos: ['if ___: desligar()'],
+  variaveis: ['helio_tonto'],
   funcoes: ['desligar'],
   dicasNomes: {
-    atordoado: DICA_PREFIXO_HELIO('atordoado'),
-    escudo: DICA_PREFIXO_HELIO('escudo'),
+    tonto: 'O sensor se chama helio_tonto.',
+    helio: 'O sensor se chama helio_tonto.',
+    atordoado: 'O sensor se chama helio_tonto.',
   },
   validar: criarValidadorBooleano({
     textos: TEXTOS_TOTEM_5_HELIO,
-    variaveis: ['helio.atordoado', 'helio.escudo'],
+    variaveis: ['helio_tonto'],
     funcao: 'desligar',
-    esperado: (a) => Boolean(a['helio.atordoado']) && !a['helio.escudo'],
+    esperado: (a) => Boolean(a.helio_tonto),
     descrever: (chamou) => (chamou ? 'o Helio é desligado' : 'o Helio continua ligado'),
     diagnosticarPrecedencia: false,
     sucesso: SUCESSO_TOTEM_5,
@@ -600,6 +495,39 @@ const REGRAS_POR_TOTEM: Record<string, RegraTotem> = {
   [TOTEM_4_SEQUENCIADOR.ID]: REGRA_TOTEM_4,
   [TOTEM_5_HELIO.ID]: REGRA_TOTEM_5,
 };
+
+const LACUNA = '___';
+
+/**
+ * Programas candidatos para a resposta do jogador. Se ele escreveu a linha inteira (chamou uma
+ * função ou tem um ":" seguido de comando), vale o que ele escreveu. Senão, a resposta vai no
+ * lugar do ___ de cada modelo do totem, na ordem: o primeiro que for Python válido é o usado.
+ * Antes, tira um "if" da frente e o ":" do fim, se o jogador tiver digitado.
+ */
+export function montarCandidatos(entrada: string, modelos: readonly string[]): string[] {
+  const chamaFuncao = /\b[a-z_][\w.]*\(/i.test(entrada);
+  const temComando = /:\s*\S/.test(entrada);
+  if (chamaFuncao || temComando) return [entrada];
+  const trecho = entrada
+    .trim()
+    .replace(/^(if|elif)\s+/i, '')
+    .replace(/:\s*$/, '')
+    .trim();
+  return modelos.map((modelo) => modelo.replace(LACUNA, trecho));
+}
+
+/** O primeiro candidato que é Python válido; se nenhum for, o erro do primeiro. */
+function analisarCandidatos(candidatos: string[]): Instrucao[] {
+  let primeiroErro: unknown;
+  for (const codigo of candidatos) {
+    try {
+      return analisarPrograma(codigo);
+    } catch (erro) {
+      primeiroErro ??= erro;
+    }
+  }
+  throw primeiroErro;
+}
 
 function ajudaContextual(textos: TextosTotemFase1 | undefined, erros: number): string {
   if (!textos) return T.AJUDA_GERAL;
@@ -643,7 +571,7 @@ export function interpretarComandoFase1(entrada: string, contexto?: ContextoInte
   }
 
   try {
-    const programa = analisarPrograma(comando);
+    const programa = analisarCandidatos(montarCandidatos(comando, regra.modelos));
     return verificarNomes(programa, regra) ?? regra.validar(programa);
   } catch (erro) {
     if (erro instanceof ErroSintaxeFase1) {

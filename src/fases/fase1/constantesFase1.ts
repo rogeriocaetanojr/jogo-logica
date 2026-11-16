@@ -325,7 +325,7 @@ export const OFFSET_PROMPT_TOTEM_Y = 50;
 // Terminal aberto sem nenhum comando por este tempo: o terminal puxa assunto
 export const TERMINAL_OCIOSO_MS = 40000;
 
-export const ERROS_PARA_ESQUELETO = 3; // Erros no mesmo totem até o help mostrar o esqueleto da resposta
+export const ERROS_PARA_ESQUELETO = 2; // Erros no mesmo totem até o help mostrar o esqueleto da resposta
 // Chave mestra para testes: resolve o totem aberto, qualquer que seja
 export const SENHA_MESTRA_FASE1 = 'senhamagicabrainrebase';
 
@@ -452,30 +452,30 @@ export const BOSS_HELIO_FASE1 = {
   // Cada vez que o Helio fica tonto ele sobe de nível: fica mais rápido (tempos divididos e projéteis
   // multiplicados por 1 + 0,15 × nível) e solta mais projéteis em todos os ataques (tabelas por nível).
   // Conta a tontura, não a vida: errar o pisão também deixa o próximo ciclo mais difícil.
-  ACELERACAO_POR_TONTURA: 0.15,
+  ACELERACAO_POR_TONTURA: 0.08, // Era 0,15: os ciclos seguintes aceleram bem menos
   NIVEL_MAXIMO: 5, // Depois do último nível da tabela, a dificuldade para de subir
   PROFUNDIDADE: 8,
   PROFUNDIDADE_EFEITOS: 9,
 
   // Aviso antes de cada ataque: o jogador sempre vê o que vem
-  TELEGRAFIA_RAJADA_MS: 700,
-  TELEGRAFIA_SALTO_MS: 550,
+  TELEGRAFIA_RAJADA_MS: 900,
+  TELEGRAFIA_SALTO_MS: 800,
   TELEGRAFIA_CHUVA_MS: 600,
   PAUSA_ENTRE_ATAQUES_MS: 350,
 
   // Rajada rasteira: ondas de vento no chão, na direção do jogador (pule por cima)
   ONDAS_POR_NIVEL: [5, 6, 7, 8, 9, 10],
-  INTERVALO_ONDAS_MS: 650,
-  ONDA_VELOCIDADE: 450,
+  INTERVALO_ONDAS_MS: 950, // Era 650: mais tempo entre um tornado e outro
+  ONDA_VELOCIDADE: 300, // Era 450: tornados rasteiros mais lentos
   ONDA_LARGURA: 46,
   ONDA_ALTURA: 64,
 
   // Salto com pisão: cai onde o jogador estava e solta ondas de choque para os dois lados
   SALTOS_POR_NIVEL: [2, 3, 4, 5, 6, 6],
-  SALTO_MS: 1467, // Era 1100: salto 25% mais lento
+  SALTO_MS: 2000, // Era 1467 (e 1100 antes): salto bem mais lento, dá tempo de sair de baixo
   SALTO_ALTURA: 260,
-  PAUSA_POS_SALTO_MS: 450,
-  CHOQUE_VELOCIDADE: 459, // 340 × 1,35
+  PAUSA_POS_SALTO_MS: 700,
+  CHOQUE_VELOCIDADE: 300, // Era 459: ondas de choque do pisão mais lentas
   CHOQUE_LARGURA: 40,
   CHOQUE_ALTURA: 28,
 

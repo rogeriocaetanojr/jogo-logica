@@ -1,5 +1,6 @@
 import type { LinhaDialogo } from '../../compartilhado/tipos';
 import {
+  ERROS_PARA_ESQUELETO,
   TOTEM_1_ALCOOLEMIA,
   TOTEM_2_BALANCA,
   TOTEM_3_PORTAO,
@@ -21,12 +22,12 @@ export interface TextosTotemFase1 {
   PROMPT: string;
   PROMPT_RESOLVIDO?: string;
   DIALOGO_INICIAL: string;
-  VARIAVEIS_DISPONIVEIS: readonly string[];
-  FUNCOES_DISPONIVEIS: readonly string[];
   /** Deboches para lógica errada, sorteados sem repetir o anterior. */
   MENSAGENS_ERRO: readonly string[];
   /** Deboches para diagnósticos específicos deste totem (ex.: PRECEDENCIA, INVERTIDA). */
   ERROS_ESPECIFICOS?: Readonly<Record<string, string>>;
+  /** Código mostrado no terminal, com a lacuna ___ que o jogador completa. */
+  CODIGO: readonly string[];
   /** Resposta com lacunas, liberada no help depois de alguns erros. */
   ESQUELETO: string;
   AJUDA: string;
@@ -136,7 +137,7 @@ export function falasSucatinha(ctx: ContextoDialogoFase1, visita: number): Linha
 }
 
 /**
- * Mago da Nuvem: pista do portão (precedência com parênteses) e quarta parede sobre o "estagiário".
+ * Mago da Nuvem: pista do portão (sol OU vento: or) e quarta parede sobre o "estagiário".
  */
 export function falasMagoNuvem(ctx: ContextoDialogoFase1, visita: number): LinhaDialogo[] {
   if (visita === 0) {
@@ -146,7 +147,7 @@ export function falasMagoNuvem(ctx: ContextoDialogoFase1, visita: number): Linha
     }
     falas.push('Mago da Nuvem Sem Salário, às ordens. Ordens que ninguém paga.');
     falas.push(
-      'Lá na frente tem um portão com três sensores. Se quiser um conselho, parêntese é arrumar a mesa antes do jantar: sem ele, o "and" come o pão que o Mega Brain amassou.'
+      'Lá na frente tem um portão que abre com sol OU vento. Conselho: "and" quer os dois, "or" se contenta com um.'
     );
     if (ctx.erros >= 6) {
       falas.push(`Vi seus ${ctx.erros} erros no terminal. Aceito você no sindicato dos magos. A mensalidade é um bug por mês.`);
@@ -161,7 +162,7 @@ export function falasMagoNuvem(ctx: ContextoDialogoFase1, visita: number): Linha
     ]);
   }
   const curtas = [
-    'O portão. Sol OU vento, E a placa. Parênteses. Eu repito de graça porque não recebo.',
+    'O portão. Sol OU vento. "or". Eu repito de graça porque não recebo.',
     'Se travar, digite help no terminal. Depois de três erros ele te dá um esqueleto da resposta.',
     'Nuvem boa é nuvem sem prazo de entrega.',
   ];
@@ -187,13 +188,13 @@ export function falasPombo(ctx: ContextoDialogoFase1, visita: number): LinhaDial
       'Conselho de quem tá em greve: o Helio é repetitivo. Rajada rasteira, salto com pisão, chuva de penas. Depois ele fica tonto, e cabeça de deus tonto é pra pisar.'
     );
     falas.push(
-      'O núcleo dele só desliga se ele estiver tonto E sem escudo. Pense em "and not". Passou daquela porta, ela fecha e não tem volta. Eu estarei bem longe.'
+      'O núcleo dele só desliga SE ele estiver tonto. "Se" em Python é "if". Passou daquela porta, ela fecha e não tem volta. Eu estarei bem longe.'
     );
     return linhas(FALANTE_POMBO, falas);
   }
   const curtas = [
     'Não me atrasa, tô em greve. Mas tô com a carta no bico, então tecnicamente, trabalhando.',
-    'Tonto E sem escudo. Rajada, salto, chuva. Decora. Eu cobro por repetição.',
+    'Se ele estiver tonto: if. Rajada, salto, chuva. Decora. Eu cobro por repetição.',
     'Passou da porta, ela fecha. Eu vou pra bem longe. Questão de sindicato.',
   ];
   return linhas(FALANTE_POMBO, [curtas[(visita - 1) % curtas.length]]);
@@ -322,211 +323,84 @@ export function introHelio(ctx: ContextoDialogoFase1): LinhaDialogo[] {
 }
 
 // =============================================================================
-// OS 4 DESAFIOS LÓGICOS DA FASE 1
+// OS 5 TERMINAIS DA FASE 1: um conceito básico por totem, para quem nunca programou
+// (valor True/False, número, or, chamar função, if)
 // =============================================================================
 
-const FORMATO_UMA_LINHA =
-  'Escreva tudo numa linha só. Formato: if condição: funcao()';
+const COMO_RESPONDER = 'Digite o que vai no lugar do ___ e aperte Enter.';
 
 export const TEXTOS_TOTEM_1_ALCOOLEMIA: TextosTotemFase1 = {
-  TITULO: 'SENTINELA A-01 // TESTE DE ALCOOLEMIA',
-  PROMPT: '[E] CONECTAR AO TESTE DE ALCOOLEMIA',
-  DIALOGO_INICIAL:
-    'Ora, ora, se não é o zé programação tentando fingir que sabe codificar. Olha para aquela sentinela: a rotina de segurança dela foi escrita por um estagiário não remunerado. Ela só mantém o escudo erguido se achar que você é uma ameaça legítima. Vá ao terminal e prove que a lógica dela está completamente embriagada.',
-  VARIAVEIS_DISPONIVEIS: [
-    'alarme_ligado (booleano): indica se o alarme da sala foi disparado',
-    'jogador_armado (booleano): indica se o hacker carrega armamento físico',
-  ],
-  FUNCOES_DISPONIVEIS: [
-    'desativar_escudo(): desliga a barreira de vento intransponível do corredor',
-  ],
+  TITULO: 'SENTINELA A-01 // ESCUDO',
+  PROMPT: '[E] HACKEAR A SENTINELA',
+  DIALOGO_INICIAL: 'True = ligado. False = desligado. Desligue o escudo da sentinela.',
+  CODIGO: ['escudo = ___'],
   MENSAGENS_ERRO: [
-    'Você acabou de mandar a sentinela atirar com o dobro de força. Parabéns pelo brilhantismo, Einstein. Tente de novo antes que ela perceba que o seu código é pior que a mira dela.',
-    'Operador errado ou faltando. A sentinela quer o alarme desligado E você desarmado ao mesmo tempo. "not" e "and" são ferramentas, não enfeite.',
-    'A sentinela nem se mexeu. Ela tá olhando para a tela do seu terminal e sentindo pena de quem te ensinou lógica booleana.',
-    'Lógica booleana não é opinião: cada combinação de alarme e arma tem UMA resposta certa. A sua errou em pelo menos uma.',
-    'Cada sensor é um sim ou um não. "not" troca o sim pelo não, "and" exige dois sins. Misture na ordem certa e a sentinela deixa você passar.',
+    'O escudo continua ligado. A sentinela agradece.',
+    'Quase! Para desligar, a palavra é False.',
   ],
-  ERROS_ESPECIFICOS: {
-    INVERTIDA:
-      'Você inverteu tudo: agora a sentinela baixa o escudo justamente quando você é uma ameaça. É o tipo de lógica que faz porteiro abrir a porta pro ladrão e trancar o morador.',
-  },
-  ESQUELETO: 'if not ___ and not ___: desativar_escudo()',
-  AJUDA:
-    '=== AJUDA // TESTE DE ALCOOLEMIA ===\n' +
-    'A sentinela só baixa a guarda se você NÃO for uma ameaça.\n' +
-    'Variáveis: alarme_ligado, jogador_armado\n' +
-    'Função: desativar_escudo()\n' +
-    'Lembre-se: use operadores de negação e conjunção (not / and).\n' +
-    FORMATO_UMA_LINHA,
-  STATUS:
-    '[TELEMETRIA DA SENTINELA A-01]\n' +
-    '  - alarme_ligado: False\n' +
-    '  - jogador_armado: False\n' +
-    '  - escudo: ATIVO (Vento Impenetrável)',
+  ESQUELETO: 'escudo = Fa___',
+  AJUDA: 'Para desligar algo, use False (com F maiúsculo).\n' + COMO_RESPONDER,
+  STATUS: '[SENTINELA A-01] escudo = True (ligado)',
 };
 
 export const TEXTOS_TOTEM_2_BALANCA: TextosTotemFase1 = {
-  TITULO: 'ELEVADOR DE MÁRMORE // BALANÇA HIPÓCRITA',
-  PROMPT: '[E] AJUSTAR BALANÇA DE NUVENS',
-  DIALOGO_INICIAL:
-    'Parabéns por chegar até aqui sem cair no precipício vinte vezes — ou você já caiu e eu finjo que não vi? Esta plataforma possui três pesos. Se você colocar vento demais, vai virar purê no teto de mármore. Se colocar de menos, vai fazer companhia aos pássaros lá embaixo. Ajuste a válvula condicional de acordo com a altitude indicada na placa.',
-  VARIAVEIS_DISPONIVEIS: [
-    'altitude_atual (inteiro): altitude atual da plataforma móvel',
-    `altitude_alvo: indicada na placa comemorativa de mármore (${TOTEM_2_BALANCA.ALTITUDE_ALVO})`,
-  ],
-  FUNCOES_DISPONIVEIS: [
-    'aumentar_pressao(): impulsiona a plataforma para cima caso esteja abaixo da meta',
-    'aliviar_pressao(): reduz a pressão caso a plataforma ultrapasse o nível',
-    'estabilizar(): ancora os ímãs ao atingir a altitude correta',
-  ],
+  TITULO: 'ELEVADOR DE MÁRMORE // ALTURA',
+  PROMPT: '[E] PROGRAMAR O ELEVADOR',
+  DIALOGO_INICIAL: `O elevador sobe até a altura que você escrever. A placa diz ${TOTEM_2_BALANCA.ALTITUDE_ALVO}.`,
+  CODIGO: ['altura = ___'],
   MENSAGENS_ERRO: [
-    'A plataforma decolou direto para a estratosfera. Se a sua intenção era construir um foguete amador, parabéns. Agora calibra essa pressão direito.',
-    "Caiu feito pedra no abismo. Faltou um 'elif' ou você achou que a gravidade ia ignorar esse número ridículo?",
-    'Você estabilizou a plataforma na altura errada. Agora ela serve de mesa de centro para urubus. Leia a placa de altitude antes de chutar código, gênio.',
-    'if/elif/else é fila de guichê: o primeiro que servir atende e os outros nem levantam. Na ordem errada, atende errado.',
-    'Comparar altitude com a placa só tem três casos: abaixo, acima ou igual. Seu código cobre uns dois e meio.',
+    'O elevador parou no lugar errado. Olha a placa de novo.',
+    'Número certo, elevador feliz. Número errado, você de cara no teto.',
   ],
-  ERROS_ESPECIFICOS: {
-    NADA_ACONTECE:
-      "Tem altitude em que seu código simplesmente não faz nada. A plataforma fica parada, você fica parado, e a gravidade fica feliz. Faltou um elif ou um else.",
-    FRONTEIRA:
-      'Errou justo na altitude exata da placa. É como errar o próprio aniversário: dá pra perdoar, mas todo mundo vai lembrar.',
-  },
-  ESQUELETO: `if altitude_atual ___ ${TOTEM_2_BALANCA.ALTITUDE_ALVO}: ___() elif altitude_atual ___ ${TOTEM_2_BALANCA.ALTITUDE_ALVO}: ___() else: ___()`,
-  AJUDA:
-    '=== AJUDA // BALANÇA HIPÓCRITA ===\n' +
-    `Calibre a pressão com if/elif/else comparando altitude_atual com ${TOTEM_2_BALANCA.ALTITUDE_ALVO}.\n` +
-    'Funções: aumentar_pressao(), aliviar_pressao(), estabilizar()\n' +
-    'Tudo numa linha só, ex.: if x > 0: a() elif x < 0: b() else: c()',
-  STATUS:
-    '[TELEMETRIA DA PLATAFORMA MÓVEL]\n' +
-    '  - altitude_atual: 540\n' +
-    `  - altitude_alvo (placa): ${TOTEM_2_BALANCA.ALTITUDE_ALVO}\n` +
-    '  - estado: DESALINHADO',
+  ESQUELETO: `altura = ${String(TOTEM_2_BALANCA.ALTITUDE_ALVO).slice(0, 2)}_`,
+  AJUDA: `Escreva o número da placa: ${TOTEM_2_BALANCA.ALTITUDE_ALVO}. Número vai sem aspas.\n` + COMO_RESPONDER,
+  STATUS: `[ELEVADOR] altura da placa: ${TOTEM_2_BALANCA.ALTITUDE_ALVO}`,
 };
 
 export const TEXTOS_TOTEM_3_PORTAO: TextosTotemFase1 = {
-  TITULO: 'PORTÃO MILENAR // CRISE EXISTENCIAL',
-  PROMPT: '[E] CONECTAR AO PORTÃO MILENAR',
-  DIALOGO_INICIAL:
-    'Olha pra cima do portão: um cristal solar e uma turbina de vento. Olha pro chão: uma placa rúnica. A regra do arquiteto é simples: o portão precisa de ENERGIA, que pode vir do cristal OU da turbina (qualquer um serve), E de alguém pisando na placa. Ele escreveu isso sem parênteses, e o portão nunca mais abriu. Conserta essa lógica antes que eu morra de tédio.',
-  VARIAVEIS_DISPONIVEIS: [
-    'energia_sol (booleano): o cristal solar acima do portão está carregado',
-    'energia_vento (booleano): a turbina ao lado do portão está girando',
-    'placa_pressionada (booleano): tem alguém em pé na placa rúnica do chão',
-  ],
-  FUNCOES_DISPONIVEIS: [
-    'abrir_portao(): recolhe as trancas pesadas de mármore do portal',
-  ],
+  TITULO: 'PORTÃO MILENAR // ENERGIA',
+  PROMPT: '[E] CONECTAR AO PORTÃO',
+  DIALOGO_INICIAL: 'O portão abre com sol OU com vento (basta um). Use and (os dois) ou or (qualquer um).',
+  CODIGO: ['abrir = sol ___ vento'],
   MENSAGENS_ERRO: [
-    'Faltaram os parênteses e a porta tentou explodir em vez de abrir. Volte para as aulas de matemática básica do ensino fundamental, por favor.',
-    'Esqueceu de checar a placa de pressão no chão? Achar que só acender a luz resolvia a vida é puro privilégio de protagonista.',
-    'A porta analisou sua expressão booleana e entrou em crise existencial. Ela só quer que você agrupe as condições direito.',
-    'O "and" é mais mandão que o "or", igual multiplicação com soma. Sem parênteses, a conta sai do jeito que ele quer, não do seu.',
-    'Sol OU vento serve qualquer um. A placa, não: ela é obrigatória. "ou" e "e" não são sinônimos, apesar do que o seu professor de português sugeriu.',
+    'Com "and" o portão quer os dois juntos. Hoje só tem sol.',
+    'O portão analisou sua escolha e entrou em crise existencial.',
   ],
-  ERROS_ESPECIFICOS: {
-    PRECEDENCIA:
-      'Faltaram os parênteses e a porta tentou explodir em vez de abrir. Volte para as aulas de matemática básica do ensino fundamental, por favor.',
-    INVERTIDA:
-      'Parabéns, você criou um portão que só abre quando não devia. Isso não é segurança, é pegadinha de programa de auditório.',
-  },
-  ESQUELETO: 'if (___ or ___) and ___: abrir_portao()',
-  AJUDA:
-    '=== AJUDA // PORTÃO MILENAR ===\n' +
-    'O portão requer luz solar OU vento, E a placa física pressionada.\n' +
-    'Sem parênteses (energia_sol or energia_vento), a precedência falhará!\n' +
-    FORMATO_UMA_LINHA,
-  STATUS:
-    '[TELEMETRIA // PORTÃO MILENAR]\n' +
-    '  - energia_sol: True (cristal carregado)\n' +
-    '  - energia_vento: False (turbina parada)\n' +
-    '  - placa_pressionada: True quando alguém pisa na placa do chão\n' +
-    '  - regra: energia (do sol OU do vento) E placa pressionada\n' +
-    '  - trancas: BLOQUEADAS',
+  ESQUELETO: 'abrir = sol o_ vento',
+  AJUDA: 'and = precisa dos dois.  or = qualquer um serve.\n' + COMO_RESPONDER,
+  STATUS: '[PORTÃO] sol = True | vento = False',
 };
 
-const S = TOTEM_4_SEQUENCIADOR;
-
 export const TEXTOS_TOTEM_4_SEQUENCIADOR: TextosTotemFase1 = {
-  TITULO: 'GERADOR TRIPLO // SEQUENCIADOR DE RAJADAS',
-  PROMPT: '[E] SINCRONIZAR ESCADA DE RAJADAS',
-  PROMPT_RESOLVIDO: '[E] RECALIBRAR ESCADA DE RAJADAS',
-  DIALOGO_INICIAL:
-    'Você realmente achou que o jogo ia deixar você passar só segurando o direcional para a frente? Isto não é um simulador de caminhada. Você tem três geradores de vento. Se dispararem juntos, eles entram em curto e você despenca. Defina a ordem, o intervalo e o impulso. E não me venha com números mágicos tirados da sua imaginação.',
-  VARIAVEIS_DISPONIVEIS: [
-    `ordem (texto, entre aspas): padrão rítmico do fluxo ("${S.ORDEM_CORRETA}")`,
-    `intervalo (número): segundos de cada coluna, entre ${S.INTERVALO_MIN} e ${S.INTERVALO_MAX}`,
-    `forca (número): empuxo vertical em pixels, entre ${S.FORCA_MIN} e ${S.FORCA_MAX}`,
-  ],
-  FUNCOES_DISPONIVEIS: [
-    'sincronizar_rajadas(ordem, intervalo, forca): calibra os canais de ar em onda contínua',
-  ],
+  TITULO: 'GERADOR TRIPLO // TURBINAS',
+  PROMPT: '[E] LIGAR AS TURBINAS',
+  PROMPT_RESOLVIDO: '[E] RELIGAR AS TURBINAS',
+  DIALOGO_INICIAL: 'Funções fazem coisas. Esta liga turbinas: diga quantas dentro dos parênteses. São 3.',
+  CODIGO: ['ligar_turbinas(___)'],
   MENSAGENS_ERRO: [
-    'Intervalo curto demais! Nem o Sonic com overclock conseguiria pular de uma nuvem para a outra nesse ritmo. Dá um respiro entre as rajadas.',
-    'Força insuficiente. O vento gerado não move nem folha seca, quem dirá seu personagem. Aumente essa potência.',
-    'Todas as turbinas ligaram juntas e queimaram a fiação celeste. É uma sequência crescente, não um show de fogos de artifício.',
-    'Função com parâmetros é pedir pizza: sabor, tamanho e endereço. Faltou um, e a pizza que chegou foi uma queda.',
-    'São três geradores e uma ordem. Eles não são DJs, não fazem improviso.',
+    'Faltou turbina. A escada ficou sem degrau e você sem chão.',
+    'Conta de novo: são 3 turbinas.',
   ],
-  ERROS_ESPECIFICOS: {
-    ORDEM:
-      'Todas as turbinas ligaram juntas e queimaram a fiação celeste. É uma sequência crescente, não um show de fogos de artifício.',
-    INTERVALO_CURTO:
-      'Intervalo curto demais! Nem o Sonic com overclock conseguiria pular de uma nuvem para a outra nesse ritmo. Dá um respiro entre as rajadas.',
-    INTERVALO_LONGO:
-      'Intervalo longo demais. Cada coluna demora tanto que você vira estátua no ar esperando a próxima. E estátua não voa.',
-    FORCA_BAIXA:
-      'Força insuficiente. O vento gerado não move nem folha seca, quem dirá seu personagem. Aumente essa potência.',
-    FORCA_ALTA:
-      'Força demais! O vento ia te arremessar pra fora do HUD e você viraria satélite. Calma, Thor.',
-  },
-  ESQUELETO: 'sincronizar_rajadas("___", ___, ___)',
-  AJUDA:
-    '=== AJUDA // SEQUENCIADOR DE RAJADAS ===\n' +
-    'Função: sincronizar_rajadas(ordem, intervalo, forca)\n' +
-    `ordem: "${S.ORDEM_CORRETA}" | intervalo: ${S.INTERVALO_MIN} a ${S.INTERVALO_MAX} | forca: ${S.FORCA_MIN} a ${S.FORCA_MAX}\n` +
-    'Texto vai entre aspas e número decimal usa ponto (1.5).',
-  STATUS:
-    '[TELEMETRIA // GERADOR TRIPLO]\n' +
-    '  - turbinas: 3 canais em espera\n' +
-    `  - ordem exigida: "${S.ORDEM_CORRETA}"\n` +
-    `  - janela de intervalo: ${S.INTERVALO_MIN}s - ${S.INTERVALO_MAX}s | empuxo: ${S.FORCA_MIN}px - ${S.FORCA_MAX}px`,
+  ESQUELETO: 'ligar_turbinas(_)  ← o número de turbinas',
+  AJUDA: 'Coloque o número de turbinas (3) dentro dos parênteses.\n' + COMO_RESPONDER,
+  STATUS: '[GERADOR] turbinas: 3 (desligadas)',
 };
 
 export const TEXTOS_TOTEM_5_HELIO: TextosTotemFase1 = {
   TITULO: 'HELIO // NÚCLEO DOS VENTOS',
   PROMPT: '[E] ACESSAR O NÚCLEO DO HELIO',
-  DIALOGO_INICIAL:
-    'O núcleo do Helio só aceita o comando de desligar se ele estiver atordoado E sem o escudo de vento reserva. Errar aqui não ressuscita o deus do vento. Mas a vergonha fica salva no seu histórico.',
-  VARIAVEIS_DISPONIVEIS: [
-    'helio.atordoado (booleano): o Helio está tonto depois da surra',
-    'helio.escudo (booleano): o escudo de vento reserva está ligado',
-  ],
-  FUNCOES_DISPONIVEIS: ['desligar(): corta a energia do núcleo dos ventos'],
+  DIALOGO_INICIAL: 'if quer dizer "se". Desligue o Helio SE ele estiver tonto. O sensor é helio_tonto.',
+  CODIGO: ['if ___: desligar()'],
   MENSAGENS_ERRO: [
-    'O núcleo leu sua condição e riu. Riu alto. Os ventos riram junto.',
-    'Quase. Quase é a palavra favorita de quem perde pro chefão no último segundo.',
-    'Você revisou a fase inteira até aqui pra errar justo o and? Poético.',
-    'Tonto e sem escudo são dois fatos, e o "and" exige os dois. "not" fica de plantão no escudo.',
+    'O núcleo leu sua condição e riu. Os ventos riram junto.',
+    'Quase! A condição é o sensor: helio_tonto.',
   ],
   ERROS_ESPECIFICOS: {
-    INVERTIDA:
-      'Você desligaria o Helio só quando ele estivesse acordado e blindado. Ousado. Suicida, mas ousado.',
+    INVERTIDA: 'Você desligaria o Helio só quando ele NÃO estivesse tonto. Ousado.',
   },
-  ESQUELETO: 'if helio.___ and not helio.___: desligar()',
-  AJUDA:
-    '=== AJUDA // NÚCLEO DO HELIO ===\n' +
-    'Desligue somente se ele estiver atordoado E sem escudo.\n' +
-    'Variáveis: helio.atordoado, helio.escudo\n' +
-    'Função: desligar()\n' +
-    FORMATO_UMA_LINHA,
-  STATUS:
-    '[TELEMETRIA // NÚCLEO DO HELIO]\n' +
-    '  - helio.atordoado: True\n' +
-    '  - helio.escudo: False\n' +
-    '  - ventos: INSTÁVEIS',
+  ESQUELETO: 'if helio_t____: desligar()',
+  AJUDA: 'Depois do if vem a condição: o sensor helio_tonto.\n' + COMO_RESPONDER,
+  STATUS: '[NÚCLEO] helio_tonto = True',
 };
 
 // =============================================================================
@@ -604,11 +478,11 @@ export const TEXTOS_TERMINAL_FASE1 = {
   STATUS_GERAL: '[STATUS] Totem operacional.',
   CHAVE_MESTRA: '[CHAVE MESTRA ACEITA] Modo de teste: totem resolvido sem validar o código.',
   PREFIXO_DICA: '[DICA]',
-  ESQUELETO_LIBERADO: '[ESQUELETO DE EMERGÊNCIA] Preencha as lacunas:',
+  ESQUELETO_LIBERADO: '[ESQUELETO DE EMERGÊNCIA] A resposta começa assim:',
   ESQUELETO_BLOQUEADO:
-    'Errando muito? Depois de 3 tentativas este help libera um esqueleto da resposta. Não que eu esteja torcendo.',
+    `Errando muito? Depois de ${ERROS_PARA_ESQUELETO} tentativas este help mostra o começo da resposta. Não que eu esteja torcendo.`,
   AVISO_ESQUELETO:
-    '[AVISO] 3 erros neste totem. Digite help: agora ele mostra um esqueleto da resposta.',
+    `[AVISO] ${ERROS_PARA_ESQUELETO} erros neste totem. Digite help: agora ele mostra o começo da resposta.`,
   FAIXA_SIMULACAO: 'SIMULAÇÃO // OLHA O QUE OS SEUS NÚMEROS FAZEM COM A ESCADA',
   SIMULACAO_ENCERRADA:
     '[SIMULAÇÃO ENCERRADA] Viu o estrago? Com esses valores a escada não te leva a lugar nenhum. Ajuste e tente de novo.',

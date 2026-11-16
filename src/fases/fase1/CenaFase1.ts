@@ -597,23 +597,17 @@ export class CenaFase1 extends CenaBase {
   }
 
   /**
-   * Enunciado do totem: fala de abertura, sensores e funções disponíveis.
+   * Enunciado do totem, curto para quem nunca programou: uma frase e o código com a lacuna.
    */
   private linhasEnunciado(totem: TotemFase1): string[] {
-    const { TITULO, DIALOGO_INICIAL, VARIAVEIS_DISPONIVEIS, FUNCOES_DISPONIVEIS } = totem.textos;
+    // O título já aparece na barra do terminal
+    const { DIALOGO_INICIAL, CODIGO } = totem.textos;
     return [
-      `=== ${TITULO} ===`,
+      DIALOGO_INICIAL,
       '',
-      `"${DIALOGO_INICIAL}"`,
+      ...CODIGO.map((linha) => `    ${linha}`),
       '',
-      '-------------------------------------------------------',
-      'SENSORES / VARIÁVEIS DISPONÍVEIS:',
-      ...VARIAVEIS_DISPONIVEIS.map((v) => `  > ${v}`),
-      '',
-      'FUNÇÕES DISPONÍVEIS:',
-      ...FUNCOES_DISPONIVEIS.map((f) => `  > ${f}`),
-      '-------------------------------------------------------',
-      '> Digite sua lógica em Python:',
+      '> Troque o ___ e aperte Enter. (help = ajuda)',
     ];
   }
 

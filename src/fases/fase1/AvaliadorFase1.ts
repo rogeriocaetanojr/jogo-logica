@@ -115,6 +115,14 @@ export function avaliarExpressao(expressao: Expressao, ler: (nome: string) => Va
  * Atribuições criam variáveis locais, que têm prioridade na leitura.
  */
 export function executarPrograma(programa: Instrucao[], ambiente: Ambiente): ChamadaRegistrada[] {
+  return executarComVariaveis(programa, ambiente).chamadas;
+}
+
+/** Executa e devolve também o valor final das variáveis criadas pelo programa (ex.: escudo = False). */
+export function executarComVariaveis(
+  programa: Instrucao[],
+  ambiente: Ambiente
+): { chamadas: ChamadaRegistrada[]; variaveis: Ambiente } {
   const locais: Ambiente = {};
   const chamadas: ChamadaRegistrada[] = [];
 
@@ -155,7 +163,7 @@ export function executarPrograma(programa: Instrucao[], ambiente: Ambiente): Cha
   };
 
   executar(programa);
-  return chamadas;
+  return { chamadas, variaveis: locais };
 }
 
 // =============================================================================
