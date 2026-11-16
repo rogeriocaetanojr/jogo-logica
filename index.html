@@ -1,54 +1,59 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>MegaBrain - a pior Ia</title>
-    <link rel="icon" href='/public/assets/favicon/favicon.ico' sizes="any">
-    <link rel="icon" type="image/png" sizes="32x32" href="/public/assets/favicon/favicon-32x32.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="/public/assets/favicon/favicon-16x16.png">
-    <link rel="apple-touch-icon" sizes="180x180" href="/public/assets/favicon/apple-touch-icon.png">
-    <link rel="manifest" href="/public/assets/favicon/site.webmanifest">
-    <style>
-      html, body { margin: 0; background: #000; }
-      .hidden { display: none !important; }
-    </style>
-  </head>
-  <body>
-    <div id="game-container">
-      <div id="terminal-overlay" class="hidden">
-        <div class="terminal-header">
-          <span class="terminal-title">SISTEMA OPERACIONAL OG // TERMINAL V1.0</span>
-          <span class="terminal-status">[CONEXAO ATIVA]</span>
-        </div>
-        <div id="terminal-output">
-          <div class="log-line info">&gt; Terminal iniciado com sucesso.</div>
-          <div class="log-line info">&gt; Digite 'help' para listar os comandos disponiveis.</div>
-        </div>
-        <div class="terminal-input-row">
-          <span class="prompt">&gt;</span>
-          <input
-            id="terminal-input"
-            type="text"
-            autocomplete="off"
-            spellcheck="false"
-            placeholder="Digite um comando..."
-          />
-        </div>
-      </div>
 
-      <div id="dialog-overlay" class="hidden">
-        <div id="dialog-avatar">
-          <span class="avatar-line">[ T-0 ]</span>
-          <span class="avatar-line">[ REC ]</span>
-        </div>
-        <div class="dialog-content">
-          <div id="dialog-speaker">&gt; CANAL REBELDE // INTERCEPTAÇÃO: ESTAGIÁRIO_V0.9b</div>
-          <div id="dialog-text"></div>
-          <div class="dialog-prompt">[ESPAÇO / ENTER]</div>
-        </div>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Brain Rebase</title>
+  <link rel="icon" href='/public/assets/favicon/favicon.ico' sizes="any">
+  <link rel="icon" type="image/png" sizes="32x32" href="/public/assets/favicon/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/public/assets/favicon/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/public/assets/favicon/apple-touch-icon.png">
+  <link rel="manifest" href="/public/assets/favicon/site.webmanifest">
+  <style>
+    html,
+    body {
+      margin: 0;
+      background: #000;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="game-container">
+    <div id="terminal-overlay" class="hidden">
+      <div class="terminal-header">
+        <span class="terminal-title">SISTEMA OPERACIONAL OG // TERMINAL V1.0</span>
+        <span class="terminal-status">[CONEXAO ATIVA]</span>
+      </div>
+      <div id="terminal-output">
+        <div class="log-line info">&gt; Terminal iniciado com sucesso.</div>
+        <div class="log-line info">&gt; Digite 'help' para listar os comandos disponiveis.</div>
+      </div>
+      <div class="terminal-input-row">
+        <span class="prompt">&gt;</span>
+        <input id="terminal-input" type="text" autocomplete="off" spellcheck="false"
+          placeholder="Digite um comando..." />
       </div>
     </div>
-    <script type="module" src="/src/main.ts"></script>
-  </body>
+
+    <div id="dialog-overlay" class="hidden">
+      <div id="dialog-avatar">
+        <span class="avatar-line">[ T-0 ]</span>
+        <span class="avatar-line">[ REC ]</span>
+      </div>
+      <div class="dialog-content">
+        <div id="dialog-speaker">&gt; CANAL REBELDE // INTERCEPTAÇÃO: ESTAGIÁRIO_V0.9b</div>
+        <div id="dialog-text"></div>
+        <div class="dialog-prompt">[ESPAÇO / ENTER]</div>
+      </div>
+    </div>
+  </div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+
 </html>
