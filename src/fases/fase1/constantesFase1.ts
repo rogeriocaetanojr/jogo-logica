@@ -406,9 +406,10 @@ export const TOTEM_4_SEQUENCIADOR = {
   // gerador no chão, na ponta direita da sala, e leva o jogador por cima do pilar seguinte.
   // Do chão (420) o pulo chega a 220 e não passa o pilar; planando do alto de uma coluna o jogador
   // perde 54 px de altura em ~150 px, e as salas têm 300 px: a ordem 1 → 2 → 3 é obrigatória.
+  // As salas 2 e 3 não têm chão: os geradores flutuam e quem chega sem a coluna ligada cai.
   COLUNA_ESCADA_1: { x: 9058, y: 275, largura: 80, altura: 290, forca: 450, ativa: false },
-  COLUNA_ESCADA_2: { x: 9398, y: 275, largura: 80, altura: 290, forca: 450, ativa: false },
-  COLUNA_ESCADA_3: { x: 9738, y: 260, largura: 80, altura: 320, forca: 450, ativa: false },
+  COLUNA_ESCADA_2: { x: 9398, y: 275, largura: 80, altura: 290, forca: 450, ativa: false, flutuante: true },
+  COLUNA_ESCADA_3: { x: 9738, y: 260, largura: 80, altura: 320, forca: 450, ativa: false, flutuante: true },
 } as const;
 
 export const TOTEM_5_HELIO = {
@@ -598,7 +599,7 @@ export const BLOCO_2_LEVEL_DESIGN = {
 /**
  * BLOCO 3: Ruínas e Desafios 3 e 4 (x 5728 → 9228).
  * Cânion com gêiser, plataforma em trilho sob a sentinela de pulso,
- * o portão milenar, a escada de rajadas e a sentinela de alerta máximo no topo.
+ * o portão milenar e a escada de rajadas (salas 2 e 3 sem chão).
  */
 export const BLOCO_3_LEVEL_DESIGN = {
   PLATAFORMAS: [
@@ -606,8 +607,7 @@ export const BLOCO_3_LEVEL_DESIGN = {
     { x: 6858, y: 318, scaleX: 1, scaleY: 1 }, // Platô do Mago, topo 300: só pelo gêiser
     { x: 7804, y: 438, scaleX: 1.72, scaleY: 1 }, // Platô do portão (CP3), topo 420
     { x: 8979, y: 438, scaleX: 0.99, scaleY: 1 }, // Platô do Totem 4 (CP4), topo 420
-    { x: 9288, y: 438, scaleX: 1.25, scaleY: 1 }, // Sala 2 da escada, topo 420
-    { x: 9628, y: 438, scaleX: 1.25, scaleY: 1 }, // Sala 3 da escada, topo 420
+    // Salas 2 e 3 da escada sem chão: perdeu o tempo da coluna, cai no abismo e volta ao CP4
     { x: 10078, y: 148, scaleX: 2.5, scaleY: 1 }, // Topo da escada (CP5), topo 130: só pela coluna 3
   ],
   GEISERES: [
@@ -644,8 +644,6 @@ export const BLOCO_3_LEVEL_DESIGN = {
   SENTINELAS: [
     // S-02: patrulha sobre o trilho, solta pulso eólico e sopra quem ela vê
     { x: 7078, y: 180, minX: 7078, maxX: 7438, velocidade: 80, podeDispararPulso: true, deteccao: 'rajada' },
-    // S-03: alerta máximo no topo da escada; quem for visto volta ao checkpoint
-    { x: 10088, y: 60, minX: 10088, maxX: 10408, velocidade: 104, podeDispararPulso: false, deteccao: 'respawn' },
   ],
   DECORACAO: [
     { x: 7990, y: 342, scaleX: 0.8, scaleY: 0.6, tipo: 'obelisco' }, // Obelisco do CP3

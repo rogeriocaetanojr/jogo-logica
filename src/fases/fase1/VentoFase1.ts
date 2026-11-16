@@ -42,6 +42,11 @@ interface GeradorEscada {
 
 const ESPESSURA_LAJE = 36; // Plataformas de mármore com scaleY 1
 const ALTURA_CARCACA = 52;
+
+/** Gerador sobre laje de mármore ou solto no ar (carcaça logo abaixo da grade). */
+function espessuraLaje(coluna: { flutuante?: boolean }): number {
+  return coluna.flutuante ? 4 : ESPESSURA_LAJE;
+}
 const GIRO_LIGADO = 0.9; // graus por ms
 const GIRO_DESLIGADO = 0.04;
 
@@ -212,7 +217,7 @@ export class VentoFase1 {
 
     for (const coluna of colunas) {
       const piso = coluna.y + coluna.altura / 2;
-      const centroCarcaca = piso + ESPESSURA_LAJE + ALTURA_CARCACA / 2;
+      const centroCarcaca = piso + espessuraLaje(coluna) + ALTURA_CARCACA / 2;
 
       this.cena.add.image(coluna.x, centroCarcaca, 'gerador-vento').setDepth(VENTO_FASE1.PROFUNDIDADE_GRAFICO);
       const helice = this.cena.add.image(coluna.x, centroCarcaca + 2, 'helice-gerador');
@@ -339,7 +344,7 @@ export class VentoFase1 {
       // Luz de estado na carcaça, com halo
       const corLuz = ligado ? C.HACKEADO : C.ALERTA;
       const luzX = coluna.x + 36;
-      const luzY = piso + ESPESSURA_LAJE + 10;
+      const luzY = piso + espessuraLaje(coluna) + 10;
       grafico.fillStyle(corLuz, 0.3);
       grafico.fillCircle(luzX, luzY, 7);
       grafico.fillStyle(corLuz, 1);

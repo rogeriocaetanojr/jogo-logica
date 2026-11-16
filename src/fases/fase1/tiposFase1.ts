@@ -41,6 +41,8 @@ export interface ColunaVento {
   altura: number;
   forca: number;
   ativa: boolean;
+  /** Escada: gerador solto no ar, sem laje de mármore embaixo (carcaça colada na grade). */
+  flutuante?: boolean;
   grafico: Phaser.GameObjects.Graphics;
   particulas: ParticulaVento[];
 }
@@ -104,6 +106,8 @@ export interface ConfigColunaVento {
   altura: number;
   forca: number;
   ativa: boolean;
+  /** Escada: gerador solto no ar, sem laje embaixo. */
+  flutuante?: boolean;
 }
 
 /**

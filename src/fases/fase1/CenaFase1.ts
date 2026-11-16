@@ -817,7 +817,7 @@ export class CenaFase1 extends CenaBase {
     this.cameras.main.zoomTo(FEEL_FASE1.ZOOM_INTRO, FEEL_FASE1.ZOOM_INTRO_MS, 'Sine.easeInOut');
     this.travarCameraArena(true);
 
-    // As sentinelas que ficaram para trás saem de serviço (o cone da S-03 invadia o canto da arena)
+    // As sentinelas que ficaram para trás saem de serviço ao entrar na arena
     for (const s of this.nivel.sentinelas) {
       s.desativar();
     }
