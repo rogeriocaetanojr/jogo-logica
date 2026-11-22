@@ -191,8 +191,10 @@ export class Area4Deposito extends AreaPorto {
       this.chefe = new Borrachao(cena, 300, PISO_ARENA, 120, 1160, () => this.aoDerrotarChefe());
     }
     cena.gatilho(0, 1280, () => this.iniciarLuta(), 0, PISO_ARENA - 60);
+    // A porta só gasta o gatilho depois do chefe derrotado: encostar nela durante a luta não pode travá-la
     cena.gatilho(1150, 1280, () => {
-      if (cena.estado.minibossDerrotado) cena.concluirArea();
+      if (!cena.estado.minibossDerrotado) return false;
+      cena.concluirArea();
     }, 0, PISO_ARENA);
 
     for (let n = 1; n <= 8; n++) {

@@ -126,7 +126,7 @@ export class Area1Portaria extends AreaPorto {
     cena.imagem('pb-a1-portao', 4900, CHAO, PROF.estruturas).setFrame(1);
     cena.gatilho(4600, 4700, () => cena.falar(FALAS.fimPortaria, undefined, 'a1-fim'));
     cena.gatilho(4980, 5200, () => {
-      if (!cena.estado.temExtintor) return;
+      if (!cena.estado.temExtintor) return false;
       cena.concluirArea();
     });
   }

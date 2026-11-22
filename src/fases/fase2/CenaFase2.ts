@@ -59,7 +59,8 @@ interface Gatilho {
   y0: number;
   y1: number;
   feito: boolean;
-  acao: () => void;
+  /** Retornar `false` mantém o gatilho armado (ex.: porta que só abre depois de uma condição). */
+  acao: () => void | boolean;
 }
 
 interface Coletavel {
@@ -415,7 +416,7 @@ export class CenaFase2 extends CenaBase {
     this.interativos.push({ x, y, raio, rotulo, acao, ativo });
   }
 
-  gatilho(x0: number, x1: number, acao: () => void, y0 = -10000, y1 = 10000): void {
+  gatilho(x0: number, x1: number, acao: () => void | boolean, y0 = -10000, y1 = 10000): void {
     this.gatilhos.push({ x0, x1, y0, y1, feito: false, acao });
   }
 
@@ -748,7 +749,7 @@ export class CenaFase2 extends CenaBase {
     for (const g of this.gatilhos) {
       if (!g.feito && j.x >= g.x0 && j.x <= g.x1 && j.y >= g.y0 && j.y <= g.y1) {
         g.feito = true;
-        g.acao();
+        if (g.acao() === false) g.feito = false;
         if (this.comunicador.estaAtivo || this.terminal.estaAberto) break;
       }
     }
