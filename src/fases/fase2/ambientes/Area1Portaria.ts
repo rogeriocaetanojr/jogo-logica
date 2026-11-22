@@ -121,8 +121,8 @@ export class Area1Portaria extends AreaPorto {
     }
     cena.criarKit(3050, 560);
 
-    // Portão para o Pátio das Pilhas
-    texturaPortao(cena, 'pb-a1-portao', 'PATIO DAS PILHAS');
+    // Portão para o Cais da Fila
+    texturaPortao(cena, 'pb-a1-portao', 'CAIS DA FILA');
     cena.imagem('pb-a1-portao', 4900, CHAO, PROF.estruturas).setFrame(1);
     cena.gatilho(4600, 4700, () => cena.falar(FALAS.fimPortaria, undefined, 'a1-fim'));
     cena.gatilho(4980, 5200, () => {

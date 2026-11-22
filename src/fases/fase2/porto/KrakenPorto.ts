@@ -338,7 +338,8 @@ export class Kraken {
   private sofrer(dano: number): void {
     if (this.derrotado) return;
     const limite = this.etapa === 1 ? 60 : this.etapa === 2 ? 30 : 0;
-    this.vida = Math.max(limite, this.vida - dano);
+    // Modo mais fácil: cada acerto tira 50% a mais (as etapas continuam travando em 60% e 30%)
+    this.vida = Math.max(limite, this.vida - Math.ceil(dano * 1.5));
     this.cena.hud.atualizarChefe(this.vida);
     this.cabeca.setTint(0xffffff).setTintMode(Phaser.TintModes.FILL);
     this.cena.time.delayedCall(80, () => this.cabeca.clearTint().setTintMode(Phaser.TintModes.MULTIPLY));

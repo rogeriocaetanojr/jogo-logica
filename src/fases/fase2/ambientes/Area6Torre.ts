@@ -6,7 +6,7 @@ import { FALAS } from '../porto/DialogosPorto';
 import { PROF } from '../porto/EfeitosPorto';
 import { Kraken, gerarTexturasKraken, texturaRotuloIndice } from '../porto/KrakenPorto';
 import type { TomadaArena } from '../porto/KrakenPorto';
-import { TOTAL_FOCOS, indiceFumaca } from '../porto/TiposPorto';
+import { TOTAL_FOCOS, TOTAL_GRAVACOES, indiceFumaca } from '../porto/TiposPorto';
 import { AreaPorto } from './AreaBase';
 
 const PISO_CENTRO = 520;
@@ -347,9 +347,9 @@ export class Area6Torre extends AreaPorto {
       '',
       `Servidor central: DESCONECTADO`,
       `Focos apagados: ${e.focosApagados.length}/${TOTAL_FOCOS}   ·   Índice de Fumaça final: ${indiceFumaca(e)}%`,
-      `Gravações do PORTUS: ${e.gravacoes.length}/5   ·   Lacres: ${e.lacres}`,
+      `Gravações do PORTUS: ${e.gravacoes.length}/${TOTAL_GRAVACOES}   ·   Lacres: ${e.lacres}`,
       '',
-      'Conceitos dominados: PILHA · FILA · VETORES E ÍNDICES · ORDENAÇÃO',
+      'Conceitos dominados: FILA · PILHA · VETORES E ÍNDICES',
       '',
       '[ENTER] VOLTAR AO HUB',
     ];

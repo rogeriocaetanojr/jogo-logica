@@ -228,7 +228,7 @@ export const ITENS_LOJA: ItemLoja[] = [
     preco: 2,
     descricao: 'enche o tanque do Canhão de Espuma',
     aplicar: (e) => {
-      if (!e.temCanhao) return 'Você nem tem canhão ainda, chefia. Volta depois do Pátio das Pilhas.';
+      if (!e.temCanhao) return 'Você nem tem canhão ainda, chefia. Volta quando tiver um.';
       if (e.espuma >= ESPUMA_MAXIMA) return 'Seu tanque já está cheio.';
       e.espuma = ESPUMA_MAXIMA;
       return null;

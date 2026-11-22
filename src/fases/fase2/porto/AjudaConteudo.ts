@@ -40,7 +40,7 @@ export const AJUDA: SecaoAjuda[] = [
     id: 'controles',
     titulo: 'Controles e tela',
     aba: 'Controles',
-    conceito: 'Apague focos de incêndio, vença os vírus e use o terminal dos painéis amarelos e azuis para resolver os 4 desafios.',
+    conceito: 'Apague focos de incêndio, vença os vírus e use o terminal dos painéis amarelos e azuis para resolver os desafios.',
     itens: [
       { codigo: 'A / D  ou  setas', explicacao: 'andar para os lados' },
       { codigo: 'W, Espaço ou ↑', explicacao: 'pular' },
@@ -55,13 +55,13 @@ export const AJUDA: SecaoAjuda[] = [
       { codigo: 'Espaço ou Enter', explicacao: 'avançar as falas' },
     ],
     cuidados: [
-      'Índice de Fumaça: cada foco apagado tira 5%. A marca verde na barra mostra o menor valor possível, 40%, com os 12 focos apagados.',
-      'O progresso é salvo a cada área. Ao voltar, aperte N nos primeiros segundos para recomeçar do início.',
+      'Índice de Fumaça: cada foco apagado baixa a fumaça. A marca verde na barra mostra o menor valor possível, 40%, com todos os focos apagados.',
+      'Cada vez que você entra na fase, ela começa do início, na Portaria.',
     ],
   },
   {
     id: 'pilha',
-    titulo: 'Desafio 1: Pilha',
+    titulo: 'Desafio: Pilha',
     aba: 'Pilha',
     conceito: 'Pilha de pratos: só se mexe no de CIMA. Objetivo: pegar o contêiner ESP, embaixo na pilhaA.',
     itens: [
@@ -78,7 +78,7 @@ export const AJUDA: SecaoAjuda[] = [
   },
   {
     id: 'fila',
-    titulo: 'Desafio 2: Fila',
+    titulo: 'Desafio: Fila',
     aba: 'Fila',
     conceito: 'Fila do caixa: quem chega primeiro sai primeiro. Objetivo: fazer o REBOCADOR (o último) atracar.',
     itens: [
@@ -93,7 +93,7 @@ export const AJUDA: SecaoAjuda[] = [
   },
   {
     id: 'vetor',
-    titulo: 'Desafio 3: Vetores e índices',
+    titulo: 'Desafio: Vetores e índices',
     aba: 'Vetores',
     conceito: 'Posições numeradas que começam no ZERO: valvula[0] a valvula[7]. Objetivo: abrir as válvulas das prateleiras em chamas (placa menos 1).',
     itens: [
@@ -110,7 +110,7 @@ export const AJUDA: SecaoAjuda[] = [
   },
   {
     id: 'ordenacao',
-    titulo: 'Desafio 4: Ordenação',
+    titulo: 'Desafio: Ordenação',
     aba: 'Ordenação',
     conceito: 'Se a carreta da esquerda for maior que a vizinha, troque as duas. Objetivo: deixar todas em ordem crescente.',
     itens: [

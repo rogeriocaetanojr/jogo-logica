@@ -174,7 +174,7 @@ export class Area3Cais extends AreaPorto {
     cena.solido(4480, PIER - 40, 240, 24);
     const console2 = cena.add.sprite(4640, PIER - 40, 'pb-console-azul', 0).setOrigin(0.5, 1).setScale(ESCALA).setDepth(PROF.npcs);
     console2.play('pb-anim-console-azul');
-    cena.interativo(4640, PIER - 90, '[E] PORTÃO DO CAIS (DESAFIO 2)', () => this.abrirPainel(), () => !cena.estado.desafios[1]);
+    cena.interativo(4640, PIER - 90, '[E] PORTÃO DO CAIS (DESAFIO)', () => this.abrirPainel(), () => !cena.estado.desafios[1]);
     cena.criarHidrante(4520, PIER - 40);
     cena.gatilho(4470, 4730, () => {
       cena.registrarCheckpoint(4560, PIER - 90, 'CHECKPOINT: TORRE DO PORTÃO');
@@ -306,7 +306,7 @@ export class Area3Cais extends AreaPorto {
   /* ---------------- Desafio 2 ---------------- */
 
   private abrirPainel(): void {
-    this.cena.abrirDesafio('fila', this.modelo, 'PORTÃO DO CAIS // CAIS DA FILA // DESAFIO 2: FILA', [
+    this.cena.abrirDesafio('fila', this.modelo, 'PORTÃO DO CAIS // CAIS DA FILA // DESAFIO: FILA', [
       'Só o navio da FRENTE atraca. Quem chega entra no FIM.',
     ]);
   }

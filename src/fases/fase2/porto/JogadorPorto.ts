@@ -266,7 +266,8 @@ export class JogadorPorto {
   /** Aplica dano com recuo e invulnerabilidade temporária. Retorna true se o dano foi aplicado. */
   receberDano(quantidade: number, origemX: number, recuo = 280): boolean {
     if (this.morto || this.invulneravel || this.cena.time.now < 0) return false;
-    this.vida = Math.max(0, this.vida - quantidade);
+    // Modo mais fácil: todo dano vale a metade (arredondado para cima, então nunca zera)
+    this.vida = Math.max(0, this.vida - Math.ceil(quantidade / 2));
     this.invulneravelAte = this.cena.time.now + 1200;
     this.controleTravadoAte = this.cena.time.now + 260;
     const lado = this.x >= origemX ? 1 : -1;

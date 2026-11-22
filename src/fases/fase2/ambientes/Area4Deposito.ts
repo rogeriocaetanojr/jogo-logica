@@ -154,7 +154,7 @@ export class Area4Deposito extends AreaPorto {
       const y = yPrateleira(n);
       const c = cena.add.sprite(x, y, 'pb-console-vermelho', 0).setOrigin(0.5, 1).setScale(ESCALA).setDepth(PROF.npcs);
       c.play('pb-anim-console-vermelho');
-      cena.interativo(x, y - 50, '[E] PAINEL DE SPRINKLERS (DESAFIO 3)', () => this.abrirPainel(), () => !this.modelo.concluido);
+      cena.interativo(x, y - 50, '[E] PAINEL DE SPRINKLERS (DESAFIO)', () => this.abrirPainel(), () => !this.modelo.concluido);
       cena.gatilho(0, 1280, () => cena.registrarCheckpoint(x, y - 48, `CHECKPOINT: PRATELEIRA ${n}`), y - 120, y);
     }
     cena.gatilho(0, 1280, () => cena.falar(FALAS.desafio3Intro, undefined, 'a4-d3-intro'), yPrateleira(2) - 100, yPrateleira(2) + 10);
@@ -184,7 +184,7 @@ export class Area4Deposito extends AreaPorto {
     cena.solido(vaoX1, PISO_ARENA, 1280 - vaoX1, 32);
     cena.solido(vaoX0, PISO_ARENA, vaoX1 - vaoX0, 32, true);
     this.criarEntradaDaArena();
-    texturaPortao(cena, 'pb-a4-saida', 'TERMINAL');
+    texturaPortao(cena, 'pb-a4-saida', 'TORRE');
     this.portaSaida = cena.imagem('pb-a4-saida', 1180, PISO_ARENA, PROF.estruturas);
     this.portaSaida.setFrame(cena.estado.minibossDerrotado ? 1 : 0);
     if (!cena.estado.minibossDerrotado) {
@@ -336,7 +336,7 @@ export class Area4Deposito extends AreaPorto {
   /* ---------------- Desafio 3 ---------------- */
 
   private abrirPainel(): void {
-    this.cena.abrirDesafio('vetor', this.modelo, 'PAINEL DE SPRINKLERS // DEPÓSITO DE PNEUS // DESAFIO 3: VETORES E ÍNDICES', [
+    this.cena.abrirDesafio('vetor', this.modelo, 'PAINEL DE SPRINKLERS // DEPÓSITO DE PNEUS // DESAFIO: VETORES E ÍNDICES', [
       'Prateleiras com placas de 1 a 8. As válvulas vão de valvula[0] a valvula[7].',
     ]);
   }

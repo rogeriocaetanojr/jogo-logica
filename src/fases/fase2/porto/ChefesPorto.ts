@@ -8,7 +8,7 @@ import { IndicadorTecla } from './IndicadorTecla';
  * MINIBOSS — BORRACHÃO.EXE
  * Montanha de pneus em chamas com um vírus no centro (olho verde). Rola de um lado
  * ao outro, quica nas paredes e cospe borracha em brasa. Espuma esfria os pneus e
- * faz ele parar 3 s, mostrando o núcleo: patch no núcleo. 4 ciclos.
+ * faz ele parar 3 s, mostrando o núcleo: patch no núcleo. 3 ciclos.
  * ========================================================================= */
 
 export function gerarTexturasBorrachao(cena: Phaser.Scene): void {
@@ -47,8 +47,11 @@ export function gerarTexturasBorrachao(cena: Phaser.Scene): void {
   }
 }
 
+/** Vida do BORRACHÃO.EXE: 8 patches no núcleo (até 3 por vez que ele esfria). */
+const VIDA_BORRACHAO = 8;
+
 export class Borrachao {
-  public vida = 12;
+  public vida = VIDA_BORRACHAO;
   public derrotado = false;
   public ativo = false;
   private readonly cena: CenaFase2;
@@ -91,7 +94,7 @@ export class Borrachao {
 
   iniciar(): void {
     this.ativo = true;
-    this.cena.hud.mostrarChefe('BORRACHÃO.EXE', 12);
+    this.cena.hud.mostrarChefe('BORRACHÃO.EXE', VIDA_BORRACHAO);
   }
 
   atualizar(tempo: number, delta: number): void {

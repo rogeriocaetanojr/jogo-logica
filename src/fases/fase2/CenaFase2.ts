@@ -30,13 +30,15 @@ import {
   AREAS,
   CARGAS_EXTINTOR,
   ESPUMA_MAXIMA,
+  ROTEIRO_AREAS,
+  TOTAL_FOCOS,
   VIDAS_INICIAIS,
   apagarProgresso,
-  carregarProgresso,
   clonarEstado,
   criarEstadoInicial,
+  etapaDoRoteiro,
   indiceFumaca,
-  salvarProgresso,
+  proximaArea,
 } from './porto/TiposPorto';
 import type { EstadoPorto } from './porto/TiposPorto';
 import type { AreaPorto } from './ambientes/AreaBase';
@@ -68,13 +70,14 @@ interface Coletavel {
 interface DadosCenaPorto {
   area?: number;
   estado?: EstadoPorto;
+  /** Aviso mostrado logo depois do cartão da área (ex.: item recebido na transição). */
+  aviso?: string;
 }
 
 /**
  * CenaFase2: PORTO BUGADO (cidade de Bug).
- * O operador atravessa 6 ambientes do porto, resolve 4 desafios de estruturas de dados
- * (Pilha, Fila, Vetores e índices, Ordenação), vence o BORRACHÃO.EXE e o KRAKEN.EXE
- * e desconecta o servidor central do MegaBrain.
+ * Versão curta: Portaria → Cais da Fila → Depósito de Pneus (BORRACHÃO.EXE) → Torre (KRAKEN.EXE),
+ * conforme ROTEIRO_AREAS. Toda entrada na fase vinda de fora (Hub, atalho) começa na Portaria.
  */
 export class CenaFase2 extends CenaBase {
   public estado!: EstadoPorto;
@@ -99,7 +102,7 @@ export class CenaFase2 extends CenaBase {
 
   private indiceArea = 0;
   private estadoEntrada!: EstadoPorto;
-  private continuouDoSave = false;
+  private avisoEntrada = '';
   private interativos: Interativo[] = [];
   private gatilhos: Gatilho[] = [];
   private coletaveis: Coletavel[] = [];
@@ -112,27 +115,26 @@ export class CenaFase2 extends CenaBase {
   private desafioAberto: DesafioPorto | null = null;
   private teclas!: Record<string, Phaser.Input.Keyboard.Key>;
   private ajuda!: AjudaPorto;
-  private inicioCena = 0;
 
   constructor() {
     super('CenaFase2', 'fase2');
   }
 
   override init(dados?: DadosCenaPorto): void {
-    this.continuouDoSave = false;
+    // Só as trocas internas (próxima área, fim de jogo) mandam `estado`. Vindo do Hub, a partida
+    // sempre começa do zero.
     if (dados?.estado) {
       this.estado = clonarEstado(dados.estado);
       this.indiceArea = dados.area ?? this.estado.area;
     } else {
-      const salvo = carregarProgresso();
-      if (salvo && salvo.area > 0 && salvo.area < AREAS.length) {
-        this.estado = salvo;
-        this.continuouDoSave = true;
-      } else {
-        this.estado = criarEstadoInicial();
-      }
-      this.indiceArea = dados?.area ?? this.estado.area;
+      apagarProgresso();
+      this.estado = criarEstadoInicial();
+      this.indiceArea = dados?.area ?? ROTEIRO_AREAS[0];
     }
+    this.avisoEntrada = dados?.aviso ?? '';
+    // O Phaser guarda os dados do último start/restart e os reaproveita num start sem dados (como o
+    // do Hub): sem esta limpeza, sair e voltar reabriria a fase na área em que o jogador estava.
+    this.sys.settings.data = {};
     this.estado.area = Phaser.Math.Clamp(this.indiceArea, 0, AREAS.length - 1);
     this.indiceArea = this.estado.area;
     this.agua = null;
@@ -155,8 +157,6 @@ export class CenaFase2 extends CenaBase {
     const tipo = GerenciadorEstado.obterPersonagem();
     this.nomeOperador = tipo === 'reis' ? 'Reis' : 'Alvares';
     this.estadoEntrada = clonarEstado(this.estado);
-    salvarProgresso(this.estado);
-    this.inicioCena = this.time.now;
 
     this.efeitos = new EfeitosPorto(this);
     this.som = new SomPorto(this);
@@ -209,9 +209,10 @@ export class CenaFase2 extends CenaBase {
     this.efeitos.cinzas(indiceFumaca(this.estado) / 100, this.area.noite);
 
     const info = AREAS[this.indiceArea];
-    this.hud.cartaoArea(info.numero, info.nome, info.subtitulo);
-    if (this.continuouDoSave) {
-      this.time.delayedCall(2600, () => this.hud.aviso(`PROGRESSO RESTAURADO: ÁREA ${info.numero}  ·  [N] RECOMEÇA DO INÍCIO`, COR.telaBoia, 4500));
+    this.hud.cartaoArea(etapaDoRoteiro(this.indiceArea) + 1, info.nome, info.subtitulo);
+    if (this.avisoEntrada) {
+      const aviso = this.avisoEntrada;
+      this.time.delayedCall(2600, () => this.hud.aviso(aviso, COR.espuma, 4500));
     }
     this.som.iniciarAmbiente(this.area.volumeOndas, this.area.volumeFogo);
     MusicaPorto.iniciar();
@@ -255,7 +256,6 @@ export class CenaFase2 extends CenaBase {
       E: K.E,
       Q: K.Q,
       F: K.F,
-      N: K.N,
       H: K.H,
     };
     this.teclas = {};
@@ -545,7 +545,7 @@ export class CenaFase2 extends CenaBase {
   aoApagarFoco(foco: FocoIncendio): void {
     if (foco.id && !this.estado.focosApagados.includes(foco.id)) {
       this.estado.focosApagados.push(foco.id);
-      this.hud.aviso(`FOCO APAGADO! ÍNDICE DE FUMAÇA: ${indiceFumaca(this.estado)}%  (${this.estado.focosApagados.length}/12)`, COR.espuma);
+      this.hud.aviso(`FOCO APAGADO! ÍNDICE DE FUMAÇA: ${indiceFumaca(this.estado)}%  (${this.estado.focosApagados.length}/${TOTAL_FOCOS})`, COR.espuma);
       this.nevoa.setAlpha(0.32 * (indiceFumaca(this.estado) / 100));
     }
     this.area.aoApagarFoco(foco);
@@ -586,24 +586,30 @@ export class CenaFase2 extends CenaBase {
     this.hud.aviso(texto, COR.telaBoia, 1500);
   }
 
-  /** Avança para a próxima área (ou conclui a fase após a torre). */
+  /** Avança para a próxima área do roteiro (ou conclui a fase após a torre). */
   concluirArea(): void {
     if (this.transicionando) return;
     this.transicionando = true;
     this.terminal.fecharForcado();
-    const proxima = this.indiceArea + 1;
-    if (proxima >= AREAS.length) {
+    const proxima = proximaArea(this.indiceArea);
+    if (proxima < 0) {
       this.concluirFaseAtual();
-      apagarProgresso();
       this.cameras.main.fade(900, 0, 0, 0);
       this.time.delayedCall(950, () => this.scene.start('CenaHub'));
       return;
     }
     const estado = clonarEstado(this.estado);
     estado.area = proxima;
-    salvarProgresso(estado);
+    let aviso: string | undefined;
+    // O Canhão de Espuma era o prêmio do Pátio das Pilhas, que saiu do roteiro: chega junto com o Cais
+    if (!estado.temCanhao && proxima > 1) {
+      estado.temCanhao = true;
+      estado.espuma = ESPUMA_MAXIMA;
+      estado.desafios[0] = true;
+      aviso = 'CANHÃO DE ESPUMA RECEBIDO! [K] DISPARA ESPUMA  ·  RECARGA NOS HIDRANTES [E]';
+    }
     this.cameras.main.fade(600, 0, 0, 0);
-    this.time.delayedCall(650, () => this.scene.restart({ area: proxima, estado }));
+    this.time.delayedCall(650, () => this.scene.restart({ area: proxima, estado, aviso }));
   }
 
   /** Desliga a névoa de fundo (final) */
@@ -661,11 +667,6 @@ export class CenaFase2 extends CenaBase {
       if (this.jogador.y > this.area.altura + 60 && !this.jogador.morto) {
         this.jogador.receberDano(2, this.jogador.x);
         if (!this.jogador.morto) this.jogador.posicionar(this.checkpoint.x, this.checkpoint.y);
-      }
-      if (Phaser.Input.Keyboard.JustDown(this.teclas.N) && this.continuouDoSave && tempo - this.inicioCena < 15000) {
-        apagarProgresso();
-        this.scene.restart({ area: 0, estado: criarEstadoInicial() });
-        return;
       }
     }
 

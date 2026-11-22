@@ -52,7 +52,7 @@ export const FALAS = {
     ['boia', 'Calma, {nome}. Todo porto tem uma ordem. A gente só precisa descobrir qual.'],
     ['boia', 'Eu sou a BOIA, robô de sinalização do cais. O MegaBrain infectou o PORTUS, a IA que organizava o porto. Os guindastes soltaram contêineres sozinhos e tombaram carretas de petróleo do lado do depósito de pneus.'],
     ['boia', 'O fogo se espalhou pelo óleo e a fumaça preta tomou tudo. Nosso objetivo: chegar à torre do servidor central, no meio da baía, e desconectar o MegaBrain.'],
-    ['boia', 'Cada foco de incêndio apagado tira 5% do ÍNDICE DE FUMAÇA lá em cima. Quanto menor o índice, mais clara vai estar a torre quando a gente chegar.'],
+    ['boia', 'Cada foco de incêndio apagado baixa o ÍNDICE DE FUMAÇA lá em cima. Quanto menor o índice, mais clara vai estar a torre quando a gente chegar.'],
   ] as Array<[Falante, string]>,
   capitao: [
     ['capitao', 'Rapaz, isso não é jeito de atracar! Foi o tal MegaBrain: entrou pelo PORTUS feito rato em porão.'],
@@ -60,13 +60,13 @@ export const FALAS = {
     ['capitao', 'Toma esse extintor da guarita. Três jatos, nem um a mais. Mire na base do fogo, não nas labaredas.'],
     ['boia', 'Aperte [K] para usar o extintor e [J] para a Pistola de Patch, que conserta os vírus na marra.'],
   ] as Array<[Falante, string]>,
-  capitaoDepois: [['capitao', 'Ainda aqui, rapaz? O fogo não espera maré boa. Siga para o Pátio das Pilhas!']] as Array<[Falante, string]>,
+  capitaoDepois: [['capitao', 'Ainda aqui, rapaz? O fogo não espera maré boa. Siga para o Cais da Fila!']] as Array<[Falante, string]>,
   primeiroFogo: [
     ['boia', 'Foco de incêndio bloqueando a pista! Chegue perto e use o extintor [K].'],
   ] as Array<[Falante, string]>,
   oleo: [['boia', 'Cuidado com as poças de óleo: o chão fica escorregadio e qualquer chama acende tudo.']] as Array<[Falante, string]>,
   fimPortaria: [
-    ['boia', 'O Pátio das Pilhas fica logo depois do portão. O PORTUS guardava um Canhão de Espuma num contêiner de emergência por lá.'],
+    ['boia', 'O Cais da Fila fica logo depois do portão. O PORTUS guardava um Canhão de Espuma de emergência: vou liberar ele para você no caminho.'],
   ] as Array<[Falante, string]>,
 
   patioEntrada: [
@@ -114,7 +114,7 @@ export const FALAS = {
     ['megabrain', 'BORRACHÃO.EXE, esmague esse operador. Pneu queimando não negocia.'],
     ['boia', 'Um jato de espuma esfria os pneus e faz ele parar por 3 segundos, mostrando o núcleo. Aí é patch no olho verde!'],
   ] as Array<[Falante, string]>,
-  minibossFim: [['boia', 'BORRACHÃO.EXE desligado! Os pneus estão apagando e a fumaça do depósito baixou. Para o Terminal de Combustível!']] as Array<[Falante, string]>,
+  minibossFim: [['boia', 'BORRACHÃO.EXE desligado! Os pneus estão apagando e a fumaça do depósito baixou. Agora é a Torre do servidor central!']] as Array<[Falante, string]>,
 
   terminalEntrada: [
     ['boia', 'As carretas de petróleo tombadas estão vazando, e o fogo vem correndo pelo óleo do chão, atrás da gente. CORRA!'],

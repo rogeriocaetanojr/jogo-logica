@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import type { CenaFase2 } from '../CenaFase2';
 import { COR, ESCALA, hexNum, larguraTexto, texturaPixel } from './ArtePorto';
 import { PROF } from './EfeitosPorto';
-import { AREAS, ESPUMA_MAXIMA, VIDA_MAXIMA, indiceFumaca } from './TiposPorto';
+import { AREAS, ESPUMA_MAXIMA, ROTEIRO_AREAS, VIDA_MAXIMA, etapaDoRoteiro, indiceFumaca } from './TiposPorto';
 
 const FONTE = 'Consolas, "Courier New", monospace';
 
@@ -167,7 +167,7 @@ export class HudPorto {
     // Painel direito: moldura (o medidor em si é redesenhado por desenharIndice)
     this.painel(g, 1264 - 300, 44, 300, 78);
     const info = AREAS[estado.area] ?? AREAS[0];
-    this.textoArea.setText(`ÁREA ${info.numero}/6 · ${info.nome}`);
+    this.textoArea.setText(`ÁREA ${etapaDoRoteiro(estado.area) + 1}/${ROTEIRO_AREAS.length} · ${info.nome}`);
     this.desenharIndice();
   }
 
@@ -188,7 +188,7 @@ export class HudPorto {
     );
     g.fillStyle(Phaser.Display.Color.GetColor(cor.r, cor.g, cor.b), 1);
     g.fillRect(barraX + 2, 76, Math.round(((barraW - 4) * indice) / 100), 10);
-    // Marca do mínimo possível (todos os 12 focos apagados = 40%)
+    // Marca do mínimo possível (todos os focos apagados = 40%)
     g.fillStyle(hexNum(COR.virus), 0.8);
     g.fillRect(barraX + 2 + Math.round((barraW - 4) * 0.4), 72, 2, 18);
     this.textoIndiceValor.setText(`${Math.round(indice)}%`);
@@ -247,7 +247,7 @@ export class HudPorto {
 
   /** Cartão de título da área (letras em pixel art). */
   cartaoArea(numero: number, nome: string, subtitulo: string): void {
-    const chave = `pb-titulo-area-${numero}`;
+    const chave = `pb-titulo-area-${numero}-${nome}`;
     const linha1 = `AREA ${numero}`;
     const w = Math.max(larguraTexto(nome, 2), larguraTexto(linha1)) + 8;
     texturaPixel(this.cena, chave, w, 22, (p) => {

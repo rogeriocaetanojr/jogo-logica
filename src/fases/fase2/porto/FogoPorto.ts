@@ -6,7 +6,7 @@ import { PROF } from './EfeitosPorto';
 export type TamanhoFoco = 'p' | 'm' | 'g';
 
 export interface OpcoesFoco {
-  /** Identificador único: focos com id entram na contagem dos 12 focos do Índice de Fumaça. */
+  /** Identificador único: focos com id entram na contagem dos focos do Índice de Fumaça. */
   id?: string;
   x: number;
   /** Linha da base das chamas (chão). */
